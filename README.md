@@ -86,7 +86,33 @@ Fatos centrais:
 - `supplier_quote_submitted.v1`: registra a cotação aceita, linhas, preços em centavos, total, prazo e validade.
 - `rfq_closed.v1`: registra o fechamento da RFQ.
 
-`ListSupplierQuotes` lê os fatos relevantes e materializa a resposta em memória a cada chamada. É proposital para manter o exemplo pequeno e inspecionável; com alto volume, latência estrita ou grande histórico, introduza uma projeção persistida atualizada por `stream_to_durable` do FACTSTR e mantenha o cursor e a projeção na mesma fronteira de durabilidade.
+`ListSupplierQuotes` continua mostrando a consulta direta ao log para manter explícita a semântica Event Sourcing. Para consultas de resumo, esta branch também implementa a projeção persistida `rfq_summary_projection`, atualizada pelo stream durável `rfq-summary-projection-v1` do FACTSTR. A projeção é um read model derivado, não uma segunda fonte de verdade.
+
+### Projeção de leitura `rfq_summary_projection`
+
+A migration da aplicação está em [`migrations/202610240001_rfq_summary_projection.sql`](migrations/202610240001_rfq_summary_projection.sql). Ao iniciar, a aplicação executa a migration e registra `stream_to_durable` para `rfq_opened.v1`, `rfq_closed.v1` e `supplier_quote_submitted.v1`. O FACTSTR reprocessa o histórico não consumido e depois entrega novos fatos ao handler da projeção.
+
+A projeção materializa, por RFQ, referência, moeda, status (`open`/`closed`), datas de abertura/fechamento, quantidade de itens, quantidade de cotações, menor total cotado em centavos, fornecedor da menor cotação, última sequência de evento aplicada e timestamp da projeção.
+
+Endpoints de leitura:
+
+- `GET /api/rfqs/{rfq_id}/summary`: resumo de uma RFQ.
+- `GET /api/rfqs/summaries?status=open&limit=50&offset=0`: lista paginada, opcionalmente filtrada por `open` ou `closed`. `limit` aceita de 1 a 100; `offset` deve ser zero ou maior.
+
+Exemplo:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/rfqs/11111111-1111-4111-8111-111111111111/summary
+curl -sS 'http://127.0.0.1:3000/api/rfqs/summaries?status=open&limit=20&offset=0'
+```
+
+**Consistência:** a projeção é eventualmente consistente. Um `POST` pode retornar depois de o fato ter sido confirmado no Event Store e antes de o consumidor materializar o resumo. Um `GET` por ID pode retornar `404 rfq_summary_not_found` nesse intervalo; clientes que precisam do read-after-write devem repetir a consulta com backoff curto até a projeção alcançar o fato. As capacidades de comando continuam lendo o contexto autoritativo do FACTSTR e usam `append_if`/CCC; nenhuma decisão de negócio depende do status da projeção.
+
+**Atomicidade e replay:** todos os fatos de um lote entregue são aplicados em uma transação PostgreSQL na projeção. O cursor durável do FACTSTR é avançado depois de o handler terminar com sucesso; a tabela de projeção mantém `last_event_sequence` por RFQ e só aplica sequências mais novas. Assim, se a projeção fizer commit e o processo cair antes de o cursor avançar, a reentrega do mesmo lote não incrementa duas vezes `quote_count`. Erros no handler são registrados e não devem avançar o cursor; a operação pode ser retomada quando a aplicação reiniciar. A inicialização atual faz o replay pendente antes de começar a servir HTTP, por isso uma reconstrução grande pode aumentar o tempo de startup.
+
+**Reconstrução operacional:** pare a aplicação antes de apagar os dados da projeção e o cursor correspondente. Para reconstruir o read model desde o começo, preserve o Event Store e execute no banco correto `TRUNCATE TABLE rfq_summary_projection; DELETE FROM durable_stream_cursors WHERE durable_stream_id = 'rfq-summary-projection-v1';`, então reinicie a aplicação. Não apague `events`, `append_batches` ou `store_metadata`. Em produção, prefira um procedimento operacional versionado e validado para esse rebuild.
+
+O teste de aceitação `acceptance_rfq_summary_projection_tracks_open_quote_close_and_paginated_reads` percorre o ciclo HTTP de abertura, registro/elegibilidade do fornecedor, submissão de cotação e fechamento, aguardando a projeção convergir. O teste `replaying_the_same_fact_batch_does_not_double_count_quotes` verifica idempotência quando um lote já aplicado é entregue novamente.
 
 ## Como a RPU de SubmitSupplierQuote aplica CCC
 
@@ -121,9 +147,10 @@ O teste de concorrência HTTP é um teste de aceitação útil, mas não deve se
 
 ### Comandos de teste
 
-O Docker precisa estar ativo. Na raiz do projeto:
+O Docker precisa estar ativo para os testes que iniciam PostgreSQL via Testcontainers. Na raiz do projeto, regenere o lockfile depois de alterar dependências e então rode:
 
 ```bash
+cargo generate-lockfile
 cargo fmt --all -- --check
 cargo test --lib
 cargo test --test acceptance_api
@@ -131,7 +158,7 @@ cargo test
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-Para rodar apenas a prova determinística:
+`cargo test --lib` inclui o teste de idempotência da projeção com PostgreSQL Testcontainers; portanto, também requer Docker. Para rodar apenas a prova determinística de CCC:
 
 ```bash
 cargo test --test acceptance_api ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_fact -- --nocapture
@@ -193,6 +220,15 @@ Consulte as cotações:
 curl -sS http://127.0.0.1:3000/api/rfqs/11111111-1111-4111-8111-111111111111/quotes
 ```
 
+Consulte o resumo derivado e uma lista filtrada/paginada:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/rfqs/11111111-1111-4111-8111-111111111111/summary
+curl -sS 'http://127.0.0.1:3000/api/rfqs/summaries?status=open&limit=20&offset=0'
+```
+
+Como a projeção é eventualmente consistente, um resumo pode não estar disponível imediatamente após uma gravação. A API de comando confirma a escrita no Event Store; o consumidor durável atualiza o read model em seguida.
+
 Contrato OpenAPI: [`docs/openapi.yaml`](docs/openapi.yaml). A decisão arquitetural, escopos CCC e limites do backend estão em [`docs/architecture-event-sourcing-factstr.md`](docs/architecture-event-sourcing-factstr.md).
 
 ## Comparar com a implementação relacional
@@ -204,9 +240,9 @@ Compare as implementações com `git diff main...event-sourcing-factstr` ou alte
 
 ## Limites conhecidos e trade-offs
 
-- A consulta refaz a leitura/fold dos fatos a cada pedido; ainda não existe projeção materializada nem snapshots.
+- `ListSupplierQuotes` ainda refaz a leitura/fold dos fatos da RFQ a cada pedido. `rfq_summary_projection` materializa apenas os resumos e não substitui a necessidade de avaliar projeções específicas para outras consultas.
 - O Event Store tem sequência global. O isolamento lógico do CCC depende de filtros/predicados corretos; filtros largos demais geram conflitos desnecessários, e filtros estreitos demais podem permitir decisões inválidas. A identidade do fornecedor é um fato separado e sua referência natural não pode ser renomeada neste exemplo; caso o domínio precise de renomeação, represente-a com uma capability/fato específico e defina a semântica de unicidade para o histórico.
 - **Trade-off da implementação PostgreSQL atual do FACTSTR:** a versão `factstr-postgres 0.5.2` serializa appends obtendo `LOCK TABLE events, append_batches IN EXCLUSIVE MODE` e, em seguida, revalida o contexto filtrado. Portanto, o `append_if` oferece a garantia CCC correta, mas append throughput pode ser limitado pela serialização global do backend; o filtro de contexto evita conflitos semânticos entre comandos independentes, mas não elimina esse gargalo físico. Ver [implementação `append_if_with_pool` e `lock_events_tables`](https://github.com/ricofritzsche/factstr/blob/main/factstr-postgres/src/postgres_store.rs). Reavalie esse comportamento conforme a versão usada e meça throughput/latência antes de assumir alta concorrência.
 - Todos os contratos de evento são JSON versionado por nome. Evoluções futuras precisam de uma política de compatibilidade e replay.
 - Não há idempotency key para repetições de rede. A regra “uma cotação por RFQ/fornecedor” é protegida pela query de contexto e `append_if`, não por uma tabela unique da aplicação.
-- O exemplo usa estado atual por replay em memória; não deve ser tratado como arquitetura de alta escala sem medições e projeções.
+- O resumo da RFQ é uma projeção eventualmente consistente; as capacidades de comando continuam lendo o Event Store. A implementação não deve ser tratada como arquitetura de alta escala sem benchmarks end-to-end e medição do atraso dos consumidores.

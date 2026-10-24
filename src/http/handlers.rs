@@ -1,10 +1,10 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -202,6 +202,68 @@ pub async fn close_rfq(State(state): State<AppState>, Path(rfq_id): Path<Uuid>) 
             error_response(status, code, rejection.to_string())
         }
         Ok(Err(CloseRfqError::Store(message))) => internal_error(message),
+        Err(error) => internal_error(error.to_string()),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RfqSummaryListQuery {
+    pub status: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+pub async fn get_rfq_summary(State(state): State<AppState>, Path(rfq_id): Path<Uuid>) -> Response {
+    match state.rfq_summary_projection.get(rfq_id).await {
+        Ok(Some(summary)) => (StatusCode::OK, Json(summary)).into_response(),
+        Ok(None) => error_response(
+            StatusCode::NOT_FOUND,
+            "rfq_summary_not_found",
+            "RFQ summary is not available in the read projection yet; retry if the RFQ was just created",
+        ),
+        Err(error) => internal_error(error.to_string()),
+    }
+}
+
+pub async fn list_rfq_summaries(
+    State(state): State<AppState>,
+    Query(query): Query<RfqSummaryListQuery>,
+) -> Response {
+    let limit = query.limit.unwrap_or(50);
+    let offset = query.offset.unwrap_or(0);
+    if !(1..=100).contains(&limit) {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_limit",
+            "limit must be between 1 and 100",
+        );
+    }
+    if offset < 0 {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_offset",
+            "offset must be zero or greater",
+        );
+    }
+    let status = match query.status.as_deref() {
+        None => None,
+        Some("open") => Some("open"),
+        Some("closed") => Some("closed"),
+        Some(_) => {
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "invalid_status",
+                "status must be either open or closed",
+            );
+        }
+    };
+
+    match state
+        .rfq_summary_projection
+        .list(status, limit, offset)
+        .await
+    {
+        Ok(page) => (StatusCode::OK, Json(page)).into_response(),
         Err(error) => internal_error(error.to_string()),
     }
 }
