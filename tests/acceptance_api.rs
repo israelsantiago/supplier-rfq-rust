@@ -971,8 +971,20 @@ async fn acceptance_rfq_summary_projection_tracks_open_quote_close_and_paginated
         .send()
         .await
         .expect("list summary request must complete");
-    assert_eq!(page_response.status(), StatusCode::OK);
-    let page: Value = page_response.json().await.unwrap();
+    let page_status = page_response.status();
+    let page_body = page_response
+        .text()
+        .await
+        .expect("summary list response body must be readable");
+
+    assert_eq!(
+        page_status,
+        StatusCode::OK,
+        "GET /api/rfqs/summaries failed: status={page_status}, body={page_body}"
+    );
+
+    let page: Value =
+        serde_json::from_str(&page_body).expect("summary list endpoint must return valid JSON");
     assert_eq!(page["total"], 1);
     assert_eq!(page["items"].as_array().unwrap().len(), 1);
     assert_eq!(page["items"][0]["rfq_id"], rfq_id.to_string());
