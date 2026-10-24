@@ -12,6 +12,8 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(handlers::health))
         .route("/api/rfqs", post(handlers::open_rfq))
+        .route("/api/rfqs/summaries", get(handlers::list_rfq_summaries))
+        .route("/api/rfqs/{rfq_id}/summary", get(handlers::get_rfq_summary))
         .route("/api/suppliers", post(handlers::register_supplier))
         .route("/api/rfqs/{rfq_id}/close", post(handlers::close_rfq))
         .route(

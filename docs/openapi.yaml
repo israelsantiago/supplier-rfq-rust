@@ -76,6 +76,54 @@ paths:
           $ref: '#/components/responses/Conflict'
         '422':
           $ref: '#/components/responses/Unprocessable'
+  /api/rfqs/summaries:
+    get:
+      summary: ListRfqSummaries — consulta a projeção paginada de RFQs
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [open, closed]
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Página de resumos materializados; a projeção é eventualmente consistente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RfqSummaryPage'
+        '400':
+          description: Filtro, limit ou offset inválido.
+  /api/rfqs/{rfq_id}/summary:
+    get:
+      summary: GetRfqSummary — consulta o resumo materializado de uma RFQ
+      parameters:
+        - $ref: '#/components/parameters/RfqId'
+      responses:
+        '200':
+          description: Resumo da RFQ derivado do log de eventos.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RfqSummary'
+        '404':
+          description: Resumo ainda não materializado ou RFQ inexistente; a projeção é eventualmente consistente.
   /api/rfqs/{rfq_id}/quotes:
     post:
       summary: SubmitSupplierQuote — valida e registra a cotação com append_if
@@ -168,6 +216,59 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
   schemas:
+    RfqSummary:
+      type: object
+      required: [rfq_id, reference, currency, status, opened_at, item_count, quote_count, last_event_sequence, projected_at]
+      properties:
+        rfq_id:
+          type: string
+          format: uuid
+        reference:
+          type: string
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [open, closed]
+        opened_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: [string, 'null']
+          format: date-time
+        item_count:
+          type: integer
+        quote_count:
+          type: integer
+          format: int64
+        lowest_quote_amount_cents:
+          type: [integer, 'null']
+          format: int64
+          description: Menor total cotado, em centavos da moeda da RFQ.
+        lowest_quote_supplier_id:
+          type: [string, 'null']
+          format: uuid
+        last_event_sequence:
+          type: integer
+          format: int64
+        projected_at:
+          type: string
+          format: date-time
+    RfqSummaryPage:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RfqSummary'
+        total:
+          type: integer
+          format: int64
+        limit:
+          type: integer
+        offset:
+          type: integer
     Error:
       type: object
       required: [code, message]

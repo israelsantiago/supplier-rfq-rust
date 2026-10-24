@@ -7,7 +7,7 @@ Baseline: relational implementation on branch `main`
 
 Keep `main` unchanged as a comparison baseline. Implement this variant with a FACTSTR-backed append-only fact log in PostgreSQL. The application does not write its own domain tables: FACTSTR owns the event-store schema and exposes `query`, `append`, and `append_if` through `factstr::EventStore`.
 
-This is a reference implementation for one RFQ lifecycle, not a production procurement platform. It intentionally keeps the read model simple and reconstructs the quote list from facts. A high-volume implementation should add a maintained projection and measure it independently.
+This is a reference implementation for one RFQ lifecycle, not a production procurement platform. `ListSupplierQuotes` still reconstructs quotes from facts; the `rfq_summary_projection` read model supports RFQ summary/list queries. A high-volume implementation must benchmark the projection and its consumer independently.
 
 ## Domain Capabilities / RPUs
 
@@ -62,6 +62,14 @@ FACTSTR `0.5.2` implements its PostgreSQL append path by acquiring an exclusive 
 
 The application deliberately does not add a second homegrown lock/transaction protocol around FACTSTR. If throughput becomes a concern, benchmark end-to-end append latency and concurrency, then consider the store implementation's locking strategy rather than bypassing `append_if`.
 
+## RFQ summary read projection
+
+This branch also maintains an application-owned PostgreSQL read model in `rfq_summary_projection` (migration `migrations/202610240001_rfq_summary_projection.sql`). It is updated from a durable FACTSTR stream named `rfq-summary-projection-v1`, filtered to `rfq_opened.v1`, `rfq_closed.v1`, and `supplier_quote_submitted.v1`.
+
+The event log remains authoritative. The projection is eventually consistent and serves `GET /api/rfqs/{rfq_id}/summary` and the paginated/filterable `GET /api/rfqs/summaries` endpoint. Commands still reconstruct their decision context from FACTSTR and call `append_if`; the projection is never used to authorize a command.
+
+Each delivered FACTSTR batch is applied in a PostgreSQL transaction. `last_event_sequence` makes updates idempotent if a process crashes after committing the projection transaction but before FACTSTR persists its durable cursor. Projection rebuild must stop the application, truncate `rfq_summary_projection`, delete only the cursor `rfq-summary-projection-v1` from `durable_stream_cursors`, and restart; the authoritative `events` table must not be deleted.
+
 ## Tests and why they are structured this way
 
 ### Functional Core tests
@@ -99,3 +107,4 @@ git switch event-sourcing-factstr
 - [FACTSTR core concepts](https://github.com/ricofritzsche/factstr/blob/main/docs/core-concepts.md)
 - [FACTSTR PostgreSQL append implementation](https://github.com/ricofritzsche/factstr/blob/main/factstr-postgres/src/postgres_store.rs)
 - [FACTSTR Tool Rental example](https://github.com/ricofritzsche/factstr-tool-rental-example)
+
