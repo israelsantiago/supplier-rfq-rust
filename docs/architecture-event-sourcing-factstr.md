@@ -1,0 +1,101 @@
+# Architecture decision — Event Sourcing with FACTSTR
+
+Status: reference implementation on branch `event-sourcing-factstr`
+Baseline: relational implementation on branch `main`
+
+## Decision
+
+Keep `main` unchanged as a comparison baseline. Implement this variant with a FACTSTR-backed append-only fact log in PostgreSQL. The application does not write its own domain tables: FACTSTR owns the event-store schema and exposes `query`, `append`, and `append_if` through `factstr::EventStore`.
+
+This is a reference implementation for one RFQ lifecycle, not a production procurement platform. It intentionally keeps the read model simple and reconstructs the quote list from facts. A high-volume implementation should add a maintained projection and measure it independently.
+
+## Domain Capabilities / RPUs
+
+| Capability / RPU | Intent | Context consistency boundary | Fact written |
+|---|---|---|---|
+| `OpenRfq` | Open an RFQ with fixed requested items | RFQ ID **or** RFQ reference | `rfq_opened.v1` |
+| `RegisterSupplier` | Register supplier identity and its natural reference | Supplier ID **or** supplier reference | `supplier_registered.v1` |
+| `SetSupplierEligibility` | Register/change supplier eligibility | Supplier registration and eligibility history for supplier ID | `supplier_eligibility_changed.v1` |
+| `SubmitSupplierQuote` | Validate and submit one supplier's quote for an RFQ | RFQ opened/closed state, supplier registration and eligibility, and existing quote for the RFQ/supplier pair | `supplier_quote_submitted.v1` |
+| `CloseRfq` | Close an open RFQ | RFQ opened/closed state | `rfq_closed.v1` |
+| `ListSupplierQuotes` | Read the quote view | Read only; no append | None |
+
+Each command RPU owns its request, context interpretation, decision, and conditional append. The `Functional Core` receives explicit values and returns either a rejection or a fact to be recorded. The `Imperative Shell` uses FACTSTR to read and append.
+
+## Facts and versioning
+
+Fact type names are versioned (`*.v1`). Facts are immutable; corrections should be represented by new facts, not updates to old ones. The current implementation records:
+
+- `rfq_opened.v1`: RFQ identity, currency and all required items; items are immutable in this reference flow.
+- `supplier_registered.v1`: supplier identity, immutable natural reference and display name.
+- `supplier_eligibility_changed.v1`: only the eligibility status change. The latest matching fact determines current eligibility.
+- `supplier_quote_submitted.v1`: accepted quote, line prices, line totals, overall total, delivery time and validity.
+- `rfq_closed.v1`: RFQ closure.
+
+Currency and money are validated without floating-point arithmetic. Money is stored as integer minor units (centavos).
+
+## Command Context Consistency (CCC)
+
+The process is:
+
+1. Build a `EventQuery` for all facts that can invalidate the command's decision.
+2. Query the store and interpret the matching facts in sequence order.
+3. Make the decision from that explicit context.
+4. Call `append_if(facts, context_query, current_context_version)`.
+5. If the command context changed, append nothing. Re-read once where helpful to return a current business rejection (e.g. duplicate quote or closed RFQ); otherwise return `command_context_changed`.
+
+FACTSTR has one global, monotonically increasing sequence. `current_context_version` is the latest sequence number among facts matching the full context query; it is **not** the same as `last_returned_sequence_number` when a read cursor is applied. The EventQuery API combines filters as alternatives, and payload predicates within a filter are also alternatives. Therefore, the exact scope of the query is business logic, not merely a performance tuning detail.
+
+### Contexts chosen by this implementation
+
+- `OpenRfq`: `rfq_opened.v1` matching the requested `rfq_id` **or** the normalized `reference`. This provides an atomic CCC boundary for both identifier uniqueness and natural-reference uniqueness.
+- `RegisterSupplier`: `supplier_registered.v1` matching the requested `supplier_id` **or** natural `reference`. This protects both identities atomically against duplicates.
+- `SetSupplierEligibility`: the registration fact and all eligibility facts matching `supplier_id`. Eligibility cannot be changed before the supplier is registered. Supplier reference is immutable in this reference implementation; if the domain must allow reference changes, it needs an explicit capability/fact and defined historical uniqueness semantics.
+- `SubmitSupplierQuote`: facts matching one of: the RFQ's opening fact, closure fact, registration and eligibility history for the given supplier, or an existing quote for that RFQ/supplier pair. A quote for supplier A does not alter supplier B's quote context.
+- `CloseRfq`: the RFQ's opening/closure facts. A close fact invalidates a quote decision prepared against the open state.
+
+Too-broad contexts create false conflicts; too-narrow contexts can allow invalid decisions. When adding business rules, update the RPU's context query and add a stale-context test.
+
+## Storage/concurrency trade-offs
+
+FACTSTR `0.5.2` implements its PostgreSQL append path by acquiring an exclusive table lock on `events` and `append_batches`, then evaluating the conditional context and appending the batch. This is a sound backend-level serialization mechanism for the current contract, but it can limit write throughput globally even when two commands have disjoint logical contexts. Logical CCC independence does not imply physically parallel writes in this backend implementation.
+
+The application deliberately does not add a second homegrown lock/transaction protocol around FACTSTR. If throughput becomes a concern, benchmark end-to-end append latency and concurrency, then consider the store implementation's locking strategy rather than bypassing `append_if`.
+
+## Tests and why they are structured this way
+
+### Functional Core tests
+
+Unit tests in `submit_supplier_quote/decision.rs` test calculations and rejection rules using explicitly constructed requests and contexts. They should not need PostgreSQL, HTTP or mocks.
+
+### REST acceptance tests
+
+`tests/acceptance_api.rs` launches a disposable PostgreSQL 16 container, connects FACTSTR to that database, starts Axum on an ephemeral port and sends HTTP requests. It verifies facts via FACTSTR queries rather than reaching into FACTSTR's private tables.
+
+### Concurrency and CCC
+
+`ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_fact` creates two distinct `PostgresStore` instances, which have independent worker threads/connections. Both RPUs read and prepare a quote from the same context version. A barrier releases their `append_if` calls only after the shared snapshot precondition has been asserted. Exactly one append succeeds; the stale conditional append conflicts; precisely one quote fact remains. This test is deterministic in the important sense that both writes carry the same expected context version; the barrier itself does not guarantee that their SQL statements begin at the exact same nanosecond.
+
+`ccc_supplier_eligibility_change_invalidates_a_prepared_quote` prepares an eligible quote, appends a later blocked-eligibility fact through another store instance, and proves that the old quote cannot append. `ccc_independent_supplier_contexts_commit_without_false_conflict` proves that one supplier's quote does not logically invalidate another supplier's quote context. HTTP-level duplicate and close/submission tests cover status mapping and end-to-end behavior but are not the primary proof of database concurrency; a single `PostgresStore` instance queues operations on its own worker thread.
+
+## Branch comparison
+
+```bash
+# Inspect the event-sourced implementation from main
+git diff main...event-sourcing-factstr
+
+# Compare by changing branches
+git switch main
+git switch event-sourcing-factstr
+```
+
+`main` keeps the relational tables, SQLx Application State and row/constraint-based CCC. `event-sourcing-factstr` keeps the same procurement slice but makes the append-only fact log authoritative and uses FACTSTR's `append_if` for command context consistency. Supplier registration and setting eligibility are separate Domain Capabilities on this branch.
+
+## References
+
+- [Rico Fritzsche — Request Processing Units](https://architecture.ricofritzsche.me/concepts/request-processing-units/)
+- [Rico Fritzsche — Command Context Consistency](https://architecture.ricofritzsche.me/concepts/command-context-consistency/)
+- [Rico Fritzsche — FACTSTR repository](https://github.com/ricofritzsche/factstr)
+- [FACTSTR core concepts](https://github.com/ricofritzsche/factstr/blob/main/docs/core-concepts.md)
+- [FACTSTR PostgreSQL append implementation](https://github.com/ricofritzsche/factstr/blob/main/factstr-postgres/src/postgres_store.rs)
+- [FACTSTR Tool Rental example](https://github.com/ricofritzsche/factstr-tool-rental-example)

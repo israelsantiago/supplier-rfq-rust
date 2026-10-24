@@ -1,27 +1,34 @@
-use std::{env, net::SocketAddr};
+use std::{env, error::Error};
 
-use supplier_rfq_rpu::{app, application_state::AppState, database};
+use factstr_postgres::PostgresStore;
+use supplier_rfq_rpu_rust::{app, application_state::AppState};
+use tokio::net::TcpListener;
+use tracing::{error, info};
 use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), Box<dyn Error>> {
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt()
         .with_env_filter(
-            EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| EnvFilter::new("info,tower_http=info")),
+            EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")),
         )
         .init();
 
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let bind_addr: SocketAddr = env::var("BIND_ADDR")
-        .unwrap_or_else(|_| "127.0.0.1:3000".to_owned())
-        .parse()?;
-    let pool = database::connect(&database_url).await?;
-    database::migrate(&pool).await?;
+    let database_url =
+        env::var("DATABASE_URL").map_err(|_| std::io::Error::other("DATABASE_URL must be set"))?;
+    let bind_address = env::var("BIND_ADDRESS").unwrap_or_else(|_| "127.0.0.1:3000".to_owned());
 
-    let listener = tokio::net::TcpListener::bind(bind_addr).await?;
-    tracing::info!(address = %listener.local_addr()?, "REST API listening");
-    axum::serve(listener, app::router(AppState::new(pool))).await?;
+    info!("connecting to FACTSTR/PostgreSQL Application State");
+    let store =
+        tokio::task::spawn_blocking(move || PostgresStore::connect(&database_url)).await??;
+    let app = app::router(AppState::new(store));
+    let listener = TcpListener::bind(&bind_address).await?;
+    info!(address = %listener.local_addr()?, "Supplier RFQ API listening");
+
+    if let Err(error) = axum::serve(listener, app).await {
+        error!(%error, "HTTP server stopped");
+        return Err(error.into());
+    }
     Ok(())
 }

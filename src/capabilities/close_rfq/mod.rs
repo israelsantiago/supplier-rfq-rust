@@ -1,71 +1,87 @@
-//! Close RFQ is a command capability and has its own RPU.
-use chrono::Utc;
-use serde::Serialize;
+//! Domain Capability / RPU: CloseRfq.
+
+use factstr::{EventFilter, EventQuery, EventStore, EventStoreError, NewEvent};
+use serde_json::{json, to_value};
+use thiserror::Error;
 use uuid::Uuid;
 
-use crate::application_state::AppState;
+use crate::facts::{RFQ_CLOSED_V1, RFQ_OPENED_V1, RfqClosedFact, RfqOpenedFact};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum CloseRfqRejection {
+    #[error("RFQ was not found")]
     RfqNotFound,
-    RfqNotOpen,
+    #[error("RFQ is already closed")]
     RfqAlreadyClosed,
+    #[error("RFQ context changed concurrently; retry the command")]
+    CommandContextChanged,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CloseRfqOutcome {
-    Closed {
-        rfq_id: Uuid,
-        closed_at: chrono::DateTime<Utc>,
-    },
-    Rejected(CloseRfqRejection),
-}
-
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Error)]
 pub enum CloseRfqError {
-    #[error("database error: {0}")]
-    Database(#[from] sqlx::Error),
-    #[error("invalid stored RFQ status: {0}")]
-    InvalidStoredStatus(String),
+    #[error(transparent)]
+    Rejected(#[from] CloseRfqRejection),
+    #[error("event store error: {0}")]
+    Store(String),
 }
 
-/// RPU: UPDATE lock on the RFQ is mutually exclusive with SubmitSupplierQuote's FOR SHARE lock.
-pub async fn process(rfq_id: Uuid, state: &AppState) -> Result<CloseRfqOutcome, CloseRfqError> {
-    let mut tx = state.pool.begin().await?;
-    let status: Option<String> =
-        sqlx::query_scalar("SELECT status FROM rfqs WHERE id = $1 FOR UPDATE")
-            .bind(rfq_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-    let Some(status) = status else {
-        tx.rollback().await?;
-        return Ok(CloseRfqOutcome::Rejected(CloseRfqRejection::RfqNotFound));
-    };
-    match status.as_str() {
-        "draft" => {
-            tx.rollback().await?;
-            return Ok(CloseRfqOutcome::Rejected(CloseRfqRejection::RfqNotOpen));
+pub fn process(store: &impl EventStore, rfq_id: Uuid) -> Result<RfqClosedFact, CloseRfqError> {
+    let query = EventQuery::all().with_filters([
+        EventFilter::for_event_types([RFQ_OPENED_V1])
+            .with_payload_predicates([json!({ "rfq_id": rfq_id })]),
+        EventFilter::for_event_types([RFQ_CLOSED_V1])
+            .with_payload_predicates([json!({ "rfq_id": rfq_id })]),
+    ]);
+
+    for attempt in 0..2 {
+        let result = store
+            .query(&query)
+            .map_err(|error| CloseRfqError::Store(error.to_string()))?;
+        let mut opened = false;
+        let mut closed = false;
+        for record in &result.event_records {
+            match record.event_type.as_str() {
+                RFQ_OPENED_V1 => {
+                    let _fact: RfqOpenedFact = serde_json::from_value(record.payload.clone())
+                        .map_err(|error| {
+                            CloseRfqError::Store(format!("invalid RFQ opened fact: {error}"))
+                        })?;
+                    opened = true;
+                }
+                RFQ_CLOSED_V1 => {
+                    let _fact: RfqClosedFact = serde_json::from_value(record.payload.clone())
+                        .map_err(|error| {
+                            CloseRfqError::Store(format!("invalid RFQ closed fact: {error}"))
+                        })?;
+                    closed = true;
+                }
+                _ => {}
+            }
         }
-        "closed" => {
-            tx.rollback().await?;
-            return Ok(CloseRfqOutcome::Rejected(
-                CloseRfqRejection::RfqAlreadyClosed,
-            ));
+        if !opened {
+            return Err(CloseRfqRejection::RfqNotFound.into());
         }
-        "open" => {}
-        _ => {
-            tx.rollback().await?;
-            return Err(CloseRfqError::InvalidStoredStatus(status));
+        if closed {
+            return Err(CloseRfqRejection::RfqAlreadyClosed.into());
+        }
+
+        let fact = RfqClosedFact {
+            rfq_id,
+            closed_at: chrono::Utc::now(),
+        };
+        let event = NewEvent::new(
+            RFQ_CLOSED_V1,
+            to_value(&fact).map_err(|error| CloseRfqError::Store(error.to_string()))?,
+        );
+        match store.append_if(vec![event], &query, result.current_context_version) {
+            Ok(_) => return Ok(fact),
+            Err(EventStoreError::ConditionalAppendConflict { .. }) if attempt == 0 => continue,
+            Err(EventStoreError::ConditionalAppendConflict { .. }) => {
+                return Err(CloseRfqRejection::CommandContextChanged.into());
+            }
+            Err(error) => return Err(CloseRfqError::Store(error.to_string())),
         }
     }
 
-    let closed_at = Utc::now();
-    sqlx::query("UPDATE rfqs SET status = 'closed', closed_at = $2 WHERE id = $1")
-        .bind(rfq_id)
-        .bind(closed_at)
-        .execute(&mut *tx)
-        .await?;
-    tx.commit().await?;
-    Ok(CloseRfqOutcome::Closed { rfq_id, closed_at })
+    Err(CloseRfqRejection::CommandContextChanged.into())
 }

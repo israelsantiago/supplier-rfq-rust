@@ -2,148 +2,221 @@ use axum::{
     Json,
     extract::{Path, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{IntoResponse, Response},
 };
 use serde::Serialize;
+use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
     application_state::AppState,
     capabilities::{
-        close_rfq::{self, CloseRfqOutcome, CloseRfqRejection},
+        close_rfq::{self, CloseRfqError, CloseRfqRejection},
         list_supplier_quotes,
+        open_rfq::{self, OpenRfqError, OpenRfqRequest},
+        register_supplier::{self, RegisterSupplierError, RegisterSupplierRequest},
+        set_supplier_eligibility::{
+            self, SetSupplierEligibilityError, SetSupplierEligibilityRequest,
+        },
         submit_supplier_quote::{
-            process,
-            request::SubmitSupplierQuote,
-            result::{QuoteSubmitted, SubmissionRejection, SubmitSupplierQuoteOutcome},
+            self, PrepareError, SubmissionRejection, SubmitSupplierQuoteRequest,
         },
     },
 };
 
-#[derive(Debug, Serialize)]
-pub struct ApiError {
-    pub code: String,
-    pub message: String,
+#[derive(Serialize)]
+struct ErrorBody {
+    code: &'static str,
+    message: String,
 }
 
-fn business_error(code: &str, message: &str, status: StatusCode) -> impl IntoResponse {
+fn error_response(status: StatusCode, code: &'static str, message: impl Into<String>) -> Response {
     (
         status,
-        Json(ApiError {
-            code: code.to_owned(),
-            message: message.to_owned(),
+        Json(ErrorBody {
+            code,
+            message: message.into(),
         }),
     )
+        .into_response()
 }
 
-fn quote_json(quote: QuoteSubmitted) -> impl IntoResponse {
-    (
-        StatusCode::CREATED,
-        Json(serde_json::json!({
-            "quote_id": quote.id,
-            "rfq_id": quote.rfq_id,
-            "supplier_id": quote.supplier_id,
-            "currency": quote.currency,
-            "total_amount_cents": quote.total_amount_cents,
-            "delivery_days": quote.delivery_days,
-            "valid_until": quote.valid_until,
-            "submitted_at": quote.submitted_at,
-            "items": quote.items.iter().zip(&quote.line_totals_cents).map(|(item, line_total_cents)| serde_json::json!({
-                "rfq_item_id": item.rfq_item_id,
-                "quantity": item.quantity,
-                "unit_price_cents": item.unit_price_cents,
-                "line_total_cents": line_total_cents,
-            })).collect::<Vec<_>>(),
-        })),
-    )
+fn internal_error(message: impl Into<String>) -> Response {
+    error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", message)
+}
+
+pub async fn health() -> impl IntoResponse {
+    Json(json!({ "status": "ok", "application_state": "factstr_postgres" }))
+}
+
+pub async fn open_rfq(
+    State(state): State<AppState>,
+    Json(request): Json<OpenRfqRequest>,
+) -> Response {
+    let store = state.store.clone();
+    match tokio::task::spawn_blocking(move || open_rfq::process(store.as_ref(), request)).await {
+        Ok(Ok(fact)) => (StatusCode::CREATED, Json(fact)).into_response(),
+        Ok(Err(error)) => match error {
+            OpenRfqError::InvalidInput(message) => {
+                error_response(StatusCode::UNPROCESSABLE_ENTITY, "invalid_rfq", message)
+            }
+            OpenRfqError::AlreadyExists => error_response(
+                StatusCode::CONFLICT,
+                "rfq_already_exists",
+                "an RFQ with this identifier already exists",
+            ),
+            OpenRfqError::ReferenceAlreadyExists => error_response(
+                StatusCode::CONFLICT,
+                "rfq_reference_already_exists",
+                "an RFQ with this reference already exists",
+            ),
+            OpenRfqError::ContextChanged => error_response(
+                StatusCode::CONFLICT,
+                "command_context_changed",
+                "the RFQ identity context changed concurrently; retry the command",
+            ),
+            OpenRfqError::Store(message) => internal_error(message),
+        },
+        Err(error) => internal_error(error.to_string()),
+    }
+}
+
+pub async fn register_supplier(
+    State(state): State<AppState>,
+    Json(request): Json<RegisterSupplierRequest>,
+) -> Response {
+    let store = state.store.clone();
+    match tokio::task::spawn_blocking(move || register_supplier::process(store.as_ref(), request))
+        .await
+    {
+        Ok(Ok(fact)) => (StatusCode::CREATED, Json(fact)).into_response(),
+        Ok(Err(error)) => match error {
+            RegisterSupplierError::InvalidInput(message) => error_response(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "invalid_supplier",
+                message,
+            ),
+            RegisterSupplierError::AlreadyExists => error_response(
+                StatusCode::CONFLICT,
+                "supplier_already_exists",
+                "a supplier with this identifier already exists",
+            ),
+            RegisterSupplierError::ReferenceAlreadyExists => error_response(
+                StatusCode::CONFLICT,
+                "supplier_reference_already_exists",
+                "a supplier with this reference already exists",
+            ),
+            RegisterSupplierError::ContextChanged => error_response(
+                StatusCode::CONFLICT,
+                "command_context_changed",
+                "supplier identity context changed concurrently; retry the command",
+            ),
+            RegisterSupplierError::Store(message) => internal_error(message),
+        },
+        Err(error) => internal_error(error.to_string()),
+    }
+}
+
+pub async fn set_supplier_eligibility(
+    State(state): State<AppState>,
+    Path(supplier_id): Path<Uuid>,
+    Json(request): Json<SetSupplierEligibilityRequest>,
+) -> Response {
+    let store = state.store.clone();
+    match tokio::task::spawn_blocking(move || {
+        set_supplier_eligibility::process(store.as_ref(), supplier_id, request)
+    })
+    .await
+    {
+        Ok(Ok(fact)) => (StatusCode::OK, Json(fact)).into_response(),
+        Ok(Err(error)) => match error {
+            SetSupplierEligibilityError::SupplierNotRegistered => error_response(
+                StatusCode::NOT_FOUND,
+                "supplier_not_registered",
+                "supplier must be registered before setting eligibility",
+            ),
+            SetSupplierEligibilityError::ContextChanged => error_response(
+                StatusCode::CONFLICT,
+                "command_context_changed",
+                "supplier eligibility context changed concurrently; retry the command",
+            ),
+            SetSupplierEligibilityError::Store(message) => internal_error(message),
+        },
+        Err(error) => internal_error(error.to_string()),
+    }
 }
 
 pub async fn submit_supplier_quote(
     State(state): State<AppState>,
     Path(rfq_id): Path<Uuid>,
-    Json(request): Json<SubmitSupplierQuote>,
-) -> impl IntoResponse {
-    match process::process(rfq_id, request, &state).await {
-        Ok(SubmitSupplierQuoteOutcome::Accepted(quote)) => quote_json(quote).into_response(),
-        Ok(SubmitSupplierQuoteOutcome::Rejected(rejection)) => {
-            submission_rejection(rejection).into_response()
-        }
-        Err(error) => {
-            tracing::error!(error = %error, rfq_id = %rfq_id, "SubmitSupplierQuote RPU failed");
-            business_error(
-                "internal_error",
-                "The request could not be processed.",
-                StatusCode::INTERNAL_SERVER_ERROR,
-            )
-            .into_response()
-        }
+    Json(request): Json<SubmitSupplierQuoteRequest>,
+) -> Response {
+    let store = state.store.clone();
+    match tokio::task::spawn_blocking(move || {
+        submit_supplier_quote::process(store.as_ref(), rfq_id, request)
+    })
+    .await
+    {
+        Ok(Ok(quote)) => (StatusCode::CREATED, Json(quote)).into_response(),
+        Ok(Err(PrepareError::Rejected(rejection))) => submission_rejection(rejection),
+        Ok(Err(PrepareError::Store(message))) => internal_error(message),
+        Err(error) => internal_error(error.to_string()),
     }
 }
 
-fn submission_rejection(rejection: SubmissionRejection) -> impl IntoResponse {
-    business_error(
-        rejection.code(),
-        rejection.message(),
-        rejection.http_status(),
-    )
+fn submission_rejection(rejection: SubmissionRejection) -> Response {
+    use SubmissionRejection as R;
+    let (status, code) = match &rejection {
+        R::RfqNotFound => (StatusCode::NOT_FOUND, "rfq_not_found"),
+        R::SupplierNotRegistered => (StatusCode::NOT_FOUND, "supplier_not_registered"),
+        R::SupplierEligibilityNotSet => (StatusCode::CONFLICT, "supplier_eligibility_not_set"),
+        R::RfqClosed => (StatusCode::CONFLICT, "rfq_closed"),
+        R::SupplierNotEligible => (StatusCode::CONFLICT, "supplier_not_eligible"),
+        R::DuplicateSupplierQuote => (StatusCode::CONFLICT, "duplicate_supplier_quote"),
+        R::CommandContextChanged => (StatusCode::CONFLICT, "command_context_changed"),
+        R::CurrencyMismatch => (StatusCode::UNPROCESSABLE_ENTITY, "currency_mismatch"),
+        R::InvalidDeliveryDays => (StatusCode::UNPROCESSABLE_ENTITY, "invalid_delivery_days"),
+        R::ValidityInPast => (StatusCode::UNPROCESSABLE_ENTITY, "validity_in_past"),
+        R::EmptyQuote => (StatusCode::UNPROCESSABLE_ENTITY, "empty_quote"),
+        R::DuplicateQuotedItem => (StatusCode::UNPROCESSABLE_ENTITY, "duplicate_quoted_item"),
+        R::ItemSetMismatch => (StatusCode::UNPROCESSABLE_ENTITY, "item_set_mismatch"),
+        R::QuantityMismatch => (StatusCode::UNPROCESSABLE_ENTITY, "quantity_mismatch"),
+        R::InvalidUnitPrice => (StatusCode::UNPROCESSABLE_ENTITY, "invalid_unit_price"),
+        R::AmountOverflow => (StatusCode::UNPROCESSABLE_ENTITY, "amount_overflow"),
+    };
+    error_response(status, code, rejection.to_string())
 }
 
-pub async fn close_rfq(
-    State(state): State<AppState>,
-    Path(rfq_id): Path<Uuid>,
-) -> impl IntoResponse {
-    match close_rfq::process(rfq_id, &state).await {
-        Ok(CloseRfqOutcome::Closed { rfq_id, closed_at }) => (
-            StatusCode::OK,
-            Json(
-                serde_json::json!({ "rfq_id": rfq_id, "status": "closed", "closed_at": closed_at }),
-            ),
-        )
-            .into_response(),
-        Ok(CloseRfqOutcome::Rejected(CloseRfqRejection::RfqNotFound)) => {
-            business_error("rfq_not_found", "RFQ was not found.", StatusCode::NOT_FOUND)
-                .into_response()
+pub async fn close_rfq(State(state): State<AppState>, Path(rfq_id): Path<Uuid>) -> Response {
+    let store = state.store.clone();
+    match tokio::task::spawn_blocking(move || close_rfq::process(store.as_ref(), rfq_id)).await {
+        Ok(Ok(fact)) => (StatusCode::OK, Json(fact)).into_response(),
+        Ok(Err(CloseRfqError::Rejected(rejection))) => {
+            let (status, code) = match &rejection {
+                CloseRfqRejection::RfqNotFound => (StatusCode::NOT_FOUND, "rfq_not_found"),
+                CloseRfqRejection::RfqAlreadyClosed => (StatusCode::CONFLICT, "rfq_already_closed"),
+                CloseRfqRejection::CommandContextChanged => {
+                    (StatusCode::CONFLICT, "command_context_changed")
+                }
+            };
+            error_response(status, code, rejection.to_string())
         }
-        Ok(CloseRfqOutcome::Rejected(CloseRfqRejection::RfqNotOpen)) => business_error(
-            "rfq_not_open",
-            "Only an open RFQ can be closed.",
-            StatusCode::CONFLICT,
-        )
-        .into_response(),
-        Ok(CloseRfqOutcome::Rejected(CloseRfqRejection::RfqAlreadyClosed)) => business_error(
-            "rfq_already_closed",
-            "The RFQ is already closed.",
-            StatusCode::CONFLICT,
-        )
-        .into_response(),
-        Err(error) => {
-            tracing::error!(error = %error, rfq_id = %rfq_id, "CloseRfq RPU failed");
-            business_error(
-                "internal_error",
-                "The request could not be processed.",
-                StatusCode::INTERNAL_SERVER_ERROR,
-            )
-            .into_response()
-        }
+        Ok(Err(CloseRfqError::Store(message))) => internal_error(message),
+        Err(error) => internal_error(error.to_string()),
     }
 }
 
 pub async fn list_supplier_quotes(
     State(state): State<AppState>,
     Path(rfq_id): Path<Uuid>,
-) -> impl IntoResponse {
-    match list_supplier_quotes::process(rfq_id, &state).await {
-        Ok(Some(quotes)) => (StatusCode::OK, Json(quotes)).into_response(),
-        Ok(None) => business_error("rfq_not_found", "RFQ was not found.", StatusCode::NOT_FOUND)
-            .into_response(),
-        Err(error) => {
-            tracing::error!(error = %error, rfq_id = %rfq_id, "ListSupplierQuotes query failed");
-            business_error(
-                "internal_error",
-                "The request could not be processed.",
-                StatusCode::INTERNAL_SERVER_ERROR,
-            )
-            .into_response()
-        }
+) -> Response {
+    let store = state.store.clone();
+    match tokio::task::spawn_blocking(move || list_supplier_quotes::process(store.as_ref(), rfq_id))
+        .await
+    {
+        Ok(Ok(Some(quotes))) => (StatusCode::OK, Json(json!({ "quotes": quotes }))).into_response(),
+        Ok(Ok(None)) => error_response(StatusCode::NOT_FOUND, "rfq_not_found", "RFQ was not found"),
+        Ok(Err(error)) => internal_error(error.to_string()),
+        Err(error) => internal_error(error.to_string()),
     }
 }

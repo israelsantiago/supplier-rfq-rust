@@ -13,6 +13,7 @@ services:
       timeout: 3s
       retries: 20
     volumes:
-      - supplier-rfq-data:/var/lib/postgresql/data
+      - supplier-rfq-factstr-data:/var/lib/postgresql/data
+
 volumes:
-  supplier-rfq-data:
+  supplier-rfq-factstr-data:

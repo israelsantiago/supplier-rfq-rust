@@ -1,300 +1,212 @@
-# Supplier RFQ — Domain Capabilities / RPU / CCC em Rust
+# Supplier RFQ — Domain Capabilities / RPU / CCC + Event Sourcing + FACTSTR
 
-Implementação de referência para **Submeter Cotação de Fornecedor** no domínio de Supply Chain, com API REST, PostgreSQL e testes de aceitação/concorrência usando Testcontainers. A nomenclatura segue a abordagem pública de Rico Fritzsche: Domain Capability, Request Processing Unit (RPU), Application State, Functional Core / Imperative Shell e Command Context Consistency (CCC).
+Implementação de referência em Rust de um pequeno fluxo de **Supply Chain / Request for Quotation (RFQ)**. Esta branch adiciona Event Sourcing com [FACTSTR](https://github.com/ricofritzsche/factstr) à implementação original relacional, preservada na branch `main` para estudo e comparação.
 
-> **Escopo:** exemplo técnico educacional, não solução de procurement pronta para produção. Não inclui autenticação/autorização, portal de fornecedores, assinatura de documentos, anexos, impostos, workflow de aprovação, seleção multicritério, idempotência HTTP ou auditoria LGPD completa.
+> **Escopo educacional:** não é uma solução de procurement pronta para produção. Não inclui autenticação/autorização, anexos de documentos, impostos, workflow de aprovação, seleção multicritério, idempotência HTTP ou uma projeção persistida para consultas de alto volume.
 
-## Stack verificada nas páginas oficiais em 23/10/2026
+## Stack
 
-- [Axum 0.8.9](https://docs.rs/crate/axum/latest): roteamento HTTP e extractors; integração com Tokio/Tower.
-- [SQLx 0.9.0](https://docs.rs/crate/sqlx/latest): acesso assíncrono ao PostgreSQL e migrations.
-- [PostgreSQL 16](https://www.postgresql.org/docs/16/): transações, locks e constraints.
-- [Testcontainers Modules 0.15.0](https://docs.rs/crate/testcontainers-modules/latest): PostgreSQL descartável em testes de integração.
+- [Rust stable](https://www.rust-lang.org/tools/install)
+- [Axum 0.8.9](https://docs.rs/axum/latest/axum/) para a API REST
+- [FACTSTR 0.5.2](https://github.com/ricofritzsche/factstr) + [factstr-postgres 0.5.2](https://github.com/ricofritzsche/factstr/tree/main/factstr-postgres) para o Event Store e `append_if`
+- [PostgreSQL 16](https://www.postgresql.org/docs/16/)
+- [Testcontainers Modules 0.15.0](https://docs.rs/testcontainers-modules/latest/testcontainers_modules/) para testes de integração com PostgreSQL real
 
-## Nomenclatura e arquitetura
+## Visão arquitetural
 
 ```mermaid
 flowchart TD
-  Client["Fornecedor / API client"] --> REST["Axum REST boundary"]
-  REST --> Submit["SubmitSupplierQuote capability"]
-  REST --> Close["CloseRfq capability"]
-  REST --> Query["ListSupplierQuotes query capability"]
+    Client["Fornecedor / cliente REST"] --> Delivery["API REST: Axum"]
 
-  subgraph SubmitRPU["SubmitSupplierQuote — Request Processing Unit"]
-    Load["Load Application State<br/>inside PostgreSQL transaction"]
-    Decide["Functional Core<br/>request + context snapshot → decision"]
-    Record["Record accepted domain result"]
-    Load --> Decide --> Record
-  end
+    Delivery --> OpenRead["OpenRfq: query do contexto"]
+    OpenRead --> OpenDecision["OpenRfq: Functional Core"]
+    OpenDecision --> OpenAppend["OpenRfq: append_if"]
 
-  Submit --> SubmitRPU
-  Close --> CloseRPU["CloseRfq RPU<br/>lock RFQ, update status, commit"]
-  SubmitRPU <--> DB[("PostgreSQL Application State")]
-  CloseRPU <--> DB
-  Query --> DB
+    Delivery --> RegisterRead["RegisterSupplier: query do contexto"]
+    RegisterRead --> RegisterDecision["RegisterSupplier: Functional Core"]
+    RegisterDecision --> RegisterAppend["RegisterSupplier: append_if"]
+
+    Delivery --> EligibilityRead["SetSupplierEligibility: query do contexto"]
+    EligibilityRead --> EligibilityDecision["SetSupplierEligibility: Functional Core"]
+    EligibilityDecision --> EligibilityAppend["SetSupplierEligibility: append_if"]
+
+    Delivery --> QuoteRead["SubmitSupplierQuote: query do contexto"]
+    QuoteRead --> QuoteDecision["SubmitSupplierQuote: Functional Core"]
+    QuoteDecision --> QuoteAppend["SubmitSupplierQuote: append_if"]
+
+    Delivery --> CloseRead["CloseRfq: query do contexto"]
+    CloseRead --> CloseDecision["CloseRfq: Functional Core"]
+    CloseDecision --> CloseAppend["CloseRfq: append_if"]
+
+    Delivery --> Query["ListSupplierQuotes: Query"]
+    OpenAppend --> Store[("FACTSTR / PostgreSQL")]
+    RegisterAppend --> Store
+    EligibilityAppend --> Store
+    QuoteAppend --> Store
+    CloseAppend --> Store
+    Query --> Store
 ```
 
-### Domain Capability: `SubmitSupplierQuote`
+O diagrama descreve o princípio de composição. Na implementação, cada Domain Capability tem a sua própria RPU e a sua própria query de contexto; elas não compartilham uma decisão de negócio genérica.
 
-Recebe um comando com fornecedor, moeda, prazo, validade e itens ofertados. A capacidade decide se a cotação pode ser aceita, registra o resultado e devolve um resultado de negócio nomeado. O fluxo não é um `SupplierQuoteService` genérico e não delega a regra a um repositório compartilhado.
+## Nomenclatura (Rico Fritzsche)
 
-### Request Processing Unit (RPU)
+- **Domain Capability:** uma coisa que o domínio pode fazer, um Command ou Query.
+- **Request Processing Unit (RPU):** unidade que implementa o caminho completo do pedido até a resposta para uma capability.
+- **Functional Core / Imperative Shell:** decisão pura sobre uma entrada e um contexto explícito; a shell faz consultas ao Event Store, serialização e I/O.
+- **Application State:** fatos autorizados que representam o estado do domínio. Nesta branch, o registro autoritativo é o log append-only administrado por FACTSTR.
+- **Command Context Consistency (CCC):** a decisão só pode ser registrada se o contexto de fatos em que ela se baseou continuar na versão esperada. É aplicado com `EventStore::append_if`.
+- **FACTSTR:** contrato de Event Store para fatos append-only, consultas de contexto, append condicional e streams.
 
-O módulo `capabilities/submit_supplier_quote/process.rs` é a RPU. Ele possui o ciclo completo do comando:
+Referências: [Architecture Knowledge Base — conceitos](https://architecture.ricofritzsche.me/concepts/), [Request Processing Units](https://architecture.ricofritzsche.me/concepts/request-processing-units/), [Command Context Consistency](https://architecture.ricofritzsche.me/concepts/command-context-consistency/), [FACTSTR](https://github.com/ricofritzsche/factstr), [exemplo Tool Rental de Rico](https://github.com/ricofritzsche/factstr-tool-rental-example).
 
-1. abre a transação PostgreSQL;
-2. carrega e protege o contexto do comando;
-3. chama a função pura `decision::decide`;
-4. se a decisão for rejeitada, faz rollback e devolve uma rejeição de negócio;
-5. se aceita, grava cotação e itens na mesma transação;
-6. converte conflito de unicidade esperado em rejeição de negócio;
-7. commita antes de responder `201 Created`.
+## Domain Capabilities implementadas
 
-O módulo `state_access.rs` contém SQL de propriedade da capacidade, mas **não** inicia, commita ou esconde a transação. A RPU é dona do limite transacional.
-
-### Application State
-
-PostgreSQL guarda o estado operacional atual: RFQs, itens solicitados, fornecedores homologados e cotações. O schema é infraestrutura compartilhada; o significado dos dados e sua interpretação permanecem nas Domain Capabilities. Este exemplo **não usa Event Sourcing nem FACTSTR**.
-
-### Functional Core / Imperative Shell
-
-`decision.rs` é puro: a entrada é o comando mais um snapshot explícito (`SubmitSupplierQuoteContext`), e a saída é uma cotação calculada ou uma rejeição nomeada. Não executa SQL, não consulta relógio global, não lê variáveis de ambiente e não faz I/O. O `now` e o identificador são fornecidos de fora para manter a decisão determinística.
-
-`process.rs`, `state_access.rs` e o handler HTTP formam a shell imperativa: coordenam transação, I/O e protocolo.
-
-### Command Context Consistency (CCC)
-
-CCC significa: **só registrar o resultado se os fatos em que a decisão se baseou ainda forem válidos no commit**. Não é uma biblioteca, aggregate, lock global genérico ou apenas optimistic locking; é uma obrigação de consistência que precisa ser garantida pelo mecanismo de armazenamento.
-
-Nesta implementação relacional:
-
-- a RPU lê `rfqs ... FOR SHARE`; `CloseRfq` usa `SELECT ... FOR UPDATE` antes de fechar. Os locks são incompatíveis, então fechar e submeter ficam ordenados pelo PostgreSQL;
-- a RPU lê o fornecedor com `FOR SHARE`, protegendo seu status de homologação durante a decisão;
-- os itens da RFQ são lidos `FOR SHARE`, mantendo a definição das quantidades usada no cálculo durante o processamento; um trigger bloqueia inserção/edição/exclusão dos itens depois que a RFQ sai de `draft`, protegendo também contra novos itens (phantoms) que não seriam protegidos por locks de linhas existentes;
-- `UNIQUE (rfq_id, supplier_id)` é a proteção correta para a regra “um fornecedor só pode apresentar uma cotação por RFQ”. Não é seguro fazer um `SELECT NOT EXISTS` e depois inserir: duas transações concorrentes poderiam observar a ausência ao mesmo tempo;
-- a violação da constraint `supplier_quotes_rfq_supplier_key` vira `duplicate_supplier_quote` (HTTP 409), pois é conflito de negócio esperado, não erro interno.
-
-A garantia da ausência de uma cotação prévia vem da **unique constraint**, enquanto a validade do status da RFQ vem da combinação de locks e transação. Em um Event Store, a realização de CCC seria diferente: versão do contexto e append condicional, como no contrato que FACTSTR implementa.
-
-```mermaid
-sequenceDiagram
-  participant A as SubmitSupplierQuote RPU
-  participant B as PostgreSQL
-  participant C as CloseRfq RPU
-  A->>B: Begin transaction
-  A->>B: Lock RFQ with FOR SHARE
-  C->>B: Begin transaction and request FOR UPDATE
-  A->>B: Lock supplier and RFQ items with FOR SHARE
-  A->>B: Insert quote and quote items
-  A->>B: Commit
-  B-->>C: Submit commits and releases the shared lock
-  C->>B: Read current status and set closed
-  C->>B: Commit
-```
-
-Se `CloseRfq` adquirir o lock primeiro, a submissão aguardará e, depois do commit, lerá `closed` e será rejeitada. Se a submissão adquirir o lock primeiro, ela poderá ser confirmada antes do fechamento; o fechamento aguardará e ocorrerá em seguida. Ambos os resultados são consistentes com a ordem de commit.
-
-## Capabilities e API REST
-
-| Capability | Tipo | Endpoint | Resultado |
+| Capability | Tipo | Endpoint | Fato produzido / resultado |
 |---|---|---|---|
-| `SubmitSupplierQuote` | Command | `POST /api/rfqs/{rfq_id}/quotes` | `201`, ou rejeição de negócio `404`/`409`/`422` |
-| `CloseRfq` | Command | `POST /api/rfqs/{rfq_id}/close` | `200`, `404` ou `409` |
-| `ListSupplierQuotes` | Query | `GET /api/rfqs/{rfq_id}/quotes` | `200` ou `404`; não muda estado |
-| Health | Infraestrutura | `GET /health` | `200 ok` |
+| `OpenRfq` | Command | `POST /api/rfqs` | `rfq_opened.v1` · `201` |
+| `RegisterSupplier` | Command | `POST /api/suppliers` | `supplier_registered.v1` · `201` |
+| `SetSupplierEligibility` | Command | `PUT /api/suppliers/{supplier_id}/eligibility` | `supplier_eligibility_changed.v1` · `200` |
+| `SubmitSupplierQuote` | Command | `POST /api/rfqs/{rfq_id}/quotes` | `supplier_quote_submitted.v1` · `201` |
+| `CloseRfq` | Command | `POST /api/rfqs/{rfq_id}/close` | `rfq_closed.v1` · `200` |
+| `ListSupplierQuotes` | Query | `GET /api/rfqs/{rfq_id}/quotes` | View derivada dos fatos · `200` |
+| Health | Infraestrutura | `GET /health` | `200` |
 
-Commands e Queries são capacidades distintas; `SubmitSupplierQuote` não chama `ListSupplierQuotes` para decidir, e a Query não altera o domínio.
+Os nomes dos fatos têm sufixo `.v1` para tornar explícita a versão do contrato de evento. Um evento já persistido não deve ser alterado; mudanças de contrato futuras precisam de uma estratégia explícita de versionamento/upcasting.
 
-### Exemplo de submissão
+## Estratégia de Application State e Event Sourcing
 
-Fixture do exemplo (`scripts/seed_demo.sql`):
+Esta branch não mantém tabelas de negócio `rfqs`, `rfq_items`, `suppliers` ou `supplier_quotes`. As operações autoritativas são fatos no Event Store do FACTSTR. O próprio FACTSTR gerencia suas tabelas internas; a aplicação não deve escrevê-las diretamente.
 
-- RFQ: `11111111-1111-4111-8111-111111111111` (`RFQ-DEMO-2026-001`)
-- fornecedor elegível: `22222222-2222-4222-8222-222222222222`
-- item A: `44444444-4444-4444-8444-444444444441`, quantidade 10
-- item B: `44444444-4444-4444-8444-444444444442`, quantidade 5
+Fatos centrais:
 
-```bash
-curl -i -X POST \
-  http://127.0.0.1:3000/api/rfqs/11111111-1111-4111-8111-111111111111/quotes \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "supplier_id":"22222222-2222-4222-8222-222222222222",
-    "currency":"BRL",
-    "delivery_days":7,
-    "valid_until":"2099-12-31",
-    "items":[
-      {"rfq_item_id":"44444444-4444-4444-8444-444444444441","quantity":10,"unit_price_cents":1250},
-      {"rfq_item_id":"44444444-4444-4444-8444-444444444442","quantity":5,"unit_price_cents":3000}
-    ]
-  }'
-```
+- `rfq_opened.v1`: abre a RFQ e carrega a lista imutável de itens, quantidades requeridas e moeda.
+- `supplier_registered.v1`: registra a identidade do fornecedor e sua referência natural. A identidade e a referência não são alteradas nesta referência.
+- `supplier_eligibility_changed.v1`: registra somente a mudança de status de elegibilidade; o status corrente é o último fato dessa capability para o fornecedor.
+- `supplier_quote_submitted.v1`: registra a cotação aceita, linhas, preços em centavos, total, prazo e validade.
+- `rfq_closed.v1`: registra o fechamento da RFQ.
 
-Cálculo esperado: `10 × R$ 12,50 + 5 × R$ 30,00 = R$ 275,00`, armazenado como `total_amount_cents: 27500`. Valores monetários usam unidades monetárias menores inteiras, nunca `f64`.
+`ListSupplierQuotes` lê os fatos relevantes e materializa a resposta em memória a cada chamada. É proposital para manter o exemplo pequeno e inspecionável; com alto volume, latência estrita ou grande histórico, introduza uma projeção persistida atualizada por `stream_to_durable` do FACTSTR e mantenha o cursor e a projeção na mesma fronteira de durabilidade.
 
-Para consultar:
+## Como a RPU de SubmitSupplierQuote aplica CCC
 
-```bash
-curl http://127.0.0.1:3000/api/rfqs/11111111-1111-4111-8111-111111111111/quotes
-```
+1. Constrói uma `EventQuery` com os fatos que influenciam esta decisão:
+   - `rfq_opened.v1` e `rfq_closed.v1` para a RFQ;
+   - alterações de elegibilidade para o fornecedor em questão;
+   - cotações anteriores somente para o par RFQ/fornecedor em questão.
+2. Executa `query` e recebe os eventos do contexto e `current_context_version`.
+3. Reconstrói o contexto mínimo, decide se a cotação pode ser aceita e calcula o total com inteiros (centavos), sem `f64`.
+4. Executa `append_if` com a query original e a versão observada. Se o contexto mudou, FACTSTR devolve `ConditionalAppendConflict`; nada é acrescentado por aquela tentativa.
+5. A RPU relê o contexto uma vez para transformar corridas comuns em uma rejeição de negócio atual (por exemplo, fornecedor duplicado ou RFQ fechada). Se continuar havendo conflito, devolve `command_context_changed`.
 
-Para fechar a RFQ (a partir desse ponto novas cotações são rejeitadas):
+**O escopo da query de contexto é parte da regra de consistência.** Uma nova cotação de outro fornecedor não corresponde ao filtro de `supplier_quote_submitted.v1` deste comando, evitando que toda cotação na RFQ invalide desnecessariamente as outras. O fato de fechamento, por outro lado, é parte do contexto de toda submissão daquela RFQ e invalida uma decisão que ainda tentava usar o estado aberto.
 
-```bash
-curl -i -X POST http://127.0.0.1:3000/api/rfqs/11111111-1111-4111-8111-111111111111/close
-```
+`OpenRfq`, `RegisterSupplier`, `SetSupplierEligibility` e `CloseRfq` também usam `append_if` nas suas respectivas queries de contexto. `OpenRfq` protege `rfq_id` e referência da RFQ; `RegisterSupplier` protege `supplier_id` e referência do fornecedor. A referência do fornecedor é imutável nesta versão; o status é um fato separado. Isso substitui, nesta variante, parte das garantias que na abordagem relacional seriam expressas por constraints `UNIQUE`: a consulta de contexto precisa incluir cada chave de negócio que exige unicidade. `SetSupplierEligibility` inclui o fato de registro e o histórico de elegibilidade daquele ID no seu contexto. A Query não altera Application State.
 
-A fixture do fornecedor bloqueado usa o ID `33333333-3333-4333-8333-333333333333`; sua submissão resulta em `409 supplier_not_eligible`.
+## Testes e raciocínio da estratégia de concorrência
 
-## Estrutura do código
+A suíte combina testes unitários, aceitação HTTP e provas de consistência sob cenários concorrentes:
 
-```text
-src/
-  app.rs
-  application_state.rs
-  database.rs
-  http/handlers.rs
-  capabilities/
-    submit_supplier_quote/
-      request.rs       # contrato de entrada
-      context.rs       # snapshot explícito de fatos
-      decision.rs      # Functional Core (puro)
-      result.rs        # resultado e rejeições de negócio
-      state_access.rs  # SQL específico da capability
-      process.rs       # RPU e transação
-    close_rfq/mod.rs   # command capability independente
-    list_supplier_quotes/
-      mod.rs           # Query capability independente
-      state_access.rs  # SQL de propriedade da Query
-migrations/             # schema relacional e constraints
-scripts/seed_demo.sql   # fixture manual para execução local
-tests/acceptance_api.rs # API real + PostgreSQL Testcontainers
-```
+1. **Testes unitários do Functional Core** (`decision.rs`): verificam cálculo, quantidade e rejeições com entradas/contextos construídos diretamente, sem rede ou Event Store.
+2. **Testes de aceitação REST** (`tests/acceptance_api.rs`): iniciam PostgreSQL 16 descartável com Testcontainers, conectam FACTSTR ao banco real, sobem Axum em uma porta efêmera e chamam os endpoints via HTTP. Verificam o ciclo de abertura/registro/elegibilidade/submissão, pré-condições de elegibilidade, respostas, fatos persistidos, rejeições sem escrita e o cenário de fechamento concorrente.
+3. **Prova determinística de CCC** (`ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_fact`): cria **duas instâncias independentes de `PostgresStore`**, carrega o mesmo contexto nas duas, prepara duas decisões, confirma por asserção que ambas viram a mesma versão e só então libera uma `Barrier` imediatamente antes do `append_if`. As duas escritas tentam gravar usando a mesma versão esperada. O teste exige um append bem-sucedido, um `ConditionalAppendConflict` e exatamente um fato de cotação persistido.
+4. **CCC sem conflito falso entre contextos independentes** (`ccc_independent_supplier_contexts_commit_without_false_conflict`): prepara cotações para dois fornecedores diferentes na mesma RFQ e as comita com stores independentes. Ambas devem ser aceitas porque uma submissão para o fornecedor A não muda o contexto de elegibilidade nem a unicidade da cotação do fornecedor B.
+5. **Consistência sob mudança de elegibilidade** (`ccc_supplier_eligibility_change_invalidates_a_prepared_quote`): prepara uma cotação enquanto o fornecedor está elegível, registra o bloqueio através de outro `PostgresStore` e prova que a cotação preparada contra o snapshot antigo não é gravada.
+6. **Pré-condições do fornecedor** (`acceptance_requires_registration_and_eligibility_before_quote_submission`): fornecedor não registrado resulta em `404`; fornecedor registrado sem elegibilidade definida resulta em `409`; nenhum dos comandos rejeitados grava fato de cotação.
+7. **Chaves naturais únicas** (`acceptance_rejects_duplicate_natural_references_without_appending_facts`): valida por HTTP que referências já usadas por RFQ ou fornecedor não são reutilizadas e que as tentativas rejeitadas não adicionam fatos.
 
-## Executar localmente
+A `Barrier` sozinha apenas sincroniza o início das tarefas; ela não garante que as duas operações tenham lido o mesmo snapshot. O teste determinístico evita essa ambiguidade ao preparar as duas decisões antes da barreira e verifica que ambas observaram a mesma versão de contexto antes de qualquer append. Não usa mutex de aplicação nem modifica o código/schema de produção. O PostgreSQL/FACTSTR real decide qual append ganha. Um teste adicional confirma que duas cotações simultâneas de fornecedores diferentes, cada uma com seu contexto de elegibilidade próprio, não geram conflito semântico falso.
 
-Pré-requisitos: Rust stable compatível com `rust-version` do Cargo, Docker e Docker Compose.
+O teste de concorrência HTTP é um teste de aceitação útil, mas não deve ser confundido com a prova de CCC: dependendo do escalonamento, a segunda requisição pode observar o fato criado pela primeira antes de preparar sua decisão. A prova direta `append_if` complementa o caminho HTTP exercitando dois clientes Event Store independentes.
 
-```bash
-cp .env.example .env
-docker compose up -d postgres
-cargo run
-```
+### Comandos de teste
 
-Em outro terminal, aplique a fixture manual:
-
-```bash
-set -a; source .env; set +a
-psql "$DATABASE_URL" -f scripts/seed_demo.sql
-```
-
-A aplicação executa as migrations ao iniciar.
-
-## Estratégia de testes e raciocínio de concorrência
-
-A estratégia segue três níveis, cada um com uma responsabilidade diferente. Não se usa um mock de PostgreSQL para afirmar uma garantia que depende de locks, transações ou constraints do banco.
-
-### 1. Functional Core: testar decisões sem concorrência nem I/O
-
-Os testes unitários de `decision.rs` recebem o comando, o snapshot explícito do contexto e os valores de tempo/identidade necessários. Verificam regras como elegibilidade do fornecedor, estado da RFQ, quantidades e cálculo do total. Esses testes são rápidos e determinísticos, mas **não** demonstram Command Context Consistency: eles não exercitam transações nem persistência.
-
-### 2. Acceptance tests: verificar a capacidade pela API real
-
-`tests/acceptance_api.rs` inicializa um PostgreSQL descartável com Testcontainers, aplica as migrations, carrega uma fixture e inicia o servidor Axum em uma porta local efêmera. O teste envia HTTP com `reqwest`, verifica o status/body e consulta o Application State no banco. Assim ele cobre a fronteira REST, a RPU e o efeito persistido, sem substituir a infraestrutura de consistência por mocks.
-
-### 3. Concorrência A — duas submissões para o mesmo fornecedor e RFQ
-
-O teste `concurrent_duplicate_submissions_commit_exactly_one_quote` envia o mesmo comando HTTP por duas tarefas Tokio. A `Barrier` continua sendo apenas o portão de partida; a determinização vem de uma coreografia explícita no PostgreSQL, sem modificar o código de produção:
-
-1. Uma terceira conexão, pertencente ao próprio teste, abre uma transação e executa `LOCK TABLE supplier_quotes IN SHARE MODE`. Esse lock é compatível com as leituras do comando, mas conflita com o lock de relação `ROW EXCLUSIVE` necessário para executar `INSERT` na tabela.
-2. As duas requisições REST são liberadas. Cada RPU pode ler os contextos de RFQ e fornecedor e chegar ao `INSERT`, mas ambas ficam bloqueadas no PostgreSQL pela trava mantida pelo teste.
-3. O teste consulta `pg_stat_activity` por uma conexão independente até observar **dois PIDs distintos** com `INSERT INTO supplier_quotes` ativo e `wait_event_type = 'Lock'` / `wait_event = 'relation'`. Se ambos não chegarem ao ponto esperado dentro de 15 segundos, o teste falha em vez de liberar a trava silenciosamente.
-4. Só depois dessa observação o teste commita a transação-gate. As duas inserções são liberadas e disputam a constraint `UNIQUE (rfq_id, supplier_id)`. O PostgreSQL escolhe o vencedor; o outro `INSERT` recebe conflito de unicidade após a transação vencedora confirmar.
-5. O teste exige os status ordenados `[201, 409]` e verifica por consulta direta que existe exatamente uma cotação persistida para aquele par RFQ/fornecedor.
-
-A trava de tabela é **instrumentação exclusiva do teste**, adquirida pelo harness, não uma alteração na migration ou um lock adicionado ao caminho produtivo. O teste usa sessões PostgreSQL independentes: uma retém a trava, duas outras chegam ao ponto de inserção, e uma quarta consulta (via pool) observa a espera. Essa coreografia faz com que a afirmação não dependa somente da velocidade relativa das tarefas Tokio.
-
-**Por que não usar `SELECT NOT EXISTS` antes do `INSERT`?** Duas transações poderiam observar “ainda não existe cotação” ao mesmo tempo e tentar inserir ambas. A leitura prévia não torna a regra atômica; a constraint única sim. Um `Mutex` no processo também seria inadequado porque não protegeria contra outras instâncias da aplicação.
-
-### 4. Concorrência B — `CloseRfq` contra `SubmitSupplierQuote`
-
-O teste `concurrent_close_and_submission_respect_command_context_consistency` também libera duas tarefas pela `Barrier`, mas disputa um contexto de negócio diferente: o status da RFQ.
-
-- `SubmitSupplierQuote` obtém `FOR SHARE` na linha da RFQ e mantém a transação aberta até gravar a cotação e confirmar o commit.
-- `CloseRfq` tenta `SELECT ... FOR UPDATE` na mesma linha. Esse lock é incompatível com o lock compartilhado; portanto, o PostgreSQL ordena as operações.
-- Se a submissão obtiver o lock primeiro, ela pode confirmar a cotação; o fechamento espera e fecha a RFQ depois. O resultado válido é `201` para a submissão, RFQ fechada e uma cotação persistida.
-- Se o fechamento obtiver o lock primeiro, ele fecha e confirma a RFQ; a submissão espera, lê o status já fechado e recebe `409 rfq_closed`. O resultado válido é RFQ fechada e nenhuma cotação gravada por essa submissão.
-
-O teste aceita os dois ordenamentos — não exige que uma operação específica vença — e, ao final, verifica o estado persistido e a relação entre o status HTTP da submissão e a quantidade de cotações. Isso é essencial: uma corrida concorrente não possui uma ordem de vencedor garantida pelo teste.
-
-### 5. O que esses testes provam — e o que não provam
-
-| Verificação | Evidência fornecida | Limite |
-|---|---|---|
-| Duas submissões com a mesma chave | Uma resposta `201`, uma `409` e uma linha persistida; o teste só solta a trava após observar dois PIDs bloqueados no `INSERT` | Determinístico para o ponto de contenção da tabela/constraint exercitado; não substitui testes de carga nem cobre todos os cenários de falha |
-| Fechamento e submissão | O estado final corresponde a uma das duas ordens serializadas válidas | A `Barrier` sincroniza o início, mas a ordem efetiva ainda é concorrente; não prova todas as interleavings nem testa carga prolongada |
-| Trigger que congela itens após abertura | Uma inserção tardia é recusada com SQLSTATE `23514` | O teste da inserção tardia é de integridade, não uma simulação concorrente de phantom |
-| Testes unitários do Core | As regras de decisão para snapshots dados | Não demonstram a proteção transacional do CCC |
-
-Os dois testes de concorrência têm níveis distintos de sincronização. A disputa por chave duplicada agora é um **teste de contenção determinística no ponto de inserção**: ele verifica a espera de dois backends independentes antes de liberar o lock de teste. Já a disputa entre `CloseRfq` e `SubmitSupplierQuote` continua sendo um teste de corrida de integração baseado em `Barrier`: aceita ambas as ordens serializadas válidas e verifica os invariantes do estado final, mas não força um vencedor específico. A garantia produtiva continua vindo dos locks e constraints próprios do PostgreSQL; a trava extra existe somente no teste para tornar observável a disputa pela chave única.
-
-### Executar os testes
-
-Execute somente os testes unitários do Functional Core:
-
-```bash
-cargo test --lib
-```
-
-Execute a suíte completa de aceitação e concorrência (precisa de Docker instalado e acessível ao usuário):
-
-```bash
-cargo test
-```
-
-Se a máquina de CI tiver recursos limitados, execute os casos em série para reduzir a competição por CPU/memória entre containers; isso **não** serializa as duas requisições que cada teste dispara internamente:
-
-```bash
-cargo test -- --test-threads=1
-```
-
-Formate o código e execute o lint com:
+O Docker precisa estar ativo. Na raiz do projeto:
 
 ```bash
 cargo fmt --all -- --check
+cargo test --lib
+cargo test --test acceptance_api
+cargo test
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-Os testes Testcontainers inicializam PostgreSQL `16-alpine` e não usam a instância do `docker-compose`. Cada teste de aceitação possui seu próprio banco descartável; isso aumenta o isolamento, embora consuma mais recursos se o runner executar vários testes em paralelo.
+Para rodar apenas a prova determinística:
 
-## Limitações deliberadas e evolução recomendada
+```bash
+cargo test --test acceptance_api ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_fact -- --nocapture
+```
 
-- A constraint de unicidade codifica “uma cotação por fornecedor por RFQ”. Se o negócio permitir revisões, a identidade do comando deve incluir versão/revisão, prazo de alteração e política de substituição explícita.
-- O endpoint não implementa `Idempotency-Key`. A constraint impede duas cotações para o mesmo fornecedor/RFQ, mas o cliente que perde a resposta de uma submissão aceita recebe uma rejeição de duplicidade ao repetir. Uma versão produtiva deve armazenar uma chave de idempotência e devolver o resultado original.
-- `FOR SHARE` limita conflitos aos fatos relevantes. Locks compartilhados permitem que vários fornecedores submetam simultaneamente; comandos de alteração/fechamento esperam pelas submissões em curso.
-- Os itens da RFQ devem ser imutáveis após abertura neste recorte. Uma capability que altere requisitos precisa definir sua própria regra de negócio e usar locks compatíveis, idealmente recusando alteração depois da primeira cotação.
-- O exemplo não avalia nem escolhe fornecedor; somente aceita cotações. `EvaluateSupplierQuotes` deve ser outra capability (query/decision) e, se materializar uma adjudicação, um command RPU com contexto e CCC explícitos.
-- A rejeição não é persistida para auditoria. Se a política de compliance exigir histórico de recusas, isso deve ser introduzido como uma decisão explícita e atômica, sem confundir toda falha HTTP com fato de negócio.
-- O contrato da API também está em [`docs/openapi.yaml`](docs/openapi.yaml).
+Os testes criam containers de PostgreSQL descartáveis e não usam o banco do `docker-compose.yml`.
 
-A API é demonstrativa e não deve ser exposta à internet sem autenticação, autorização por RFQ/fornecedor, rate limiting, limites de payload, política de timeout, TLS, gestão de segredos, auditoria e telemetria operacional.
+## Executar localmente
 
-## Referências
+1. Suba o PostgreSQL:
 
-### Conceitos do autor
+   ```bash
+   docker compose up -d postgres
+   ```
 
-- Rico Fritzsche — [Request Processing Units](https://architecture.ricofritzsche.me/concepts/request-processing-units/)
-- [Command Context Consistency](https://architecture.ricofritzsche.me/concepts/command-context-consistency/)
-- [Commands and Queries](https://architecture.ricofritzsche.me/concepts/commands-and-queries/)
-- [Functional Core / Imperative Shell](https://ricofritzsche.me/applying-functional-core-and-imperative-shell-in-practice/)
-- [Booking a Stay — exemplo relacional em Rust e C#](https://github.com/ricofritzsche/booking-a-stay-example)
-- [FACTSTR — event store Rust com append condicional e streams duráveis](https://github.com/ricofritzsche/factstr)
-- [PostgreSQL concurrency proof para CCC/event sourcing](https://github.com/ricofritzsche/ccc-postgres-concurrency-proof)
+2. Configure o ambiente:
 
-### Documentação técnica
+   ```bash
+   cp .env.example .env
+   ```
 
-- [Axum](https://docs.rs/axum/latest/axum/)
-- [SQLx](https://docs.rs/sqlx/latest/sqlx/)
-- [PostgreSQL — explicit locking](https://www.postgresql.org/docs/16/explicit-locking.html)
-- [PostgreSQL — unique constraints](https://www.postgresql.org/docs/16/ddl-constraints.html)
-- [Testcontainers for Rust](https://docs.rs/testcontainers-modules/latest/testcontainers_modules/)
+   Ajuste `DATABASE_URL` se necessário. O banco-alvo precisa existir; `factstr-postgres` inicializa o schema do Event Store nele.
+
+3. Inicie a API:
+
+   ```bash
+   cargo run
+   ```
+
+4. Em outro terminal, grave os fatos de demonstração (execute uma vez em um banco vazio). O script registra o fornecedor e então configura a elegibilidade como comandos distintos:
+
+   ```bash
+   ./scripts/seed_demo.sh
+   ```
+
+5. Envie uma cotação:
+
+   ```bash
+   curl -i -X POST \
+     http://127.0.0.1:3000/api/rfqs/11111111-1111-4111-8111-111111111111/quotes \
+     -H 'Content-Type: application/json' \
+     -d '{
+       "supplier_id":"22222222-2222-4222-8222-222222222222",
+       "currency":"BRL",
+       "delivery_days":7,
+       "valid_until":"2099-12-31",
+       "items":[
+         {"rfq_item_id":"44444444-4444-4444-8444-444444444441","quantity":10,"unit_price_cents":1250},
+         {"rfq_item_id":"44444444-4444-4444-8444-444444444442","quantity":5,"unit_price_cents":3000}
+       ]
+     }'
+   ```
+
+O total esperado é `27500` centavos (R$ 275,00). Uma segunda submissão para a mesma RFQ/fornecedor retorna `409` e não registra outro fato de cotação.
+
+Consulte as cotações:
+
+```bash
+curl -sS http://127.0.0.1:3000/api/rfqs/11111111-1111-4111-8111-111111111111/quotes
+```
+
+Contrato OpenAPI: [`docs/openapi.yaml`](docs/openapi.yaml). A decisão arquitetural, escopos CCC e limites do backend estão em [`docs/architecture-event-sourcing-factstr.md`](docs/architecture-event-sourcing-factstr.md).
+
+## Comparar com a implementação relacional
+
+- `main`: implementação relacional original, com tabelas de Application State, locks/constraints e testes concorrentes da API.
+- `event-sourcing-factstr`: esta variante; FACTSTR é a fonte de verdade, e CCC ocorre via `append_if` de uma query de fatos. Registro de fornecedor e definição de elegibilidade são capabilities separadas.
+
+Compare as implementações com `git diff main...event-sourcing-factstr` ou alterne de branch. São duas estratégias para o mesmo recorte de domínio, não uma migração que remove a implementação original.
+
+## Limites conhecidos e trade-offs
+
+- A consulta refaz a leitura/fold dos fatos a cada pedido; ainda não existe projeção materializada nem snapshots.
+- O Event Store tem sequência global. O isolamento lógico do CCC depende de filtros/predicados corretos; filtros largos demais geram conflitos desnecessários, e filtros estreitos demais podem permitir decisões inválidas. A identidade do fornecedor é um fato separado e sua referência natural não pode ser renomeada neste exemplo; caso o domínio precise de renomeação, represente-a com uma capability/fato específico e defina a semântica de unicidade para o histórico.
+- **Trade-off da implementação PostgreSQL atual do FACTSTR:** a versão `factstr-postgres 0.5.2` serializa appends obtendo `LOCK TABLE events, append_batches IN EXCLUSIVE MODE` e, em seguida, revalida o contexto filtrado. Portanto, o `append_if` oferece a garantia CCC correta, mas append throughput pode ser limitado pela serialização global do backend; o filtro de contexto evita conflitos semânticos entre comandos independentes, mas não elimina esse gargalo físico. Ver [implementação `append_if_with_pool` e `lock_events_tables`](https://github.com/ricofritzsche/factstr/blob/main/factstr-postgres/src/postgres_store.rs). Reavalie esse comportamento conforme a versão usada e meça throughput/latência antes de assumir alta concorrência.
+- Todos os contratos de evento são JSON versionado por nome. Evoluções futuras precisam de uma política de compatibilidade e replay.
+- Não há idempotency key para repetições de rede. A regra “uma cotação por RFQ/fornecedor” é protegida pela query de contexto e `append_if`, não por uma tabela unique da aplicação.
+- O exemplo usa estado atual por replay em memória; não deve ser tratado como arquitetura de alta escala sem medições e projeções.

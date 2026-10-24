@@ -1,33 +1,45 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
+use factstr::{EventFilter, EventQuery, EventStore, NewEvent};
+use factstr_postgres::PostgresStore;
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};
-use sqlx::PgPool;
-use supplier_rfq_rpu::{app, application_state::AppState, database};
+use supplier_rfq_rpu_rust::{
+    app,
+    application_state::AppState,
+    capabilities::{
+        set_supplier_eligibility::{self, SetSupplierEligibilityRequest},
+        submit_supplier_quote::{
+            CommitError, SubmitSupplierQuoteRequest, commit_prepared, prepare,
+        },
+    },
+    facts::{
+        RFQ_OPENED_V1, RfqItemFact, RfqOpenedFact, SUPPLIER_ELIGIBILITY_CHANGED_V1,
+        SUPPLIER_QUOTE_SUBMITTED_V1, SUPPLIER_REGISTERED_V1, SupplierEligibilityChangedFact,
+        SupplierRegisteredFact, SupplierStatus,
+    },
+};
 use testcontainers_modules::{
     postgres::Postgres,
     testcontainers::{ContainerAsync, ImageExt, runners::AsyncRunner},
 };
-use tokio::{
-    net::TcpListener,
-    sync::Barrier,
-    task::JoinHandle,
-    time::{Duration, Instant, sleep},
-};
+use tokio::{net::TcpListener, sync::Barrier as TokioBarrier, task::JoinHandle};
 use uuid::Uuid;
 
 const RFQ_ID: &str = "11111111-1111-4111-8111-111111111111";
 const SUPPLIER_ELIGIBLE_ID: &str = "22222222-2222-4222-8222-222222222222";
 const SUPPLIER_BLOCKED_ID: &str = "33333333-3333-4333-8333-333333333333";
+const SUPPLIER_OTHER_ELIGIBLE_ID: &str = "55555555-5555-4555-8555-555555555555";
 const ITEM_A_ID: &str = "44444444-4444-4444-8444-444444444441";
 const ITEM_B_ID: &str = "44444444-4444-4444-8444-444444444442";
 
 struct TestApp {
-    pub base_url: String,
-    pub pool: PgPool,
+    base_url: String,
+    database_url: String,
+    store: Arc<PostgresStore>,
     server_task: JoinHandle<()>,
-    // Declared last so the pool and server task are dropped before the container.
+    // Keep PostgreSQL alive until the server and all FACTSTR handles are dropped.
     _container: ContainerAsync<Postgres>,
 }
 
@@ -56,13 +68,14 @@ async fn spawn_app() -> TestApp {
         .await
         .expect("mapped PostgreSQL port must be available");
     let database_url = format!("postgres://rfq_user:rfq_password@{host}:{port}/supplier_rfq");
-    let pool = database::connect(&database_url)
-        .await
-        .expect("test PostgreSQL must accept connections");
-    database::migrate(&pool)
-        .await
-        .expect("migrations must apply");
-    seed_fixture(&pool).await;
+    let url_for_connect = database_url.clone();
+    let store = Arc::new(
+        tokio::task::spawn_blocking(move || PostgresStore::connect(&url_for_connect))
+            .await
+            .expect("FACTSTR connection task must finish")
+            .expect("FACTSTR must initialize its schema in PostgreSQL"),
+    );
+    seed_fixture(Arc::clone(&store)).await;
 
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
@@ -70,7 +83,7 @@ async fn spawn_app() -> TestApp {
     let address: SocketAddr = listener
         .local_addr()
         .expect("listener address must be available");
-    let api = app::router(AppState::new(pool.clone()));
+    let api = app::router(AppState::from_shared_store(Arc::clone(&store)));
     let server_task = tokio::spawn(async move {
         if let Err(error) = axum::serve(listener, api).await {
             panic!("test API server failed: {error}");
@@ -79,30 +92,71 @@ async fn spawn_app() -> TestApp {
 
     TestApp {
         base_url: format!("http://{address}"),
-        pool,
+        database_url,
+        store,
         server_task,
         _container: container,
     }
 }
 
-async fn seed_fixture(pool: &PgPool) {
-    sqlx::query("INSERT INTO rfqs (id, reference, status, currency) VALUES ($1, 'RFQ-TEST-001', 'draft', 'BRL')")
-        .bind(Uuid::parse_str(RFQ_ID).unwrap())
-        .execute(pool).await.unwrap();
-    sqlx::query("INSERT INTO suppliers (id, reference, name, status) VALUES ($1, 'SUP-ELIGIBLE', 'Supplier Eligible', 'eligible'), ($2, 'SUP-BLOCKED', 'Supplier Blocked', 'blocked')")
-        .bind(Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap())
-        .bind(Uuid::parse_str(SUPPLIER_BLOCKED_ID).unwrap())
-        .execute(pool).await.unwrap();
-    sqlx::query("INSERT INTO rfq_items (id, rfq_id, sku, description, required_quantity) VALUES ($1, $2, 'SKU-A', 'Industrial component A', 10), ($3, $2, 'SKU-B', 'Industrial component B', 5)")
-        .bind(Uuid::parse_str(ITEM_A_ID).unwrap())
-        .bind(Uuid::parse_str(RFQ_ID).unwrap())
-        .bind(Uuid::parse_str(ITEM_B_ID).unwrap())
-        .execute(pool).await.unwrap();
-    sqlx::query("UPDATE rfqs SET status = 'open', opened_at = now() WHERE id = $1")
-        .bind(Uuid::parse_str(RFQ_ID).unwrap())
-        .execute(pool)
-        .await
-        .unwrap();
+async fn seed_fixture(store: Arc<PostgresStore>) {
+    tokio::task::spawn_blocking(move || {
+        let rfq = RfqOpenedFact {
+            rfq_id: Uuid::parse_str(RFQ_ID).unwrap(),
+            reference: "RFQ-TEST-001".to_owned(),
+            currency: "BRL".to_owned(),
+            opened_at: Utc::now(),
+            items: vec![
+                RfqItemFact {
+                    id: Uuid::parse_str(ITEM_A_ID).unwrap(),
+                    sku: "SKU-A".to_owned(),
+                    description: "Industrial component A".to_owned(),
+                    required_quantity: 10,
+                },
+                RfqItemFact {
+                    id: Uuid::parse_str(ITEM_B_ID).unwrap(),
+                    sku: "SKU-B".to_owned(),
+                    description: "Industrial component B".to_owned(),
+                    required_quantity: 5,
+                },
+            ],
+        };
+        let eligible_supplier = SupplierRegisteredFact {
+            supplier_id: Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap(),
+            reference: "SUP-ELIGIBLE".to_owned(),
+            name: "Supplier Eligible".to_owned(),
+            registered_at: Utc::now(),
+        };
+        let eligible_status = SupplierEligibilityChangedFact {
+            supplier_id: eligible_supplier.supplier_id,
+            status: SupplierStatus::Eligible,
+            changed_at: Utc::now(),
+        };
+        let blocked_supplier = SupplierRegisteredFact {
+            supplier_id: Uuid::parse_str(SUPPLIER_BLOCKED_ID).unwrap(),
+            reference: "SUP-BLOCKED".to_owned(),
+            name: "Supplier Blocked".to_owned(),
+            registered_at: Utc::now(),
+        };
+        let blocked_status = SupplierEligibilityChangedFact {
+            supplier_id: blocked_supplier.supplier_id,
+            status: SupplierStatus::Blocked,
+            changed_at: Utc::now(),
+        };
+
+        store
+            .as_ref()
+            .append(vec![
+                NewEvent::new(RFQ_OPENED_V1, json!(rfq)),
+                NewEvent::new(SUPPLIER_REGISTERED_V1, json!(eligible_supplier)),
+                NewEvent::new(SUPPLIER_ELIGIBILITY_CHANGED_V1, json!(eligible_status)),
+                NewEvent::new(SUPPLIER_REGISTERED_V1, json!(blocked_supplier)),
+                NewEvent::new(SUPPLIER_ELIGIBILITY_CHANGED_V1, json!(blocked_status)),
+            ])
+            .expect("fixture facts must append successfully");
+    })
+    .await
+    .expect("fixture seeding task must finish");
 }
 
 fn valid_request(supplier_id: &str) -> Value {
@@ -118,8 +172,83 @@ fn valid_request(supplier_id: &str) -> Value {
     })
 }
 
+fn quote_context_query(rfq_id: Uuid, supplier_id: Uuid) -> EventQuery {
+    EventQuery::all().with_filters([EventFilter::for_event_types([SUPPLIER_QUOTE_SUBMITTED_V1])
+        .with_payload_predicates([json!({ "rfq_id": rfq_id, "supplier_id": supplier_id })])])
+}
+
 #[tokio::test]
-async fn acceptance_submits_quote_and_query_returns_it() {
+async fn acceptance_opens_rfq_registers_supplier_sets_eligibility_and_submits_quote_via_rest() {
+    let app = spawn_app().await;
+    let client = Client::new();
+    let rfq_id = Uuid::new_v4();
+    let supplier_id = Uuid::new_v4();
+    let item_id = Uuid::new_v4();
+
+    let opened = client
+        .post(format!("{}/api/rfqs", app.base_url))
+        .json(&json!({
+            "id": rfq_id,
+            "reference": "RFQ-HTTP-CREATED",
+            "currency": "BRL",
+            "items": [{
+                "id": item_id,
+                "sku": "SKU-HTTP",
+                "description": "Item created through REST",
+                "required_quantity": 3
+            }]
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(opened.status(), StatusCode::CREATED);
+    let opened_body: Value = opened.json().await.unwrap();
+    assert_eq!(opened_body["rfq_id"], rfq_id.to_string());
+
+    let registered = client
+        .post(format!("{}/api/suppliers", app.base_url))
+        .json(&json!({
+            "id": supplier_id,
+            "reference": "SUP-HTTP",
+            "name": "Supplier created through REST"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(registered.status(), StatusCode::CREATED);
+    let registered_body: Value = registered.json().await.unwrap();
+    assert_eq!(registered_body["supplier_id"], supplier_id.to_string());
+
+    let eligibility = client
+        .put(format!(
+            "{}/api/suppliers/{supplier_id}/eligibility",
+            app.base_url
+        ))
+        .json(&json!({ "status": "eligible" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(eligibility.status(), StatusCode::OK);
+
+    let quote = client
+        .post(format!("{}/api/rfqs/{rfq_id}/quotes", app.base_url))
+        .json(&json!({
+            "supplier_id": supplier_id,
+            "currency": "BRL",
+            "delivery_days": 4,
+            "valid_until": "2099-12-31",
+            "items": [{ "rfq_item_id": item_id, "quantity": 3, "unit_price_cents": 700 }]
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(quote.status(), StatusCode::CREATED);
+    let quote_body: Value = quote.json().await.unwrap();
+    assert_eq!(quote_body["total_amount_cents"], 2_100);
+}
+
+#[tokio::test]
+async fn acceptance_submits_quote_and_query_returns_event_sourced_view() {
     let app = spawn_app().await;
     let client = Client::new();
     let submit = client
@@ -140,12 +269,13 @@ async fn acceptance_submits_quote_and_query_returns_it() {
         .unwrap();
     assert_eq!(query.status(), StatusCode::OK);
     let quotes: Value = query.json().await.unwrap();
-    assert_eq!(quotes.as_array().unwrap().len(), 1);
-    assert_eq!(quotes[0]["total_amount_cents"], 27_500);
+    assert_eq!(quotes["quotes"].as_array().unwrap().len(), 1);
+    assert_eq!(quotes["quotes"][0]["total_amount_cents"], 27_500);
+    assert!(quotes["quotes"][0]["sequence_number"].as_u64().is_some());
 }
 
 #[tokio::test]
-async fn acceptance_rejects_blocked_supplier_and_does_not_write_state() {
+async fn acceptance_rejects_blocked_supplier_without_appending_quote_fact() {
     let app = spawn_app().await;
     let client = Client::new();
     let response = client
@@ -158,95 +288,163 @@ async fn acceptance_rejects_blocked_supplier_and_does_not_write_state() {
     let body: Value = response.json().await.unwrap();
     assert_eq!(body["code"], "supplier_not_eligible");
 
-    let quote_count: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM supplier_quotes WHERE rfq_id = $1")
-            .bind(Uuid::parse_str(RFQ_ID).unwrap())
-            .fetch_one(&app.pool)
-            .await
-            .unwrap();
-    assert_eq!(
-        quote_count, 0,
-        "a rejected business command must not mutate Application State"
+    let query = quote_context_query(
+        Uuid::parse_str(RFQ_ID).unwrap(),
+        Uuid::parse_str(SUPPLIER_BLOCKED_ID).unwrap(),
     );
-
-    // CCC also needs protection against a phantom RFQ item: this domain freezes the item set on opening.
-    let attempted_item = sqlx::query("INSERT INTO rfq_items (id, rfq_id, sku, description, required_quantity) VALUES ($1, $2, 'LATE-ITEM', 'Must not be added after opening', 1)")
-        .bind(Uuid::new_v4())
-        .bind(Uuid::parse_str(RFQ_ID).unwrap())
-        .execute(&app.pool).await;
-    let db_error =
-        attempted_item.expect_err("an open RFQ must reject changes to its required item set");
-    assert_eq!(
-        db_error
-            .as_database_error()
-            .and_then(|error| error.code())
-            .as_deref(),
-        Some("23514")
+    let query_result = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(
+        query_result.event_records.is_empty(),
+        "a rejected command must append no quote fact"
     );
-}
-
-/// Wait until both API requests have reached the real PostgreSQL INSERT and are
-/// blocked by the test-held table lock. This proves two independent server-side
-/// sessions are at the conflict point before the gate is released.
-async fn wait_for_blocked_quote_inserts(pool: &PgPool, expected: i64) {
-    let deadline = Instant::now() + Duration::from_secs(15);
-
-    loop {
-        let blocked: i64 = sqlx::query_scalar(
-            r#"
-            SELECT count(DISTINCT pid)
-            FROM pg_stat_activity
-            WHERE datname = current_database()
-              AND usename = current_user
-              AND pid <> pg_backend_pid()
-              AND state = 'active'
-              AND wait_event_type = 'Lock'
-              AND wait_event = 'relation'
-              AND query LIKE 'INSERT INTO supplier_quotes (%'
-            "#,
-        )
-        .fetch_one(pool)
-        .await
-        .expect("test role must be able to inspect its PostgreSQL sessions");
-
-        if blocked >= expected {
-            return;
-        }
-
-        assert!(
-            Instant::now() < deadline,
-            "timed out waiting for {expected} independent PostgreSQL sessions to block at INSERT INTO supplier_quotes; observed {blocked}. The test must not release its gate before both writers reach the conflict point."
-        );
-        sleep(Duration::from_millis(25)).await;
-    }
 }
 
 #[tokio::test]
-async fn concurrent_duplicate_submissions_commit_exactly_one_quote() {
+async fn acceptance_requires_registration_and_eligibility_before_quote_submission() {
     let app = spawn_app().await;
     let client = Client::new();
-    let barrier = Arc::new(Barrier::new(3));
+    let supplier_id = Uuid::new_v4();
+    let quote_url = format!("{}/api/rfqs/{RFQ_ID}/quotes", app.base_url);
+
+    let unregistered = client
+        .post(quote_url.clone())
+        .json(&valid_request(&supplier_id.to_string()))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(unregistered.status(), StatusCode::NOT_FOUND);
+    let error: Value = unregistered.json().await.unwrap();
+    assert_eq!(error["code"], "supplier_not_registered");
+
+    let registered = client
+        .post(format!("{}/api/suppliers", app.base_url))
+        .json(&json!({
+            "id": supplier_id,
+            "reference": "SUP-REGISTERED-NO-ELIGIBILITY",
+            "name": "Registered, eligibility not yet set"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(registered.status(), StatusCode::CREATED);
+
+    let no_eligibility = client
+        .post(quote_url.clone())
+        .json(&valid_request(&supplier_id.to_string()))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(no_eligibility.status(), StatusCode::CONFLICT);
+    let error: Value = no_eligibility.json().await.unwrap();
+    assert_eq!(error["code"], "supplier_eligibility_not_set");
+
+    let quote_query = quote_context_query(Uuid::parse_str(RFQ_ID).unwrap(), supplier_id);
+    let persisted = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&quote_query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(
+        persisted.event_records.is_empty(),
+        "rejected submissions must not append quote facts"
+    );
+}
+
+#[tokio::test]
+async fn acceptance_rejects_duplicate_natural_references_without_appending_facts() {
+    let app = spawn_app().await;
+    let client = Client::new();
+
+    let duplicate_rfq_reference = client
+        .post(format!("{}/api/rfqs", app.base_url))
+        .json(&json!({
+            "id": Uuid::new_v4(),
+            "reference": "RFQ-TEST-001",
+            "currency": "BRL",
+            "items": [{
+                "id": Uuid::new_v4(),
+                "sku": "SKU-NATURAL-KEY-TEST",
+                "description": "Natural-key collision test",
+                "required_quantity": 1
+            }]
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(duplicate_rfq_reference.status(), StatusCode::CONFLICT);
+    let rfq_error: Value = duplicate_rfq_reference.json().await.unwrap();
+    assert_eq!(rfq_error["code"], "rfq_reference_already_exists");
+
+    let duplicate_supplier_reference = client
+        .post(format!("{}/api/suppliers", app.base_url))
+        .json(&json!({
+            "id": Uuid::new_v4(),
+            "reference": "SUP-ELIGIBLE",
+            "name": "A different supplier using a taken reference"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(duplicate_supplier_reference.status(), StatusCode::CONFLICT);
+    let supplier_error: Value = duplicate_supplier_reference.json().await.unwrap();
+    assert_eq!(supplier_error["code"], "supplier_reference_already_exists");
+
+    let rfq_reference_query = EventQuery::all()
+        .with_filters([EventFilter::for_event_types([RFQ_OPENED_V1])
+            .with_payload_predicates([json!({ "reference": "RFQ-TEST-001" })])]);
+    let rfq_events = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&rfq_reference_query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        rfq_events.event_records.len(),
+        1,
+        "one RFQ reference means one opening fact"
+    );
+
+    let supplier_reference_query = EventQuery::all()
+        .with_filters([EventFilter::for_event_types([SUPPLIER_REGISTERED_V1])
+            .with_payload_predicates([json!({ "reference": "SUP-ELIGIBLE" })])]);
+    let supplier_events = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&supplier_reference_query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        supplier_events.event_records.len(),
+        1,
+        "one supplier reference means one registration fact"
+    );
+}
+
+#[tokio::test]
+async fn acceptance_duplicate_http_submissions_return_one_created_and_one_conflict() {
+    let app = spawn_app().await;
+    let client = Client::new();
+    let barrier = Arc::new(TokioBarrier::new(3));
     let url = format!("{}/api/rfqs/{RFQ_ID}/quotes", app.base_url);
 
-    // Test-only database choreography: SHARE conflicts with the ROW EXCLUSIVE
-    // relation lock required by INSERT, while remaining compatible with the
-    // RPU's SELECT ... FOR SHARE locks on rfqs and suppliers. This does not alter
-    // production code/schema and is not an application-level mutex.
-    let mut insert_gate = app.pool.begin().await.unwrap();
-    sqlx::query("LOCK TABLE supplier_quotes IN SHARE MODE")
-        .execute(&mut *insert_gate)
-        .await
-        .expect("test must acquire the INSERT gate before starting writers");
-
-    let barrier_one = Arc::clone(&barrier);
-    let client_one = client.clone();
-    let url_one = url.clone();
-    let body_one = valid_request(SUPPLIER_ELIGIBLE_ID);
-    let first = tokio::spawn(async move {
-        barrier_one.wait().await;
-        client_one
-            .post(url_one)
-            .json(&body_one)
+    let barrier1 = Arc::clone(&barrier);
+    let client1 = client.clone();
+    let url1 = url.clone();
+    let request1 = tokio::spawn(async move {
+        barrier1.wait().await;
+        client1
+            .post(url1)
+            .json(&valid_request(SUPPLIER_ELIGIBLE_ID))
             .send()
             .await
             .unwrap()
@@ -254,9 +452,9 @@ async fn concurrent_duplicate_submissions_commit_exactly_one_quote() {
             .as_u16()
     });
 
-    let barrier_two = Arc::clone(&barrier);
-    let second = tokio::spawn(async move {
-        barrier_two.wait().await;
+    let barrier2 = Arc::clone(&barrier);
+    let request2 = tokio::spawn(async move {
+        barrier2.wait().await;
         client
             .post(url)
             .json(&valid_request(SUPPLIER_ELIGIBLE_ID))
@@ -266,44 +464,306 @@ async fn concurrent_duplicate_submissions_commit_exactly_one_quote() {
             .status()
             .as_u16()
     });
-
-    // The Barrier only starts both HTTP tasks. The database observation below is
-    // the synchronization proof: do not release the gate until two different
-    // PostgreSQL sessions are waiting on the quote INSERT relation lock.
     barrier.wait().await;
-    wait_for_blocked_quote_inserts(&app.pool, 2).await;
 
-    // Both inserts have reached PostgreSQL. Releasing the gate lets them race on
-    // the UNIQUE (rfq_id, supplier_id) index; only the winner can commit.
-    insert_gate.commit().await.unwrap();
-
-    let mut statuses = vec![first.await.unwrap(), second.await.unwrap()];
+    let mut statuses = vec![request1.await.unwrap(), request2.await.unwrap()];
     statuses.sort_unstable();
-    assert_eq!(
-        statuses,
-        vec![201, 409],
-        "exactly one concurrent submission must succeed (201) and the duplicate must conflict (409), regardless of which request wins the race)",
-    );
+    assert_eq!(statuses, vec![201, 409]);
 
-    let quote_count: i64 = sqlx::query_scalar(
-        "SELECT count(*) FROM supplier_quotes WHERE rfq_id = $1 AND supplier_id = $2",
-    )
-    .bind(Uuid::parse_str(RFQ_ID).unwrap())
-    .bind(Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap())
-    .fetch_one(&app.pool)
+    let query = quote_context_query(
+        Uuid::parse_str(RFQ_ID).unwrap(),
+        Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap(),
+    );
+    let result = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&query)
+    })
     .await
+    .unwrap()
     .unwrap();
     assert_eq!(
-        quote_count, 1,
-        "the Application State must contain exactly one quote for this RFQ/supplier pair",
+        result.event_records.len(),
+        1,
+        "exactly one quote fact must exist"
+    );
+}
+
+/// CCC proof: two independent FACTSTR/PostgreSQL stores each read and prepare
+/// the same command context before a barrier releases both conditional appends.
+/// The writes carry the same expected version, so exactly one can commit.
+#[tokio::test]
+async fn ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_fact() {
+    let app = spawn_app().await;
+    let database_url_1 = app.database_url.clone();
+    let database_url_2 = app.database_url.clone();
+    let store_1 = Arc::new(
+        tokio::task::spawn_blocking(move || PostgresStore::connect(&database_url_1))
+            .await
+            .unwrap()
+            .expect("first independent FACTSTR store must connect"),
+    );
+    let store_2 = Arc::new(
+        tokio::task::spawn_blocking(move || PostgresStore::connect(&database_url_2))
+            .await
+            .unwrap()
+            .expect("second independent FACTSTR store must connect"),
+    );
+
+    let rfq_id = Uuid::parse_str(RFQ_ID).unwrap();
+    let supplier_id = Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap();
+    let request_1: SubmitSupplierQuoteRequest =
+        serde_json::from_value(valid_request(SUPPLIER_ELIGIBLE_ID)).unwrap();
+    let request_2 = request_1.clone();
+    let store_1_for_prepare = Arc::clone(&store_1);
+    let prepared_1 = tokio::task::spawn_blocking(move || {
+        prepare(store_1_for_prepare.as_ref(), rfq_id, request_1)
+    })
+    .await
+    .unwrap()
+    .expect("first command should be valid");
+    let store_2_for_prepare = Arc::clone(&store_2);
+    let prepared_2 = tokio::task::spawn_blocking(move || {
+        prepare(store_2_for_prepare.as_ref(), rfq_id, request_2)
+    })
+    .await
+    .unwrap()
+    .expect("second command should be valid against the same snapshot");
+
+    assert_eq!(
+        prepared_1.expected_context_version(),
+        prepared_2.expected_context_version(),
+        "both decisions must be prepared against the same context version before either append starts"
+    );
+
+    let barrier = Arc::new(std::sync::Barrier::new(2));
+    let first_barrier = Arc::clone(&barrier);
+    let first_store = Arc::clone(&store_1);
+    let first = tokio::task::spawn_blocking(move || {
+        first_barrier.wait();
+        commit_prepared(first_store.as_ref(), prepared_1)
+    });
+    let second_barrier = Arc::clone(&barrier);
+    let second_store = Arc::clone(&store_2);
+    let second = tokio::task::spawn_blocking(move || {
+        second_barrier.wait();
+        commit_prepared(second_store.as_ref(), prepared_2)
+    });
+    let (result_1, result_2) = tokio::join!(first, second);
+    let results = [result_1.unwrap(), result_2.unwrap()];
+    assert_eq!(
+        results.iter().filter(|result| result.is_ok()).count(),
+        1,
+        "one append must win"
+    );
+    assert_eq!(
+        results
+            .iter()
+            .filter(|result| matches!(result, Err(CommitError::ContextChanged)))
+            .count(),
+        1,
+        "the stale append must be rejected as FACTSTR ConditionalAppendConflict"
+    );
+
+    let quote_query = quote_context_query(rfq_id, supplier_id);
+    let persisted = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&quote_query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        persisted.event_records.len(),
+        1,
+        "exactly one quote fact must be persisted"
+    );
+}
+
+/// A supplier eligibility fact appended after a quote decision invalidates that
+/// decision's command context. This covers a business fact, not just duplicates.
+#[tokio::test]
+async fn ccc_supplier_eligibility_change_invalidates_a_prepared_quote() {
+    let app = spawn_app().await;
+    let database_url_1 = app.database_url.clone();
+    let database_url_2 = app.database_url.clone();
+    let store_1 = Arc::new(
+        tokio::task::spawn_blocking(move || PostgresStore::connect(&database_url_1))
+            .await
+            .unwrap()
+            .expect("first independent FACTSTR store must connect"),
+    );
+    let store_2 = Arc::new(
+        tokio::task::spawn_blocking(move || PostgresStore::connect(&database_url_2))
+            .await
+            .unwrap()
+            .expect("second independent FACTSTR store must connect"),
+    );
+
+    let rfq_id = Uuid::parse_str(RFQ_ID).unwrap();
+    let supplier_id = Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap();
+    let request: SubmitSupplierQuoteRequest =
+        serde_json::from_value(valid_request(SUPPLIER_ELIGIBLE_ID)).unwrap();
+    let store_for_prepare = Arc::clone(&store_1);
+    let prepared =
+        tokio::task::spawn_blocking(move || prepare(store_for_prepare.as_ref(), rfq_id, request))
+            .await
+            .unwrap()
+            .expect("quote should be valid while supplier is eligible");
+    let prepared_version = prepared.expected_context_version();
+
+    let store_for_change = Arc::clone(&store_2);
+    tokio::task::spawn_blocking(move || {
+        set_supplier_eligibility::process(
+            store_for_change.as_ref(),
+            supplier_id,
+            SetSupplierEligibilityRequest {
+                status: SupplierStatus::Blocked,
+            },
+        )
+    })
+    .await
+    .unwrap()
+    .expect("blocking a registered supplier must append an eligibility fact");
+
+    let store_for_commit = Arc::clone(&store_1);
+    let commit =
+        tokio::task::spawn_blocking(move || commit_prepared(store_for_commit.as_ref(), prepared))
+            .await
+            .unwrap();
+    assert!(
+        matches!(commit, Err(CommitError::ContextChanged)),
+        "esperava ContextChanged quando o contexto mudou entre prepare e commit"
+    );
+    assert!(
+        prepared_version.is_some(),
+        "the command must have observed supplier facts"
+    );
+
+    let quote_query = quote_context_query(rfq_id, supplier_id);
+    let persisted = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&quote_query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(
+        persisted.event_records.is_empty(),
+        "a stale eligibility decision must not append a quote fact"
+    );
+}
+
+/// Different supplier-specific contexts can both commit for one RFQ.
+#[tokio::test]
+async fn ccc_independent_supplier_contexts_commit_without_false_conflict() {
+    let app = spawn_app().await;
+    let other_supplier_id = Uuid::parse_str(SUPPLIER_OTHER_ELIGIBLE_ID).unwrap();
+    let other_supplier = SupplierRegisteredFact {
+        supplier_id: other_supplier_id,
+        reference: "SUP-OTHER-ELIGIBLE".to_owned(),
+        name: "Other Eligible Supplier".to_owned(),
+        registered_at: Utc::now(),
+    };
+    let other_eligibility = SupplierEligibilityChangedFact {
+        supplier_id: other_supplier_id,
+        status: SupplierStatus::Eligible,
+        changed_at: Utc::now(),
+    };
+    tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || {
+            store
+                .as_ref()
+                .append(vec![
+                    NewEvent::new(SUPPLIER_REGISTERED_V1, json!(other_supplier)),
+                    NewEvent::new(SUPPLIER_ELIGIBILITY_CHANGED_V1, json!(other_eligibility)),
+                ])
+                .expect("second supplier facts must append");
+        }
+    })
+    .await
+    .unwrap();
+
+    let store_1_url = app.database_url.clone();
+    let store_2_url = app.database_url.clone();
+    let store_1 = Arc::new(
+        tokio::task::spawn_blocking(move || PostgresStore::connect(&store_1_url))
+            .await
+            .unwrap()
+            .expect("first independent FACTSTR store must connect"),
+    );
+    let store_2 = Arc::new(
+        tokio::task::spawn_blocking(move || PostgresStore::connect(&store_2_url))
+            .await
+            .unwrap()
+            .expect("second independent FACTSTR store must connect"),
+    );
+
+    let rfq_id = Uuid::parse_str(RFQ_ID).unwrap();
+    let request_1: SubmitSupplierQuoteRequest =
+        serde_json::from_value(valid_request(SUPPLIER_ELIGIBLE_ID)).unwrap();
+    let request_2: SubmitSupplierQuoteRequest =
+        serde_json::from_value(valid_request(SUPPLIER_OTHER_ELIGIBLE_ID)).unwrap();
+    let store_1_for_prepare = Arc::clone(&store_1);
+    let prepared_1 = tokio::task::spawn_blocking(move || {
+        prepare(store_1_for_prepare.as_ref(), rfq_id, request_1)
+    })
+    .await
+    .unwrap()
+    .expect("first supplier quote should be valid");
+    let store_2_for_prepare = Arc::clone(&store_2);
+    let prepared_2 = tokio::task::spawn_blocking(move || {
+        prepare(store_2_for_prepare.as_ref(), rfq_id, request_2)
+    })
+    .await
+    .unwrap()
+    .expect("second supplier quote should be valid");
+
+    let barrier = Arc::new(std::sync::Barrier::new(2));
+    let first_barrier = Arc::clone(&barrier);
+    let first_store = Arc::clone(&store_1);
+    let first = tokio::task::spawn_blocking(move || {
+        first_barrier.wait();
+        commit_prepared(first_store.as_ref(), prepared_1)
+    });
+    let second_barrier = Arc::clone(&barrier);
+    let second_store = Arc::clone(&store_2);
+    let second = tokio::task::spawn_blocking(move || {
+        second_barrier.wait();
+        commit_prepared(second_store.as_ref(), prepared_2)
+    });
+    let (result_1, result_2) = tokio::join!(first, second);
+    assert!(
+        result_1.unwrap().is_ok(),
+        "first supplier context should commit"
+    );
+    assert!(
+        result_2.unwrap().is_ok(),
+        "second supplier context should remain valid"
+    );
+
+    let quote_query = EventQuery::all()
+        .with_filters([EventFilter::for_event_types([SUPPLIER_QUOTE_SUBMITTED_V1])
+            .with_payload_predicates([json!({ "rfq_id": rfq_id })])]);
+    let persisted = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&quote_query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        persisted.event_records.len(),
+        2,
+        "both supplier quote facts must persist"
     );
 }
 
 #[tokio::test]
-async fn concurrent_close_and_submission_respect_command_context_consistency() {
+async fn concurrent_close_and_submission_preserve_rfq_context_consistency() {
     let app = spawn_app().await;
     let client = Client::new();
-    let barrier = Arc::new(Barrier::new(3));
+    let barrier = Arc::new(TokioBarrier::new(3));
     let close_url = format!("{}/api/rfqs/{RFQ_ID}/close", app.base_url);
     let quote_url = format!("{}/api/rfqs/{RFQ_ID}/quotes", app.base_url);
 
@@ -311,15 +771,8 @@ async fn concurrent_close_and_submission_respect_command_context_consistency() {
     let close_client = client.clone();
     let close = tokio::spawn(async move {
         close_barrier.wait().await;
-        close_client
-            .post(close_url)
-            .send()
-            .await
-            .unwrap()
-            .status()
-            .as_u16()
+        close_client.post(close_url).send().await.unwrap()
     });
-
     let quote_barrier = Arc::clone(&barrier);
     let quote = tokio::spawn(async move {
         quote_barrier.wait().await;
@@ -330,37 +783,50 @@ async fn concurrent_close_and_submission_respect_command_context_consistency() {
             .await
             .unwrap()
     });
-
     barrier.wait().await;
-    assert_eq!(
-        close.await.unwrap(),
-        200,
-        "the Close RFQ command should win or wait and then close the RFQ"
-    );
+
+    let close_response = close.await.unwrap();
+    assert_eq!(close_response.status(), StatusCode::OK);
     let quote_response = quote.await.unwrap();
     let quote_status = quote_response.status();
     assert!(quote_status == StatusCode::CREATED || quote_status == StatusCode::CONFLICT);
     if quote_status == StatusCode::CONFLICT {
         let body: Value = quote_response.json().await.unwrap();
-        assert_eq!(body["code"], "rfq_closed");
+        assert!(body["code"] == "rfq_closed" || body["code"] == "command_context_changed");
     }
 
-    let status: String = sqlx::query_scalar("SELECT status FROM rfqs WHERE id = $1")
-        .bind(Uuid::parse_str(RFQ_ID).unwrap())
-        .fetch_one(&app.pool)
-        .await
-        .unwrap();
-    assert_eq!(status, "closed");
-    let quote_count: i64 =
-        sqlx::query_scalar("SELECT count(*) FROM supplier_quotes WHERE rfq_id = $1")
-            .bind(Uuid::parse_str(RFQ_ID).unwrap())
-            .fetch_one(&app.pool)
-            .await
-            .unwrap();
-    let expected_count = if quote_status == StatusCode::CREATED {
-        1_i64
-    } else {
-        0_i64
-    };
-    assert_eq!(quote_count, expected_count);
+    let rfq_query = EventQuery::all().with_filters([EventFilter::for_event_types([RFQ_OPENED_V1])
+        .with_payload_predicates([json!({ "rfq_id": RFQ_ID })])]);
+    let rfq_result = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&rfq_query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        rfq_result.event_records.len(),
+        1,
+        "RFQ opening fact must remain singular"
+    );
+
+    let quote_query = quote_context_query(
+        Uuid::parse_str(RFQ_ID).unwrap(),
+        Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap(),
+    );
+    let quote_result = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&quote_query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        quote_result.event_records.len(),
+        if quote_status == StatusCode::CREATED {
+            1
+        } else {
+            0
+        }
+    );
 }
