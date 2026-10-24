@@ -9,7 +9,12 @@ use testcontainers_modules::{
     postgres::Postgres,
     testcontainers::{ContainerAsync, ImageExt, runners::AsyncRunner},
 };
-use tokio::{net::TcpListener, sync::Barrier, task::JoinHandle};
+use tokio::{
+    net::TcpListener,
+    sync::Barrier,
+    task::JoinHandle,
+    time::{Duration, Instant, sleep},
+};
 use uuid::Uuid;
 
 const RFQ_ID: &str = "11111111-1111-4111-8111-111111111111";
@@ -180,12 +185,58 @@ async fn acceptance_rejects_blocked_supplier_and_does_not_write_state() {
     );
 }
 
+/// Wait until both API requests have reached the real PostgreSQL INSERT and are
+/// blocked by the test-held table lock. This proves two independent server-side
+/// sessions are at the conflict point before the gate is released.
+async fn wait_for_blocked_quote_inserts(pool: &PgPool, expected: i64) {
+    let deadline = Instant::now() + Duration::from_secs(15);
+
+    loop {
+        let blocked: i64 = sqlx::query_scalar(
+            r#"
+            SELECT count(DISTINCT pid)
+            FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND usename = current_user
+              AND pid <> pg_backend_pid()
+              AND state = 'active'
+              AND wait_event_type = 'Lock'
+              AND wait_event = 'relation'
+              AND query LIKE 'INSERT INTO supplier_quotes (%'
+            "#,
+        )
+        .fetch_one(pool)
+        .await
+        .expect("test role must be able to inspect its PostgreSQL sessions");
+
+        if blocked >= expected {
+            return;
+        }
+
+        assert!(
+            Instant::now() < deadline,
+            "timed out waiting for {expected} independent PostgreSQL sessions to block at INSERT INTO supplier_quotes; observed {blocked}. The test must not release its gate before both writers reach the conflict point."
+        );
+        sleep(Duration::from_millis(25)).await;
+    }
+}
+
 #[tokio::test]
 async fn concurrent_duplicate_submissions_commit_exactly_one_quote() {
     let app = spawn_app().await;
     let client = Client::new();
     let barrier = Arc::new(Barrier::new(3));
     let url = format!("{}/api/rfqs/{RFQ_ID}/quotes", app.base_url);
+
+    // Test-only database choreography: SHARE conflicts with the ROW EXCLUSIVE
+    // relation lock required by INSERT, while remaining compatible with the
+    // RPU's SELECT ... FOR SHARE locks on rfqs and suppliers. This does not alter
+    // production code/schema and is not an application-level mutex.
+    let mut insert_gate = app.pool.begin().await.unwrap();
+    sqlx::query("LOCK TABLE supplier_quotes IN SHARE MODE")
+        .execute(&mut *insert_gate)
+        .await
+        .expect("test must acquire the INSERT gate before starting writers");
 
     let barrier_one = Arc::clone(&barrier);
     let client_one = client.clone();
@@ -216,13 +267,22 @@ async fn concurrent_duplicate_submissions_commit_exactly_one_quote() {
             .as_u16()
     });
 
+    // The Barrier only starts both HTTP tasks. The database observation below is
+    // the synchronization proof: do not release the gate until two different
+    // PostgreSQL sessions are waiting on the quote INSERT relation lock.
     barrier.wait().await;
+    wait_for_blocked_quote_inserts(&app.pool, 2).await;
+
+    // Both inserts have reached PostgreSQL. Releasing the gate lets them race on
+    // the UNIQUE (rfq_id, supplier_id) index; only the winner can commit.
+    insert_gate.commit().await.unwrap();
+
     let mut statuses = vec![first.await.unwrap(), second.await.unwrap()];
     statuses.sort_unstable();
     assert_eq!(
         statuses,
         vec![201, 409],
-        "the unique constraint must serialize conflicting commits into accepted/rejected outcomes"
+        "exactly one concurrent submission must succeed (201) and the duplicate must conflict (409), regardless of which request wins the race)",
     );
 
     let quote_count: i64 = sqlx::query_scalar(
@@ -235,7 +295,7 @@ async fn concurrent_duplicate_submissions_commit_exactly_one_quote() {
     .unwrap();
     assert_eq!(
         quote_count, 1,
-        "the Application State must contain exactly one quote for this RFQ/supplier pair"
+        "the Application State must contain exactly one quote for this RFQ/supplier pair",
     );
 }
 

@@ -204,15 +204,15 @@ Os testes unitários de `decision.rs` recebem o comando, o snapshot explícito d
 
 ### 3. Concorrência A — duas submissões para o mesmo fornecedor e RFQ
 
-O teste `concurrent_duplicate_submissions_commit_exactly_one_quote` cria duas tarefas Tokio que enviam o mesmo comando HTTP. Uma `Barrier` com três participantes (as duas tarefas e a tarefa do teste) funciona como portão de partida: as duas requisições só são liberadas quando ambas chegaram ao ponto de início.
+O teste `concurrent_duplicate_submissions_commit_exactly_one_quote` envia o mesmo comando HTTP por duas tarefas Tokio. A `Barrier` continua sendo apenas o portão de partida; a determinização vem de uma coreografia explícita no PostgreSQL, sem modificar o código de produção:
 
-A estratégia é verificar o invariante de negócio, e não prever qual tarefa vence:
+1. Uma terceira conexão, pertencente ao próprio teste, abre uma transação e executa `LOCK TABLE supplier_quotes IN SHARE MODE`. Esse lock é compatível com as leituras do comando, mas conflita com o lock de relação `ROW EXCLUSIVE` necessário para executar `INSERT` na tabela.
+2. As duas requisições REST são liberadas. Cada RPU pode ler os contextos de RFQ e fornecedor e chegar ao `INSERT`, mas ambas ficam bloqueadas no PostgreSQL pela trava mantida pelo teste.
+3. O teste consulta `pg_stat_activity` por uma conexão independente até observar **dois PIDs distintos** com `INSERT INTO supplier_quotes` ativo e `wait_event_type = 'Lock'` / `wait_event = 'relation'`. Se ambos não chegarem ao ponto esperado dentro de 15 segundos, o teste falha em vez de liberar a trava silenciosamente.
+4. Só depois dessa observação o teste commita a transação-gate. As duas inserções são liberadas e disputam a constraint `UNIQUE (rfq_id, supplier_id)`. O PostgreSQL escolhe o vencedor; o outro `INSERT` recebe conflito de unicidade após a transação vencedora confirmar.
+5. O teste exige os status ordenados `[201, 409]` e verifica por consulta direta que existe exatamente uma cotação persistida para aquele par RFQ/fornecedor.
 
-1. Ambas as RPU podem ler a RFQ e o fornecedor sob `FOR SHARE`; esses locks são compatíveis entre si, logo não são usados como mecanismo de deduplicação.
-2. Ambas tentam persistir a mesma chave lógica `(rfq_id, supplier_id)`.
-3. A constraint PostgreSQL `UNIQUE (rfq_id, supplier_id)` é a autoridade final. Quando uma transação vence, a outra aguarda a resolução do conflito e recebe a violação de unicidade se a primeira confirmar.
-4. A RPU converte apenas a violação da constraint esperada `supplier_quotes_rfq_supplier_key` em `duplicate_supplier_quote` / HTTP `409`; a submissão vencedora retorna `201` depois do commit.
-5. O teste ordena os status antes da comparação e exige `[201, 409]`, pois não importa qual requisição foi vencedora. Depois consulta o banco e exige exatamente uma cotação para aquele par RFQ/fornecedor.
+A trava de tabela é **instrumentação exclusiva do teste**, adquirida pelo harness, não uma alteração na migration ou um lock adicionado ao caminho produtivo. O teste usa sessões PostgreSQL independentes: uma retém a trava, duas outras chegam ao ponto de inserção, e uma quarta consulta (via pool) observa a espera. Essa coreografia faz com que a afirmação não dependa somente da velocidade relativa das tarefas Tokio.
 
 **Por que não usar `SELECT NOT EXISTS` antes do `INSERT`?** Duas transações poderiam observar “ainda não existe cotação” ao mesmo tempo e tentar inserir ambas. A leitura prévia não torna a regra atômica; a constraint única sim. Um `Mutex` no processo também seria inadequado porque não protegeria contra outras instâncias da aplicação.
 
@@ -231,14 +231,12 @@ O teste aceita os dois ordenamentos — não exige que uma operação específic
 
 | Verificação | Evidência fornecida | Limite |
 |---|---|---|
-| Duas submissões com a mesma chave | Uma resposta `201`, uma `409` e uma linha persistida | A `Barrier` sincroniza o início das tarefas, mas não força ambas a executar o `INSERT` no mesmo instante |
-| Fechamento e submissão | O estado final corresponde a uma das duas ordens serializadas válidas | Não prova todas as interleavings possíveis nem testa carga prolongada |
+| Duas submissões com a mesma chave | Uma resposta `201`, uma `409` e uma linha persistida; o teste só solta a trava após observar dois PIDs bloqueados no `INSERT` | Determinístico para o ponto de contenção da tabela/constraint exercitado; não substitui testes de carga nem cobre todos os cenários de falha |
+| Fechamento e submissão | O estado final corresponde a uma das duas ordens serializadas válidas | A `Barrier` sincroniza o início, mas a ordem efetiva ainda é concorrente; não prova todas as interleavings nem testa carga prolongada |
 | Trigger que congela itens após abertura | Uma inserção tardia é recusada com SQLSTATE `23514` | O teste da inserção tardia é de integridade, não uma simulação concorrente de phantom |
 | Testes unitários do Core | As regras de decisão para snapshots dados | Não demonstram a proteção transacional do CCC |
 
-Portanto, os testes atuais são **testes de corrida concorrente de integração**, usando tarefas simultâneas, API real e PostgreSQL real. São úteis para detectar regressões, mas a `Barrier` é apenas uma sincronização de partida: ela não garante uma interleaving exata dentro do banco. A garantia central vem dos mecanismos declarativos/transacionais de PostgreSQL; os testes verificam que a aplicação os utiliza corretamente nos cenários exercitados.
-
-Se for necessário um teste de concorrência determinístico de nível de prova, complemente a suíte com uma coreografia explícita no banco (por exemplo, uma transação de teste que retém o lock e verifica a espera da segunda conexão, ou instrumentação exclusiva de teste que sincronize os escritores antes da inserção). Esse teste deve usar conexões PostgreSQL independentes e não um mutex da aplicação, e a instrumentação não deve ir para produção.
+Os dois testes de concorrência têm níveis distintos de sincronização. A disputa por chave duplicada agora é um **teste de contenção determinística no ponto de inserção**: ele verifica a espera de dois backends independentes antes de liberar o lock de teste. Já a disputa entre `CloseRfq` e `SubmitSupplierQuote` continua sendo um teste de corrida de integração baseado em `Barrier`: aceita ambas as ordens serializadas válidas e verifica os invariantes do estado final, mas não força um vencedor específico. A garantia produtiva continua vindo dos locks e constraints próprios do PostgreSQL; a trava extra existe somente no teste para tornar observável a disputa pela chave única.
 
 ### Executar os testes
 
