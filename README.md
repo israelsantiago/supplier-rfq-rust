@@ -15,21 +15,21 @@ Implementação de referência para **Submeter Cotação de Fornecedor** no dom�
 
 ```mermaid
 flowchart TD
-  Client[Fornecedor / API client] --> REST[Axum REST boundary]
-  REST --> Submit[SubmitSupplierQuote capability]
-  REST --> Close[CloseRfq capability]
-  REST --> Query[ListSupplierQuotes query capability]
+  Client["Fornecedor / API client"] --> REST["Axum REST boundary"]
+  REST --> Submit["SubmitSupplierQuote capability"]
+  REST --> Close["CloseRfq capability"]
+  REST --> Query["ListSupplierQuotes query capability"]
 
-  subgraph SubmitRPU[SubmitSupplierQuote — Request Processing Unit]
-    Load[Load Application State\ninside PostgreSQL transaction]
-    Decide[Functional Core\nrequest + context snapshot -> decision]
-    Record[Record accepted domain result]
+  subgraph SubmitRPU["SubmitSupplierQuote — Request Processing Unit"]
+    Load["Load Application State<br/>inside PostgreSQL transaction"]
+    Decide["Functional Core<br/>request + context snapshot → decision"]
+    Record["Record accepted domain result"]
     Load --> Decide --> Record
   end
 
   Submit --> SubmitRPU
-  Close --> CloseRPU[CloseRfq RPU\nSELECT FOR UPDATE -> UPDATE -> COMMIT]
-  SubmitRPU <--> DB[(PostgreSQL Application State)]
+  Close --> CloseRPU["CloseRfq RPU<br/>lock RFQ, update status, commit"]
+  SubmitRPU <--> DB[("PostgreSQL Application State")]
   CloseRPU <--> DB
   Query --> DB
 ```
@@ -81,16 +81,15 @@ sequenceDiagram
   participant A as SubmitSupplierQuote RPU
   participant B as PostgreSQL
   participant C as CloseRfq RPU
-  A->>B: BEGIN
-  A->>B: SELECT RFQ FOR SHARE
-  C->>B: BEGIN; SELECT RFQ FOR UPDATE
-  Note over B,C: Close espera enquanto Submit mantém o lock compartilhado
-  A->>B: SELECT supplier/items FOR SHARE
-  A->>B: INSERT quote + items
-  A->>B: COMMIT
-  B-->>C: lock exclusivo liberado
-  C->>B: lê status atual, UPDATE closed
-  C->>B: COMMIT
+  A->>B: Begin transaction
+  A->>B: Lock RFQ with FOR SHARE
+  C->>B: Begin transaction and request FOR UPDATE
+  A->>B: Lock supplier and RFQ items with FOR SHARE
+  A->>B: Insert quote and quote items
+  A->>B: Commit
+  B-->>C: Submit commits and releases the shared lock
+  C->>B: Read current status and set closed
+  C->>B: Commit
 ```
 
 Se `CloseRfq` adquirir o lock primeiro, a submissão aguardará e, depois do commit, lerá `closed` e será rejeitada. Se a submissão adquirir o lock primeiro, ela poderá ser confirmada antes do fechamento; o fechamento aguardará e ocorrerá em seguida. Ambos os resultados são consistentes com a ordem de commit.
@@ -191,36 +190,80 @@ psql "$DATABASE_URL" -f scripts/seed_demo.sql
 
 A aplicação executa as migrations ao iniciar.
 
-## Estratégia de testes
+## Estratégia de testes e raciocínio de concorrência
 
-1. **Functional Core unit tests** (`decision.rs`): regras puras, total em centavos, RFQ fechada, quantidade divergente e fornecedor não homologado. Não precisam de PostgreSQL ou Docker.
-2. **Acceptance tests via HTTP** (`tests/acceptance_api.rs`): usam reqwest contra servidor Axum real e PostgreSQL descartável, incluindo migrations. Validam a interface externa e o estado persistido.
-3. **Concorrência na API**: duas submissões simultâneas do mesmo fornecedor/RFQ devem resultar em exatamente um `201` e um `409`, com uma única cotação persistida.
-4. **Race entre `CloseRfq` e `SubmitSupplierQuote`**: permite ambos os ordenamentos, mas verifica que o RFQ termina fechado e que uma cotação só existe se a submissão tiver sido confirmada antes do fechamento.
-5. **Testes no banco real**: os testes não substituem locks/constraints do PostgreSQL por mocks ou `Mutex` em memória.
+A estratégia segue três níveis, cada um com uma responsabilidade diferente. Não se usa um mock de PostgreSQL para afirmar uma garantia que depende de locks, transações ou constraints do banco.
 
-Execute somente os testes puros:
+### 1. Functional Core: testar decisões sem concorrência nem I/O
+
+Os testes unitários de `decision.rs` recebem o comando, o snapshot explícito do contexto e os valores de tempo/identidade necessários. Verificam regras como elegibilidade do fornecedor, estado da RFQ, quantidades e cálculo do total. Esses testes são rápidos e determinísticos, mas **não** demonstram Command Context Consistency: eles não exercitam transações nem persistência.
+
+### 2. Acceptance tests: verificar a capacidade pela API real
+
+`tests/acceptance_api.rs` inicializa um PostgreSQL descartável com Testcontainers, aplica as migrations, carrega uma fixture e inicia o servidor Axum em uma porta local efêmera. O teste envia HTTP com `reqwest`, verifica o status/body e consulta o Application State no banco. Assim ele cobre a fronteira REST, a RPU e o efeito persistido, sem substituir a infraestrutura de consistência por mocks.
+
+### 3. Concorrência A — duas submissões para o mesmo fornecedor e RFQ
+
+O teste `concurrent_duplicate_submissions_commit_exactly_one_quote` cria duas tarefas Tokio que enviam o mesmo comando HTTP. Uma `Barrier` com três participantes (as duas tarefas e a tarefa do teste) funciona como portão de partida: as duas requisições só são liberadas quando ambas chegaram ao ponto de início.
+
+A estratégia é verificar o invariante de negócio, e não prever qual tarefa vence:
+
+1. Ambas as RPU podem ler a RFQ e o fornecedor sob `FOR SHARE`; esses locks são compatíveis entre si, logo não são usados como mecanismo de deduplicação.
+2. Ambas tentam persistir a mesma chave lógica `(rfq_id, supplier_id)`.
+3. A constraint PostgreSQL `UNIQUE (rfq_id, supplier_id)` é a autoridade final. Quando uma transação vence, a outra aguarda a resolução do conflito e recebe a violação de unicidade se a primeira confirmar.
+4. A RPU converte apenas a violação da constraint esperada `supplier_quotes_rfq_supplier_key` em `duplicate_supplier_quote` / HTTP `409`; a submissão vencedora retorna `201` depois do commit.
+5. O teste ordena os status antes da comparação e exige `[201, 409]`, pois não importa qual requisição foi vencedora. Depois consulta o banco e exige exatamente uma cotação para aquele par RFQ/fornecedor.
+
+**Por que não usar `SELECT NOT EXISTS` antes do `INSERT`?** Duas transações poderiam observar “ainda não existe cotação” ao mesmo tempo e tentar inserir ambas. A leitura prévia não torna a regra atômica; a constraint única sim. Um `Mutex` no processo também seria inadequado porque não protegeria contra outras instâncias da aplicação.
+
+### 4. Concorrência B — `CloseRfq` contra `SubmitSupplierQuote`
+
+O teste `concurrent_close_and_submission_respect_command_context_consistency` também libera duas tarefas pela `Barrier`, mas disputa um contexto de negócio diferente: o status da RFQ.
+
+- `SubmitSupplierQuote` obtém `FOR SHARE` na linha da RFQ e mantém a transação aberta até gravar a cotação e confirmar o commit.
+- `CloseRfq` tenta `SELECT ... FOR UPDATE` na mesma linha. Esse lock é incompatível com o lock compartilhado; portanto, o PostgreSQL ordena as operações.
+- Se a submissão obtiver o lock primeiro, ela pode confirmar a cotação; o fechamento espera e fecha a RFQ depois. O resultado válido é `201` para a submissão, RFQ fechada e uma cotação persistida.
+- Se o fechamento obtiver o lock primeiro, ele fecha e confirma a RFQ; a submissão espera, lê o status já fechado e recebe `409 rfq_closed`. O resultado válido é RFQ fechada e nenhuma cotação gravada por essa submissão.
+
+O teste aceita os dois ordenamentos — não exige que uma operação específica vença — e, ao final, verifica o estado persistido e a relação entre o status HTTP da submissão e a quantidade de cotações. Isso é essencial: uma corrida concorrente não possui uma ordem de vencedor garantida pelo teste.
+
+### 5. O que esses testes provam — e o que não provam
+
+| Verificação | Evidência fornecida | Limite |
+|---|---|---|
+| Duas submissões com a mesma chave | Uma resposta `201`, uma `409` e uma linha persistida | A `Barrier` sincroniza o início das tarefas, mas não força ambas a executar o `INSERT` no mesmo instante |
+| Fechamento e submissão | O estado final corresponde a uma das duas ordens serializadas válidas | Não prova todas as interleavings possíveis nem testa carga prolongada |
+| Trigger que congela itens após abertura | Uma inserção tardia é recusada com SQLSTATE `23514` | O teste da inserção tardia é de integridade, não uma simulação concorrente de phantom |
+| Testes unitários do Core | As regras de decisão para snapshots dados | Não demonstram a proteção transacional do CCC |
+
+Portanto, os testes atuais são **testes de corrida concorrente de integração**, usando tarefas simultâneas, API real e PostgreSQL real. São úteis para detectar regressões, mas a `Barrier` é apenas uma sincronização de partida: ela não garante uma interleaving exata dentro do banco. A garantia central vem dos mecanismos declarativos/transacionais de PostgreSQL; os testes verificam que a aplicação os utiliza corretamente nos cenários exercitados.
+
+Se for necessário um teste de concorrência determinístico de nível de prova, complemente a suíte com uma coreografia explícita no banco (por exemplo, uma transação de teste que retém o lock e verifica a espera da segunda conexão, ou instrumentação exclusiva de teste que sincronize os escritores antes da inserção). Esse teste deve usar conexões PostgreSQL independentes e não um mutex da aplicação, e a instrumentação não deve ir para produção.
+
+### Executar os testes
+
+Execute somente os testes unitários do Functional Core:
 
 ```bash
 cargo test --lib
 ```
 
-Execute a suíte completa (precisa que Docker esteja instalado e acessível ao usuário):
+Execute a suíte completa de aceitação e concorrência (precisa de Docker instalado e acessível ao usuário):
 
 ```bash
 cargo test
 ```
 
-Se estiver rodando em um CI ou máquina com recursos limitados, prefira iniciar os containers em série:
+Se a máquina de CI tiver recursos limitados, execute os casos em série para reduzir a competição por CPU/memória entre containers; isso **não** serializa as duas requisições que cada teste dispara internamente:
 
 ```bash
 cargo test -- --test-threads=1
 ```
 
-Formate o código antes de enviar alterações e execute o lint com:
+Formate o código e execute o lint com:
 
 ```bash
-cargo fmt
+cargo fmt --all -- --check
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
