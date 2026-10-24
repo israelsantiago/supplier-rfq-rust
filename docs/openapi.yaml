@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: Supplier RFQ Domain Capabilities API
-  version: 0.1.0
-  description: REST API reference for SubmitSupplierQuote, CloseRfq, and ListSupplierQuotes capabilities.
+  title: Supplier RFQ API — FACTSTR
+  version: 0.2.0
+  description: API REST de referência para Domain Capabilities, RPU, Event Sourcing e CCC com FACTSTR.
 servers:
   - url: http://127.0.0.1:3000
 paths:
@@ -11,63 +11,133 @@ paths:
       summary: Health check
       responses:
         '200':
-          description: Service is responding
-  /api/rfqs/{rfq_id}/quotes:
-    parameters:
-      - $ref: '#/components/parameters/RfqId'
+          description: API está ativa e configurada para FACTSTR/PostgreSQL.
+  /api/rfqs:
     post:
-      summary: Submit a supplier quote (SubmitSupplierQuote command capability)
-      operationId: submitSupplierQuote
+      summary: OpenRfq — abre RFQ e registra os itens num fato imutável
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SubmitSupplierQuote'
-            example:
-              supplier_id: 22222222-2222-4222-8222-222222222222
-              currency: BRL
-              delivery_days: 7
-              valid_until: '2099-12-31'
-              items:
-                - rfq_item_id: 44444444-4444-4444-8444-444444444441
-                  quantity: 10
-                  unit_price_cents: 1250
-                - rfq_item_id: 44444444-4444-4444-8444-444444444442
-                  quantity: 5
-                  unit_price_cents: 3000
+              $ref: '#/components/schemas/OpenRfqRequest'
       responses:
         '201':
-          description: Quote submitted and committed
-        '404':
-          description: RFQ or supplier not found
+          description: RFQ aberta
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RfqOpenedFact'
         '409':
-          description: Business rejection (closed RFQ, blocked supplier, duplicate quote)
+          $ref: '#/components/responses/Conflict'
         '422':
-          description: The quote violates the requested item, quantity, currency, or numeric rules
-        '500':
-          description: Unexpected infrastructure failure
-    get:
-      summary: List supplier quotes (query capability; read-only)
-      operationId: listSupplierQuotes
-      responses:
-        '200':
-          description: Quotes for the RFQ
-        '404':
-          description: RFQ not found
-  /api/rfqs/{rfq_id}/close:
-    parameters:
-      - $ref: '#/components/parameters/RfqId'
+          $ref: '#/components/responses/Unprocessable'
+  /api/suppliers:
     post:
-      summary: Close an open RFQ (CloseRfq command capability)
-      operationId: closeRfq
+      summary: RegisterSupplier — registra a identidade imutável do fornecedor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterSupplierRequest'
+      responses:
+        '201':
+          description: Fato de registro do fornecedor criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierRegisteredFact'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /api/suppliers/{supplier_id}/eligibility:
+    put:
+      summary: SetSupplierEligibility — registra uma alteração de elegibilidade
+      parameters:
+        - $ref: '#/components/parameters/SupplierId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetSupplierEligibilityRequest'
       responses:
         '200':
-          description: RFQ closed and transaction committed
+          description: Fato de elegibilidade registrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierEligibilityChangedFact'
         '404':
-          description: RFQ not found
+          description: Fornecedor ainda não foi registrado.
         '409':
-          description: RFQ is not open or has already been closed
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+  /api/rfqs/{rfq_id}/quotes:
+    post:
+      summary: SubmitSupplierQuote — valida e registra a cotação com append_if
+      parameters:
+        - $ref: '#/components/parameters/RfqId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitSupplierQuoteRequest'
+      responses:
+        '201':
+          description: Cotação registrada como fato
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierQuoteSubmittedFact'
+        '404':
+          description: RFQ ou fornecedor não encontrado
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+    get:
+      summary: ListSupplierQuotes — materializa a consulta a partir dos fatos
+      parameters:
+        - $ref: '#/components/parameters/RfqId'
+      responses:
+        '200':
+          description: Cotações da RFQ
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [quotes]
+                properties:
+                  quotes:
+                    type: array
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/SupplierQuoteSubmittedFact'
+                        - type: object
+                          required: [sequence_number]
+                          properties:
+                            sequence_number:
+                              type: integer
+                              format: int64
+        '404':
+          description: RFQ não encontrada
+  /api/rfqs/{rfq_id}/close:
+    post:
+      summary: CloseRfq — registra o fechamento por append condicional
+      parameters:
+        - $ref: '#/components/parameters/RfqId'
+      responses:
+        '200':
+          description: RFQ fechada
+        '404':
+          description: RFQ não encontrada
+        '409':
+          $ref: '#/components/responses/Conflict'
 components:
   parameters:
     RfqId:
@@ -77,8 +147,161 @@ components:
       schema:
         type: string
         format: uuid
+    SupplierId:
+      name: supplier_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Conflict:
+      description: Conflito de negócio ou Command Context Consistency
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unprocessable:
+      description: Entrada sintaticamente válida, mas inválida para a regra de negócio
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
   schemas:
-    SubmitSupplierQuote:
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+    RfqItem:
+      type: object
+      additionalProperties: false
+      required: [id, sku, description, required_quantity]
+      properties:
+        id:
+          type: string
+          format: uuid
+        sku:
+          type: string
+        description:
+          type: string
+        required_quantity:
+          type: integer
+          format: int64
+          minimum: 1
+    OpenRfqRequest:
+      type: object
+      additionalProperties: false
+      required: [reference, currency, items]
+      properties:
+        id:
+          type: string
+          format: uuid
+        reference:
+          type: string
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RfqItem'
+    RfqOpenedFact:
+      type: object
+      additionalProperties: false
+      required: [rfq_id, reference, currency, opened_at, items]
+      properties:
+        rfq_id:
+          type: string
+          format: uuid
+        reference:
+          type: string
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        opened_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/RfqItem'
+    RegisterSupplierRequest:
+      type: object
+      additionalProperties: false
+      required: [reference, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Optional deterministic ID; generated by the service when omitted.
+        reference:
+          type: string
+          minLength: 1
+        name:
+          type: string
+          minLength: 1
+    SupplierRegisteredFact:
+      type: object
+      additionalProperties: false
+      required: [supplier_id, reference, name, registered_at]
+      properties:
+        supplier_id:
+          type: string
+          format: uuid
+        reference:
+          type: string
+        name:
+          type: string
+        registered_at:
+          type: string
+          format: date-time
+    SetSupplierEligibilityRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [eligible, blocked]
+    SupplierEligibilityChangedFact:
+      type: object
+      additionalProperties: false
+      required: [supplier_id, status, changed_at]
+      properties:
+        supplier_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [eligible, blocked]
+        changed_at:
+          type: string
+          format: date-time
+    QuotedItemInput:
+      type: object
+      additionalProperties: false
+      required: [rfq_item_id, quantity, unit_price_cents]
+      properties:
+        rfq_item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          format: int64
+          minimum: 1
+        unit_price_cents:
+          type: integer
+          format: int64
+          minimum: 1
+    SubmitSupplierQuoteRequest:
       type: object
       additionalProperties: false
       required: [supplier_id, currency, delivery_days, valid_until, items]
@@ -100,16 +323,58 @@ components:
           type: array
           minItems: 1
           items:
-            type: object
-            additionalProperties: false
-            required: [rfq_item_id, quantity, unit_price_cents]
-            properties:
-              rfq_item_id:
-                type: string
-                format: uuid
-              quantity:
-                type: integer
-                minimum: 1
-              unit_price_cents:
-                type: integer
-                minimum: 1
+            $ref: '#/components/schemas/QuotedItemInput'
+    QuotedItemFact:
+      type: object
+      additionalProperties: false
+      required: [rfq_item_id, quantity, unit_price_cents, line_total_cents]
+      properties:
+        rfq_item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          format: int64
+          minimum: 1
+        unit_price_cents:
+          type: integer
+          format: int64
+          minimum: 1
+        line_total_cents:
+          type: integer
+          format: int64
+    SupplierQuoteSubmittedFact:
+      type: object
+      additionalProperties: false
+      required: [quote_id, rfq_id, supplier_id, currency, total_amount_cents, delivery_days, valid_until, submitted_at, items]
+      properties:
+        quote_id:
+          type: string
+          format: uuid
+        rfq_id:
+          type: string
+          format: uuid
+        supplier_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        total_amount_cents:
+          type: integer
+          format: int64
+        delivery_days:
+          type: integer
+          minimum: 1
+        valid_until:
+          type: string
+          format: date
+        submitted_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/QuotedItemFact'

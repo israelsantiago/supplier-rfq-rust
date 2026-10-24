@@ -1,66 +1,112 @@
-//! Request Processing Unit (RPU): read protected context, decide, record, commit.
-use chrono::Utc;
+//! RPU: query the decision context, run the pure decision, then conditionally append.
+
+use factstr::{EventStore, EventStoreError, NewEvent};
+use serde_json::to_value;
+use thiserror::Error;
 use uuid::Uuid;
 
+use crate::facts::{SUPPLIER_QUOTE_SUBMITTED_V1, SupplierQuoteSubmittedFact};
+
 use super::{
-    decision::decide,
-    request::SubmitSupplierQuote,
-    result::{SubmissionRejection, SubmitSupplierQuoteOutcome},
-    state_access::{self, StateAccessError},
+    context::{LoadedSubmissionContext, load_context},
+    decision::{SubmissionRejection, decide},
+    request::SubmitSupplierQuoteRequest,
 };
-use crate::application_state::AppState;
 
-#[derive(Debug, thiserror::Error)]
-pub enum ProcessError {
+#[derive(Debug, Error)]
+pub enum PrepareError {
     #[error(transparent)]
-    Database(#[from] sqlx::Error),
-    #[error(transparent)]
-    StateAccess(#[from] StateAccessError),
+    Rejected(#[from] SubmissionRejection),
+    #[error("event store error: {0}")]
+    Store(String),
 }
 
-pub async fn process(
+#[derive(Debug, Error)]
+pub enum CommitError {
+    #[error("command context changed after the decision was made")]
+    ContextChanged,
+    #[error("event store error: {0}")]
+    Store(String),
+}
+
+#[derive(Debug)]
+pub struct PreparedSubmission {
+    context: LoadedSubmissionContext,
+    event: NewEvent,
+    pub quote: SupplierQuoteSubmittedFact,
+}
+
+impl PreparedSubmission {
+    /// Context version observed by the RPU before its pure decision was made.
+    /// Exposed to support deterministic CCC tests and operational diagnostics.
+    pub fn expected_context_version(&self) -> Option<u64> {
+        self.context.current_context_version
+    }
+}
+
+pub fn prepare(
+    store: &impl EventStore,
     rfq_id: Uuid,
-    request: SubmitSupplierQuote,
-    state: &AppState,
-) -> Result<SubmitSupplierQuoteOutcome, ProcessError> {
-    let mut tx = state.pool.begin().await?;
-    let context =
-        match state_access::load_submission_context(&mut tx, rfq_id, request.supplier_id).await {
-            Ok(context) => context,
-            Err(error) => {
-                tx.rollback().await?;
-                return Err(error.into());
-            }
-        };
+    request: SubmitSupplierQuoteRequest,
+) -> Result<PreparedSubmission, PrepareError> {
+    let loaded = load_context(store, rfq_id, request.supplier_id)
+        .map_err(|error| PrepareError::Store(error.to_string()))?;
+    let quote = decide(
+        &request,
+        &loaded.context,
+        Uuid::new_v4(),
+        chrono::Utc::now(),
+    )?;
+    let payload = to_value(&quote).map_err(|error| PrepareError::Store(error.to_string()))?;
+    let event = NewEvent::new(SUPPLIER_QUOTE_SUBMITTED_V1, payload);
 
-    let quote = match decide(&request, &context, Uuid::new_v4(), Utc::now()) {
-        Ok(quote) => quote,
-        Err(rejection) => {
-            tx.rollback().await?;
-            return Ok(SubmitSupplierQuoteOutcome::Rejected(rejection));
-        }
-    };
-
-    if let Err(error) = state_access::record_quote(&mut tx, &quote).await {
-        if is_supplier_quote_unique_conflict(&error) {
-            tx.rollback().await?;
-            return Ok(SubmitSupplierQuoteOutcome::Rejected(
-                SubmissionRejection::DuplicateSupplierQuote,
-            ));
-        }
-        tx.rollback().await?;
-        return Err(error.into());
-    }
-    tx.commit().await?;
-    Ok(SubmitSupplierQuoteOutcome::Accepted(quote))
+    Ok(PreparedSubmission {
+        context: loaded,
+        event,
+        quote,
+    })
 }
 
-fn is_supplier_quote_unique_conflict(error: &sqlx::Error) -> bool {
-    match error {
-        sqlx::Error::Database(database_error) => {
-            database_error.code().as_deref() == Some("23505")
-                && database_error.constraint() == Some("supplier_quotes_rfq_supplier_key")
+/// Exposed as a separate operation to make CCC's read/decide/conditional-append
+/// boundary directly testable with two independent FACTSTR/PostgreSQL stores.
+pub fn commit_prepared(
+    store: &impl EventStore,
+    prepared: PreparedSubmission,
+) -> Result<SupplierQuoteSubmittedFact, CommitError> {
+    store
+        .append_if(
+            vec![prepared.event],
+            &prepared.context.query,
+            prepared.context.current_context_version,
+        )
+        .map(|_| prepared.quote)
+        .map_err(|error| match error {
+            EventStoreError::ConditionalAppendConflict { .. } => CommitError::ContextChanged,
+            other => CommitError::Store(other.to_string()),
+        })
+}
+
+pub fn process(
+    store: &impl EventStore,
+    rfq_id: Uuid,
+    request: SubmitSupplierQuoteRequest,
+) -> Result<SupplierQuoteSubmittedFact, PrepareError> {
+    // A single re-read after CCC conflict turns common races into the current
+    // business rejection (duplicate or closed), without blind retry loops.
+    for attempt in 0..2 {
+        let prepared = prepare(store, rfq_id, request.clone())?;
+        match commit_prepared(store, prepared) {
+            Ok(quote) => return Ok(quote),
+            Err(CommitError::ContextChanged) if attempt == 0 => continue,
+            Err(CommitError::ContextChanged) => {
+                return Err(PrepareError::Rejected(
+                    SubmissionRejection::CommandContextChanged,
+                ));
+            }
+            Err(CommitError::Store(message)) => return Err(PrepareError::Store(message)),
         }
-        _ => false,
     }
+    Err(PrepareError::Rejected(
+        SubmissionRejection::CommandContextChanged,
+    ))
 }

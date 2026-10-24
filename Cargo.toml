@@ -1,20 +1,21 @@
 [package]
-name = "supplier-rfq-rpu"
-version = "0.1.0"
+name = "supplier-rfq-rpu-rust"
+version = "0.2.0"
 edition = "2024"
-rust-version = "1.88"
-description = "Reference implementation of Domain Capabilities, RPU and CCC for supplier RFQs"
-license = "MIT"
+rust-version = "1.85"
+description = "Supplier RFQ reference implementation using Domain Capabilities, RPU, Event Sourcing, FACTSTR and CCC"
+license = "MIT OR Apache-2.0"
 
 [dependencies]
 axum = "0.8.9"
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "0.4", features = ["serde", "clock"] }
 dotenvy = "0.15"
+factstr = "0.5.2"
+factstr-postgres = "0.5.2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-sqlx = { version = "0.9.0", features = ["runtime-tokio", "tls-rustls-ring-webpki", "postgres", "uuid", "chrono", "macros", "migrate"] }
 thiserror = "2"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time"] }
 tower-http = { version = "0.7.1", features = ["trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
