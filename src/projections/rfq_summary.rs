@@ -85,7 +85,7 @@ pub enum RfqSummaryProjectionError {
 
 /// Holds the PostgreSQL read model and the active durable FACTSTR subscription.
 pub struct RfqSummaryProjection {
-    pool: PgPool,
+    read_pool: PgPool,
     // Keeping the stream alive keeps live event delivery registered. Drop unsubscribes.
     _stream: factstr::EventStream,
 }
@@ -99,13 +99,19 @@ impl RfqSummaryProjection {
         database_url: &str,
         store: Arc<PostgresStore>,
     ) -> Result<Self, RfqSummaryProjectionError> {
-        let pool = PgPoolOptions::new()
+        // Keep HTTP reads independent from background projection writes.
+        let read_pool = PgPoolOptions::new()
             .max_connections(8)
             .connect(database_url)
             .await?;
-        MIGRATOR.run(&pool).await?;
+        MIGRATOR.run(&read_pool).await?;
 
-        let handler_pool = pool.clone();
+        // The durable stream uses a separate, bounded pool. A slow event
+        // handler must not consume the connections reserved for API reads.
+        let handler_pool = PgPoolOptions::new()
+            .max_connections(2)
+            .connect(database_url)
+            .await?;
         let stream = tokio::task::spawn_blocking(move || {
             let query = EventQuery::all().with_filters([
                 EventFilter::for_event_types([RFQ_OPENED_V1]),
@@ -136,7 +142,7 @@ impl RfqSummaryProjection {
         .await??;
 
         Ok(Self {
-            pool,
+            read_pool,
             _stream: stream,
         })
     }
@@ -150,7 +156,7 @@ impl RfqSummaryProjection {
                WHERE rfq_id = $1"#,
         )
         .bind(rfq_id)
-        .fetch_optional(&self.pool)
+        .fetch_optional(&self.read_pool)
         .await
     }
 
@@ -161,7 +167,7 @@ impl RfqSummaryProjection {
         offset: i64,
     ) -> Result<RfqSummaryPage, sqlx::Error> {
         // Keep total and page rows from the same projection snapshot while consumers update it.
-        let mut transaction = self.pool.begin().await?;
+        let mut transaction = self.read_pool.begin().await?;
         sqlx::query("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY")
             .execute(&mut *transaction)
             .await?;

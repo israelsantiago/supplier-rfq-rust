@@ -14,4 +14,4 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
       - name: Test (including PostgreSQL Testcontainers acceptance/concurrency tests)
-        run: cargo test --all-targets -- --test-threads=2
+        run: cargo test --all-targets
