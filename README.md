@@ -2,7 +2,7 @@
 
 Implementação de referência em Rust de um pequeno fluxo de **Supply Chain / Request for Quotation (RFQ)**. Esta branch adiciona Event Sourcing com [FACTSTR](https://github.com/ricofritzsche/factstr) à implementação original relacional, preservada na branch `main` para estudo e comparação.
 
-> **Escopo educacional:** não é uma solução de procurement pronta para produção. Não inclui autenticação/autorização, anexos de documentos, impostos, workflow de aprovação, seleção multicritério, idempotência HTTP ou uma projeção persistida para consultas de alto volume.
+> **Escopo educacional:** não é uma solução de procurement pronta para produção. Não inclui autenticação/autorização, anexos de documentos, impostos, workflow de aprovação, seleção multicritério nem uma idempotency key para requisições HTTP. Existe uma projeção persistida específica para resumos de RFQs, mas ela não é uma solução genérica de analytics e não foi validada por benchmarks de alto volume.
 
 ## Stack
 
@@ -70,6 +70,8 @@ Referências: [Architecture Knowledge Base — conceitos](https://architecture.r
 | `SubmitSupplierQuote` | Command | `POST /api/rfqs/{rfq_id}/quotes` | `supplier_quote_submitted.v1` · `201` |
 | `CloseRfq` | Command | `POST /api/rfqs/{rfq_id}/close` | `rfq_closed.v1` · `200` |
 | `ListSupplierQuotes` | Query | `GET /api/rfqs/{rfq_id}/quotes` | View derivada dos fatos · `200` |
+| `GetRfqSummary` | Query | `GET /api/rfqs/{rfq_id}/summary` | Read model `rfq_summary_projection` · `200` / `404` enquanto ausente |
+| `ListRfqSummaries` | Query | `GET /api/rfqs/summaries` | Read model filtrado e paginado · `200` / `400` para parâmetros inválidos |
 | Health | Infraestrutura | `GET /health` | `200` |
 
 Os nomes dos fatos têm sufixo `.v1` para tornar explícita a versão do contrato de evento. Um evento já persistido não deve ser alterado; mudanças de contrato futuras precisam de uma estratégia explícita de versionamento/upcasting.
@@ -93,6 +95,82 @@ Fatos centrais:
 A migration da aplicação está em [`migrations/202610240001_rfq_summary_projection.sql`](migrations/202610240001_rfq_summary_projection.sql). Ao iniciar, a aplicação executa a migration e registra `stream_to_durable` para `rfq_opened.v1`, `rfq_closed.v1` e `supplier_quote_submitted.v1`. O FACTSTR reprocessa o histórico não consumido e depois entrega novos fatos ao handler da projeção.
 
 A projeção materializa, por RFQ, referência, moeda, status (`open`/`closed`), datas de abertura/fechamento, quantidade de itens, quantidade de cotações, menor total cotado em centavos, fornecedor da menor cotação, última sequência de evento aplicada e timestamp da projeção.
+
+#### Como os fatos são consumidos e transformados
+
+O stream durável utiliza o identificador estável `rfq-summary-projection-v1` e seleciona três tipos de fatos. O filtro é intencional: esta projeção representa o ciclo de vida da RFQ e os indicadores de cotação; não precisa materializar a identidade nem a elegibilidade dos fornecedores.
+
+| Fato versionado | Efeito em `rfq_summary_projection` |
+|---|---|
+| `rfq_opened.v1` | Cria o resumo da RFQ com referência, moeda, data de abertura, quantidade de itens, status `open`, `quote_count = 0` e menor cotação nula. |
+| `supplier_quote_submitted.v1` | Incrementa `quote_count` quando uma sequência nova é aplicada. Atualiza `lowest_quote_amount_cents` e `lowest_quote_supplier_id` quando a cotação tem total menor que o atual. O cálculo usa centavos inteiros, sem ponto flutuante. Em empate, o fornecedor da menor cotação já registrada permanece. |
+| `rfq_closed.v1` | Altera o status para `closed`, grava `closed_at` e atualiza a sequência aplicada. Se a RFQ ainda não tiver linha na projeção, o handler falha em vez de criar um resumo incompleto. |
+
+Os fatos `supplier_registered.v1` e `supplier_eligibility_changed.v1` continuam relevantes para as regras de negócio e para a reconstrução dos contextos dos comandos, mas não são consumidos por esta projeção porque não alteram seus campos. A query `ListSupplierQuotes` continua consultando o Event Store diretamente.
+
+#### Fluxo arquitetural
+
+```mermaid
+flowchart LR
+    Client["Cliente REST"] --> API["API Axum"]
+    API --> Command["RPU de comando"]
+    Command -->|"query do contexto + append_if"| ES[("FACTSTR Event Store")]
+
+    ES -->|"stream durável filtrado"| Stream["rfq-summary-projection-v1"]
+    Stream --> Handler["Handler da projeção"]
+    Handler --> WritePool["Pool SQLx de escrita"]
+    WritePool --> Projection[("rfq_summary_projection")]
+
+    DetailAPI["GET /api/rfqs/{rfq_id}/summary"] --> ReadPool["Pool SQLx de leitura"]
+    ListAPI["GET /api/rfqs/summaries"] --> ReadPool
+    ReadPool --> Projection
+
+    QuotesAPI["GET /api/rfqs/{rfq_id}/quotes"] -->|"consulta fatos"| ES
+```
+
+O Event Store e a projeção têm responsabilidades distintas. Na configuração atual, ambos utilizam a mesma base PostgreSQL, mas possuem pools SQLx separados: o pool de leitura HTTP tem limite de 8 conexões e o pool do handler da projeção tem limite de 2. Esses valores são limites de configuração, não uma promessa de capacidade nem resultados de benchmark.
+
+#### Sequência de gravação, projeção e consulta
+
+O comando confirma o fato no Event Store antes de responder. A aplicação do fato na projeção é assíncrona em relação à resposta HTTP, portanto pode haver um intervalo entre a confirmação do comando e a disponibilidade do resumo atualizado.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Cliente REST
+    participant API as API Axum
+    participant RPU as RPU de comando
+    participant ES as FACTSTR Event Store
+    participant S as Stream duravel
+    participant H as Handler da projecao
+    participant DB as PostgreSQL read model
+
+    C->>API: POST de abertura, cotacao ou fechamento
+    API->>RPU: Validar e executar comando
+    RPU->>ES: Query de contexto e append_if
+    ES-->>RPU: Fato confirmado
+    RPU-->>C: Resposta HTTP de sucesso
+
+    ES-->>S: Entregar fatos selecionados em lote
+    S->>H: Entregar lote
+    H->>DB: BEGIN e aplicar fatos idempotentemente
+    DB-->>H: COMMIT
+    H-->>S: Handler retorna sucesso
+    S->>ES: Avancar cursor duravel
+
+    C->>API: GET summary ou GET summaries
+    API->>DB: Consultar read model
+    DB-->>API: Resultado da consulta
+    API-->>C: Resposta JSON
+```
+
+#### Atomicidade, replay e idempotência
+
+O handler aplica cada lote em uma transação PostgreSQL. Para cada RFQ, `last_event_sequence` identifica a última sequência aplicada. Somente eventos com uma sequência maior podem alterar a linha; assim, a reentrega de uma sequência já processada não incrementa novamente `quote_count`.
+
+O cursor durável só deve avançar depois que o handler termina com sucesso. Se a transação da projeção falhar, o handler registra o erro e retorna falha, evitando confirmar o consumo daquele lote.
+
+Na consulta paginada, `total` e `items` são lidos dentro da mesma transação `REPEATABLE READ READ ONLY`, para que a contagem e os resultados da página utilizem o mesmo snapshot da projeção.
 
 Endpoints de leitura:
 
