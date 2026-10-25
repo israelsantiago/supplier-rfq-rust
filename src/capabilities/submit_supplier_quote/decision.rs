@@ -6,7 +6,7 @@ use chrono::Utc;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::facts::{QuotedItemFact, RfqOpenedFact, SupplierQuoteSubmittedFact, SupplierStatus};
+use crate::events::{QuotedItemFact, RfqOpenedFact, SupplierQuoteSubmittedFact, SupplierStatus};
 
 use super::{context::RfqSubmissionContext, request::SubmitSupplierQuoteRequest};
 
@@ -161,7 +161,7 @@ mod tests {
 
     use super::*;
     use crate::capabilities::submit_supplier_quote::request::QuotedItemInput;
-    use crate::facts::RfqItemFact;
+    use crate::events::RfqItemFact;
 
     fn fixture() -> (SubmitSupplierQuoteRequest, RfqSubmissionContext) {
         let rfq_id = Uuid::from_u128(1);

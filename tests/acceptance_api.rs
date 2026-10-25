@@ -14,7 +14,7 @@ use supplier_rfq_rpu_rust::{
             CommitError, SubmitSupplierQuoteRequest, commit_prepared, prepare,
         },
     },
-    facts::{
+    events::{
         RFQ_OPENED_V1, RfqItemFact, RfqOpenedFact, SUPPLIER_ELIGIBILITY_CHANGED_V1,
         SUPPLIER_QUOTE_SUBMITTED_V1, SUPPLIER_REGISTERED_V1, SupplierEligibilityChangedFact,
         SupplierRegisteredFact, SupplierStatus,

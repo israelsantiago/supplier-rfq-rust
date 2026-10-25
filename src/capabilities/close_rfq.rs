@@ -5,7 +5,7 @@ use serde_json::{json, to_value};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::facts::{RFQ_CLOSED_V1, RFQ_OPENED_V1, RfqClosedFact, RfqOpenedFact};
+use crate::events::{RFQ_CLOSED_V1, RFQ_OPENED_V1, RfqClosedFact, RfqOpenedFact};
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum CloseRfqRejection {

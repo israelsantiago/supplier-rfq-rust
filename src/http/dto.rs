@@ -13,7 +13,7 @@ use crate::capabilities::{
     set_supplier_eligibility::SetSupplierEligibilityRequest,
     submit_supplier_quote::{QuotedItemInput, SubmitSupplierQuoteRequest},
 };
-use crate::facts::{RfqItemFact, SupplierStatus};
+use crate::events::{RfqItemFact, SupplierStatus};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]

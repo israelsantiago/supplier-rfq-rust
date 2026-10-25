@@ -1,6 +1,6 @@
 use factstr::EventRecord;
 
-use crate::facts::{
+use crate::events::{
     RFQ_OPENED_V1, RfqOpenedFact, SUPPLIER_QUOTE_SUBMITTED_V1, SupplierQuoteSubmittedFact,
 };
 

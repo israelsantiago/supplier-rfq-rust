@@ -7,7 +7,7 @@ use serde_json::{json, to_value};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::facts::{
+use crate::events::{
     SUPPLIER_ELIGIBILITY_CHANGED_V1, SUPPLIER_REGISTERED_V1, SupplierEligibilityChangedFact,
     SupplierRegisteredFact, SupplierStatus,
 };

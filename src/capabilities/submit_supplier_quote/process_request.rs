@@ -5,7 +5,7 @@ use serde_json::to_value;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::facts::{SUPPLIER_QUOTE_SUBMITTED_V1, SupplierQuoteSubmittedFact};
+use crate::events::{SUPPLIER_QUOTE_SUBMITTED_V1, SupplierQuoteSubmittedFact};
 
 use super::{
     context::{LoadedSubmissionContext, load_context},

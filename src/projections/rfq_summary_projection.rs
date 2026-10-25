@@ -18,7 +18,7 @@ use sqlx::{FromRow, PgPool, postgres::PgPoolOptions};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::facts::{
+use crate::events::{
     RFQ_CLOSED_V1, RFQ_OPENED_V1, RfqClosedFact, RfqOpenedFact, SUPPLIER_QUOTE_SUBMITTED_V1,
     SupplierQuoteSubmittedFact,
 };
@@ -373,7 +373,7 @@ mod tests {
         testcontainers::{ImageExt, runners::AsyncRunner},
     };
 
-    use crate::facts::{QuotedItemFact, RFQ_OPENED_V1, RfqItemFact};
+    use crate::events::{QuotedItemFact, RFQ_OPENED_V1, RfqItemFact};
 
     #[tokio::test]
     async fn replaying_the_same_fact_batch_does_not_double_count_quotes() {

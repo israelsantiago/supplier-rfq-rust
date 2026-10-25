@@ -7,7 +7,7 @@ use serde_json::{json, to_value};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::facts::{SUPPLIER_REGISTERED_V1, SupplierRegisteredFact};
+use crate::events::{SUPPLIER_REGISTERED_V1, SupplierRegisteredFact};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]

@@ -15,7 +15,7 @@ pub struct ListSupplierQuotesRequest {
 pub struct QuoteView {
     pub sequence_number: u64,
     #[serde(flatten)]
-    pub quote: crate::facts::SupplierQuoteSubmittedFact,
+    pub quote: crate::events::SupplierQuoteSubmittedFact,
 }
 
 #[derive(Debug, Error)]

@@ -7,7 +7,7 @@ use serde_json::{json, to_value};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::facts::{RFQ_OPENED_V1, RfqItemFact, RfqOpenedFact};
+use crate::events::{RFQ_OPENED_V1, RfqItemFact, RfqOpenedFact};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]

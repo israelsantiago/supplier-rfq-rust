@@ -2,7 +2,7 @@ use factstr::{EventFilter, EventQuery, EventStore, EventStoreError, QueryResult}
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::facts::{
+use crate::events::{
     RFQ_CLOSED_V1, RFQ_OPENED_V1, RfqClosedFact, RfqOpenedFact, SUPPLIER_ELIGIBILITY_CHANGED_V1,
     SUPPLIER_QUOTE_SUBMITTED_V1, SUPPLIER_REGISTERED_V1, SupplierEligibilityChangedFact,
     SupplierQuoteSubmittedFact, SupplierRegisteredFact, SupplierStatus,
