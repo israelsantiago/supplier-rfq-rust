@@ -4,23 +4,24 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
 use uuid::Uuid;
+
+use super::dto::{
+    OpenRfqBody, RegisterSupplierBody, SetSupplierEligibilityBody, SubmitSupplierQuoteBody,
+};
 
 use crate::{
     api_state::ApiState,
     capabilities::{
         close_rfq::{self, CloseRfqError, CloseRfqRejection},
+        get_rfq_summary as get_rfq_summary_rpu, list_rfq_summaries as list_rfq_summaries_rpu,
         list_supplier_quotes,
-        open_rfq::{self, OpenRfqError, OpenRfqRequest},
-        register_supplier::{self, RegisterSupplierError, RegisterSupplierRequest},
-        set_supplier_eligibility::{
-            self, SetSupplierEligibilityError, SetSupplierEligibilityRequest,
-        },
-        submit_supplier_quote::{
-            self, PrepareError, SubmissionRejection, SubmitSupplierQuoteRequest,
-        },
+        open_rfq::{self, OpenRfqError},
+        register_supplier::{self, RegisterSupplierError},
+        set_supplier_eligibility::{self, SetSupplierEligibilityError},
+        submit_supplier_quote::{self, PrepareError, SubmissionRejection},
     },
 };
 
@@ -49,10 +50,8 @@ pub async fn health() -> impl IntoResponse {
     Json(json!({ "status": "ok", "api_state": "factstr_postgres" }))
 }
 
-pub async fn open_rfq(
-    State(state): State<ApiState>,
-    Json(request): Json<OpenRfqRequest>,
-) -> Response {
+pub async fn open_rfq(State(state): State<ApiState>, Json(request): Json<OpenRfqBody>) -> Response {
+    let request = request.into();
     let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || open_rfq::process(store.as_ref(), request)).await {
         Ok(Ok(fact)) => (StatusCode::CREATED, Json(fact)).into_response(),
@@ -83,8 +82,9 @@ pub async fn open_rfq(
 
 pub async fn register_supplier(
     State(state): State<ApiState>,
-    Json(request): Json<RegisterSupplierRequest>,
+    Json(request): Json<RegisterSupplierBody>,
 ) -> Response {
+    let request = request.into();
     let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || register_supplier::process(store.as_ref(), request))
         .await
@@ -120,8 +120,9 @@ pub async fn register_supplier(
 pub async fn set_supplier_eligibility(
     State(state): State<ApiState>,
     Path(supplier_id): Path<Uuid>,
-    Json(request): Json<SetSupplierEligibilityRequest>,
+    Json(request): Json<SetSupplierEligibilityBody>,
 ) -> Response {
+    let request = request.into();
     let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || {
         set_supplier_eligibility::process(store.as_ref(), supplier_id, request)
@@ -149,8 +150,9 @@ pub async fn set_supplier_eligibility(
 pub async fn submit_supplier_quote(
     State(state): State<ApiState>,
     Path(rfq_id): Path<Uuid>,
-    Json(request): Json<SubmitSupplierQuoteRequest>,
+    Json(request): Json<SubmitSupplierQuoteBody>,
 ) -> Response {
+    let request = request.into();
     let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || {
         submit_supplier_quote::process(store.as_ref(), rfq_id, request)
@@ -206,22 +208,21 @@ pub async fn close_rfq(State(state): State<ApiState>, Path(rfq_id): Path<Uuid>) 
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct RfqSummaryListQuery {
-    pub status: Option<String>,
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
-}
+pub use super::dto::RfqSummaryListQuery;
 
 pub async fn get_rfq_summary(State(state): State<ApiState>, Path(rfq_id): Path<Uuid>) -> Response {
-    match state.rfq_summary_projection.get(rfq_id).await {
-        Ok(Some(summary)) => (StatusCode::OK, Json(summary)).into_response(),
-        Ok(None) => error_response(
+    let request = get_rfq_summary_rpu::GetRfqSummaryRequest { rfq_id };
+
+    match get_rfq_summary_rpu::process(state.rfq_summary_projection.as_ref(), request).await {
+        Ok(summary) => (StatusCode::OK, Json(summary)).into_response(),
+        Err(get_rfq_summary_rpu::GetRfqSummaryError::NotAvailableYet) => error_response(
             StatusCode::NOT_FOUND,
             "rfq_summary_not_found",
             "RFQ summary is not available in the read projection yet; retry if the RFQ was just created",
         ),
-        Err(error) => internal_error(error.to_string()),
+        Err(get_rfq_summary_rpu::GetRfqSummaryError::Projection(message)) => {
+            internal_error(message)
+        }
     }
 }
 
@@ -229,42 +230,32 @@ pub async fn list_rfq_summaries(
     State(state): State<ApiState>,
     Query(query): Query<RfqSummaryListQuery>,
 ) -> Response {
-    let limit = query.limit.unwrap_or(50);
-    let offset = query.offset.unwrap_or(0);
-    if !(1..=100).contains(&limit) {
-        return error_response(
+    let request = list_rfq_summaries_rpu::ListRfqSummariesRequest {
+        status: query.status,
+        limit: query.limit,
+        offset: query.offset,
+    };
+
+    match list_rfq_summaries_rpu::process(state.rfq_summary_projection.as_ref(), request).await {
+        Ok(page) => (StatusCode::OK, Json(page)).into_response(),
+        Err(list_rfq_summaries_rpu::ListRfqSummariesError::InvalidLimit) => error_response(
             StatusCode::BAD_REQUEST,
             "invalid_limit",
             "limit must be between 1 and 100",
-        );
-    }
-    if offset < 0 {
-        return error_response(
+        ),
+        Err(list_rfq_summaries_rpu::ListRfqSummariesError::InvalidOffset) => error_response(
             StatusCode::BAD_REQUEST,
             "invalid_offset",
             "offset must be zero or greater",
-        );
-    }
-    let status = match query.status.as_deref() {
-        None => None,
-        Some("open") => Some("open"),
-        Some("closed") => Some("closed"),
-        Some(_) => {
-            return error_response(
-                StatusCode::BAD_REQUEST,
-                "invalid_status",
-                "status must be either open or closed",
-            );
+        ),
+        Err(list_rfq_summaries_rpu::ListRfqSummariesError::InvalidStatus) => error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_status",
+            "status must be either open or closed",
+        ),
+        Err(list_rfq_summaries_rpu::ListRfqSummariesError::Projection(message)) => {
+            internal_error(message)
         }
-    };
-
-    match state
-        .rfq_summary_projection
-        .list(status, limit, offset)
-        .await
-    {
-        Ok(page) => (StatusCode::OK, Json(page)).into_response(),
-        Err(error) => internal_error(error.to_string()),
     }
 }
 
