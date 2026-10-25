@@ -3,7 +3,7 @@
 
 use thiserror::Error;
 
-use crate::projections::rfq_summary::{RfqSummaryPage, RfqSummaryProjection};
+use crate::projections::rfq_summary_projection::{RfqSummaryPage, RfqSummaryProjection};
 
 #[derive(Debug, Clone)]
 pub struct ListRfqSummariesRequest {

@@ -4,7 +4,7 @@
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::projections::rfq_summary::{RfqSummary, RfqSummaryProjection};
+use crate::projections::rfq_summary_projection::{RfqSummary, RfqSummaryProjection};
 
 #[derive(Debug, Clone, Copy)]
 pub struct GetRfqSummaryRequest {
