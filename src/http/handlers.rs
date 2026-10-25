@@ -264,8 +264,13 @@ pub async fn list_supplier_quotes(
     Path(rfq_id): Path<Uuid>,
 ) -> Response {
     let store = state.event_store.clone();
-    match tokio::task::spawn_blocking(move || list_supplier_quotes::process(store.as_ref(), rfq_id))
-        .await
+    match tokio::task::spawn_blocking(move || {
+        list_supplier_quotes::process(
+            store.as_ref(),
+            list_supplier_quotes::ListSupplierQuotesRequest { rfq_id },
+        )
+    })
+    .await
     {
         Ok(Ok(Some(quotes))) => (StatusCode::OK, Json(json!({ "quotes": quotes }))).into_response(),
         Ok(Ok(None)) => error_response(StatusCode::NOT_FOUND, "rfq_not_found", "RFQ was not found"),
