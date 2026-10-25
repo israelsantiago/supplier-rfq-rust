@@ -4,9 +4,13 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
 use uuid::Uuid;
+
+use super::dto::{
+    OpenRfqBody, RegisterSupplierBody, SetSupplierEligibilityBody, SubmitSupplierQuoteBody,
+};
 
 use crate::{
     api_state::ApiState,
@@ -14,14 +18,10 @@ use crate::{
         close_rfq::{self, CloseRfqError, CloseRfqRejection},
         get_rfq_summary as get_rfq_summary_rpu, list_rfq_summaries as list_rfq_summaries_rpu,
         list_supplier_quotes,
-        open_rfq::{self, OpenRfqError, OpenRfqRequest},
-        register_supplier::{self, RegisterSupplierError, RegisterSupplierRequest},
-        set_supplier_eligibility::{
-            self, SetSupplierEligibilityError, SetSupplierEligibilityRequest,
-        },
-        submit_supplier_quote::{
-            self, PrepareError, SubmissionRejection, SubmitSupplierQuoteRequest,
-        },
+        open_rfq::{self, OpenRfqError},
+        register_supplier::{self, RegisterSupplierError},
+        set_supplier_eligibility::{self, SetSupplierEligibilityError},
+        submit_supplier_quote::{self, PrepareError, SubmissionRejection},
     },
 };
 
@@ -50,10 +50,8 @@ pub async fn health() -> impl IntoResponse {
     Json(json!({ "status": "ok", "api_state": "factstr_postgres" }))
 }
 
-pub async fn open_rfq(
-    State(state): State<ApiState>,
-    Json(request): Json<OpenRfqRequest>,
-) -> Response {
+pub async fn open_rfq(State(state): State<ApiState>, Json(request): Json<OpenRfqBody>) -> Response {
+    let request = request.into();
     let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || open_rfq::process(store.as_ref(), request)).await {
         Ok(Ok(fact)) => (StatusCode::CREATED, Json(fact)).into_response(),
@@ -84,8 +82,9 @@ pub async fn open_rfq(
 
 pub async fn register_supplier(
     State(state): State<ApiState>,
-    Json(request): Json<RegisterSupplierRequest>,
+    Json(request): Json<RegisterSupplierBody>,
 ) -> Response {
+    let request = request.into();
     let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || register_supplier::process(store.as_ref(), request))
         .await
@@ -121,8 +120,9 @@ pub async fn register_supplier(
 pub async fn set_supplier_eligibility(
     State(state): State<ApiState>,
     Path(supplier_id): Path<Uuid>,
-    Json(request): Json<SetSupplierEligibilityRequest>,
+    Json(request): Json<SetSupplierEligibilityBody>,
 ) -> Response {
+    let request = request.into();
     let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || {
         set_supplier_eligibility::process(store.as_ref(), supplier_id, request)
@@ -150,8 +150,9 @@ pub async fn set_supplier_eligibility(
 pub async fn submit_supplier_quote(
     State(state): State<ApiState>,
     Path(rfq_id): Path<Uuid>,
-    Json(request): Json<SubmitSupplierQuoteRequest>,
+    Json(request): Json<SubmitSupplierQuoteBody>,
 ) -> Response {
+    let request = request.into();
     let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || {
         submit_supplier_quote::process(store.as_ref(), rfq_id, request)
@@ -207,12 +208,7 @@ pub async fn close_rfq(State(state): State<ApiState>, Path(rfq_id): Path<Uuid>) 
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct RfqSummaryListQuery {
-    pub status: Option<String>,
-    pub limit: Option<i64>,
-    pub offset: Option<i64>,
-}
+pub use super::dto::RfqSummaryListQuery;
 
 pub async fn get_rfq_summary(State(state): State<ApiState>, Path(rfq_id): Path<Uuid>) -> Response {
     let request = get_rfq_summary_rpu::GetRfqSummaryRequest { rfq_id };
