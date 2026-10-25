@@ -6,9 +6,9 @@ use axum::{
 };
 use tower_http::trace::TraceLayer;
 
-use crate::application_state::AppState;
+use crate::api_state::ApiState;
 
-pub fn router(state: AppState) -> Router {
+pub fn router(state: ApiState) -> Router {
     Router::new()
         .route("/health", get(handlers::health))
         .route("/api/rfqs", post(handlers::open_rfq))

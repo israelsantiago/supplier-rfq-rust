@@ -6,8 +6,8 @@ use factstr_postgres::PostgresStore;
 use reqwest::{Client, StatusCode};
 use serde_json::{Value, json};
 use supplier_rfq_rpu_rust::{
+    api_state::ApiState,
     app,
-    application_state::AppState,
     capabilities::{
         set_supplier_eligibility::{self, SetSupplierEligibilityRequest},
         submit_supplier_quote::{
@@ -19,7 +19,7 @@ use supplier_rfq_rpu_rust::{
         SUPPLIER_QUOTE_SUBMITTED_V1, SUPPLIER_REGISTERED_V1, SupplierEligibilityChangedFact,
         SupplierRegisteredFact, SupplierStatus,
     },
-    projections::rfq_summary::RfqSummaryProjection,
+    projections::rfq_summary_projection::RfqSummaryProjection,
 };
 use testcontainers_modules::{
     postgres::Postgres,
@@ -90,7 +90,7 @@ async fn spawn_app() -> TestApp {
     let address: SocketAddr = listener
         .local_addr()
         .expect("listener address must be available");
-    let api = app::router(AppState::from_shared_store(
+    let api = app::router(ApiState::from_shared_event_store(
         Arc::clone(&store),
         Arc::clone(&projection),
     ));
