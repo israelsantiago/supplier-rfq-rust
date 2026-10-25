@@ -1,7 +1,7 @@
 use axum::Router;
 
-use crate::{application_state::AppState, http};
+use crate::{api_state::ApiState, http};
 
-pub fn router(state: AppState) -> Router {
+pub fn router(state: ApiState) -> Router {
     http::router(state)
 }

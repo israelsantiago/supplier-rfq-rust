@@ -9,7 +9,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    application_state::AppState,
+    api_state::ApiState,
     capabilities::{
         close_rfq::{self, CloseRfqError, CloseRfqRejection},
         list_supplier_quotes,
@@ -46,14 +46,14 @@ fn internal_error(message: impl Into<String>) -> Response {
 }
 
 pub async fn health() -> impl IntoResponse {
-    Json(json!({ "status": "ok", "application_state": "factstr_postgres" }))
+    Json(json!({ "status": "ok", "api_state": "factstr_postgres" }))
 }
 
 pub async fn open_rfq(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     Json(request): Json<OpenRfqRequest>,
 ) -> Response {
-    let store = state.store.clone();
+    let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || open_rfq::process(store.as_ref(), request)).await {
         Ok(Ok(fact)) => (StatusCode::CREATED, Json(fact)).into_response(),
         Ok(Err(error)) => match error {
@@ -82,10 +82,10 @@ pub async fn open_rfq(
 }
 
 pub async fn register_supplier(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     Json(request): Json<RegisterSupplierRequest>,
 ) -> Response {
-    let store = state.store.clone();
+    let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || register_supplier::process(store.as_ref(), request))
         .await
     {
@@ -118,11 +118,11 @@ pub async fn register_supplier(
 }
 
 pub async fn set_supplier_eligibility(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     Path(supplier_id): Path<Uuid>,
     Json(request): Json<SetSupplierEligibilityRequest>,
 ) -> Response {
-    let store = state.store.clone();
+    let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || {
         set_supplier_eligibility::process(store.as_ref(), supplier_id, request)
     })
@@ -147,11 +147,11 @@ pub async fn set_supplier_eligibility(
 }
 
 pub async fn submit_supplier_quote(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     Path(rfq_id): Path<Uuid>,
     Json(request): Json<SubmitSupplierQuoteRequest>,
 ) -> Response {
-    let store = state.store.clone();
+    let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || {
         submit_supplier_quote::process(store.as_ref(), rfq_id, request)
     })
@@ -187,8 +187,8 @@ fn submission_rejection(rejection: SubmissionRejection) -> Response {
     error_response(status, code, rejection.to_string())
 }
 
-pub async fn close_rfq(State(state): State<AppState>, Path(rfq_id): Path<Uuid>) -> Response {
-    let store = state.store.clone();
+pub async fn close_rfq(State(state): State<ApiState>, Path(rfq_id): Path<Uuid>) -> Response {
+    let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || close_rfq::process(store.as_ref(), rfq_id)).await {
         Ok(Ok(fact)) => (StatusCode::OK, Json(fact)).into_response(),
         Ok(Err(CloseRfqError::Rejected(rejection))) => {
@@ -213,7 +213,7 @@ pub struct RfqSummaryListQuery {
     pub offset: Option<i64>,
 }
 
-pub async fn get_rfq_summary(State(state): State<AppState>, Path(rfq_id): Path<Uuid>) -> Response {
+pub async fn get_rfq_summary(State(state): State<ApiState>, Path(rfq_id): Path<Uuid>) -> Response {
     match state.rfq_summary_projection.get(rfq_id).await {
         Ok(Some(summary)) => (StatusCode::OK, Json(summary)).into_response(),
         Ok(None) => error_response(
@@ -226,7 +226,7 @@ pub async fn get_rfq_summary(State(state): State<AppState>, Path(rfq_id): Path<U
 }
 
 pub async fn list_rfq_summaries(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     Query(query): Query<RfqSummaryListQuery>,
 ) -> Response {
     let limit = query.limit.unwrap_or(50);
@@ -269,10 +269,10 @@ pub async fn list_rfq_summaries(
 }
 
 pub async fn list_supplier_quotes(
-    State(state): State<AppState>,
+    State(state): State<ApiState>,
     Path(rfq_id): Path<Uuid>,
 ) -> Response {
-    let store = state.store.clone();
+    let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || list_supplier_quotes::process(store.as_ref(), rfq_id))
         .await
     {
