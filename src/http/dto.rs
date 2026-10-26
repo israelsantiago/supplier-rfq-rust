@@ -153,3 +153,116 @@ pub struct RfqSummaryListQuery {
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
+
+#[cfg(test)]
+mod dto_boundary_tests {
+    use super::*;
+    use chrono::NaiveDate;
+
+    use crate::capabilities::{
+        open_rfq::OpenRfqRequest,
+        register_supplier::RegisterSupplierRequest,
+        set_supplier_eligibility::SetSupplierEligibilityRequest,
+        submit_supplier_quote::{QuotedItemInput, SubmitSupplierQuoteRequest},
+    };
+    use crate::events::{RfqItemFact, SupplierStatus};
+
+    #[test]
+    fn open_rfq_http_body_maps_all_item_fields() {
+        let rfq_item_id = Uuid::from_u128(1);
+        let body = OpenRfqBody {
+            id: Some(Uuid::from_u128(2)),
+            reference: "RFQ-HTTP-1".to_owned(),
+            currency: "BRL".to_owned(),
+            items: vec![RfqItemBody {
+                id: rfq_item_id,
+                sku: "SKU-1".to_owned(),
+                description: "Amostra".to_owned(),
+                required_quantity: 3,
+            }],
+        };
+
+        let request: OpenRfqRequest = body.into();
+        assert_eq!(request.id, Some(Uuid::from_u128(2)));
+        assert_eq!(request.reference, "RFQ-HTTP-1");
+        assert_eq!(request.currency, "BRL");
+        assert_eq!(
+            request.items,
+            vec![RfqItemFact {
+                id: rfq_item_id,
+                sku: "SKU-1".to_owned(),
+                description: "Amostra".to_owned(),
+                required_quantity: 3,
+            }]
+        );
+    }
+
+    #[test]
+    fn register_supplier_http_body_maps_identity_fields() {
+        let request: RegisterSupplierRequest = RegisterSupplierBody {
+            id: Some(Uuid::from_u128(3)),
+            reference: "SUP-HTTP-1".to_owned(),
+            name: "Fornecedor".to_owned(),
+        }
+        .into();
+
+        assert_eq!(request.id, Some(Uuid::from_u128(3)));
+        assert_eq!(request.reference, "SUP-HTTP-1");
+        assert_eq!(request.name, "Fornecedor");
+    }
+
+    #[test]
+    fn eligibility_http_status_maps_to_the_internal_status() {
+        let eligible: SetSupplierEligibilityRequest = SetSupplierEligibilityBody {
+            status: SupplierStatusBody::Eligible,
+        }
+        .into();
+        let blocked: SetSupplierEligibilityRequest = SetSupplierEligibilityBody {
+            status: SupplierStatusBody::Blocked,
+        }
+        .into();
+
+        assert!(matches!(eligible.status, SupplierStatus::Eligible));
+        assert!(matches!(blocked.status, SupplierStatus::Blocked));
+    }
+
+    #[test]
+    fn submit_quote_http_body_maps_quote_and_item_fields() {
+        let rfq_item_id = Uuid::from_u128(4);
+        let request: SubmitSupplierQuoteRequest = SubmitSupplierQuoteBody {
+            supplier_id: Uuid::from_u128(5),
+            currency: "BRL".to_owned(),
+            delivery_days: 12,
+            valid_until: NaiveDate::from_ymd_opt(2099, 12, 31).expect("valid test date"),
+            items: vec![QuotedItemBody {
+                rfq_item_id,
+                quantity: 3,
+                unit_price_cents: 1250,
+            }],
+        }
+        .into();
+
+        assert_eq!(request.supplier_id, Uuid::from_u128(5));
+        assert_eq!(request.currency, "BRL");
+        assert_eq!(request.delivery_days, 12);
+        assert_eq!(
+            request.valid_until,
+            NaiveDate::from_ymd_opt(2099, 12, 31).expect("valid test date")
+        );
+        assert_eq!(request.items.len(), 1);
+        let item: &QuotedItemInput = &request.items[0];
+        assert_eq!(item.rfq_item_id, rfq_item_id);
+        assert_eq!(item.quantity, 3);
+        assert_eq!(item.unit_price_cents, 1250);
+    }
+
+    #[test]
+    fn http_dto_rejects_unknown_fields_for_command_bodies() {
+        let result = serde_json::from_value::<RegisterSupplierBody>(serde_json::json!({
+            "reference": "SUP-HTTP-2",
+            "name": "Fornecedor",
+            "unexpected": true
+        }));
+        assert!(result.is_err());
+    }
+}
