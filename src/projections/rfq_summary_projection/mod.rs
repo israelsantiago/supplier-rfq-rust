@@ -331,4 +331,126 @@ mod tests {
         drop(append_store);
         drop(container);
     }
+
+    #[tokio::test]
+    async fn failed_projection_batch_rolls_back_earlier_events() {
+        let container = Postgres::default()
+            .with_db_name("supplier_rfq")
+            .with_user("rfq_user")
+            .with_password("rfq_password")
+            .with_tag("16-alpine")
+            .start()
+            .await
+            .expect("PostgreSQL container must start; Docker must be available");
+        let host = container
+            .get_host()
+            .await
+            .expect("container host must exist");
+        let port = container
+            .get_host_port_ipv4(5432)
+            .await
+            .expect("mapped port must exist");
+        let database_url = format!("postgres://rfq_user:rfq_password@{host}:{port}/supplier_rfq");
+
+        let store_url = database_url.clone();
+        let store = tokio::task::spawn_blocking(move || PostgresStore::connect(&store_url))
+            .await
+            .expect("FACTSTR connection task must complete")
+            .expect("FACTSTR schema must initialize");
+
+        let rfq_that_must_rollback = Uuid::from_u128(1701);
+        let missing_rfq = Uuid::from_u128(1702);
+        let opened = RfqOpenedFact {
+            rfq_id: rfq_that_must_rollback,
+            reference: "RFQ-PROJECTION-ROLLBACK".to_owned(),
+            currency: "BRL".to_owned(),
+            opened_at: Utc::now(),
+            items: vec![RfqItemFact {
+                id: Uuid::from_u128(1703),
+                sku: "SKU-ROLLBACK".to_owned(),
+                description: "Valid first event in a failing batch".to_owned(),
+                required_quantity: 1,
+            }],
+        };
+        let quote_for_missing_rfq = SupplierQuoteSubmittedFact {
+            quote_id: Uuid::from_u128(1704),
+            rfq_id: missing_rfq,
+            supplier_id: Uuid::from_u128(1705),
+            currency: "BRL".to_owned(),
+            total_amount_cents: 500,
+            delivery_days: 3,
+            valid_until: NaiveDate::from_ymd_opt(2099, 12, 31).unwrap(),
+            submitted_at: Utc::now(),
+            items: vec![QuotedItemFact {
+                rfq_item_id: Uuid::from_u128(1706),
+                quantity: 1,
+                unit_price_cents: 500,
+                line_total_cents: 500,
+            }],
+        };
+        let open_payload = serde_json::to_value(opened).unwrap();
+        let quote_payload = serde_json::to_value(quote_for_missing_rfq).unwrap();
+        let append_store = Arc::new(store);
+        let append_store_thread = Arc::clone(&append_store);
+        tokio::task::spawn_blocking(move || {
+            append_store_thread
+                .append(vec![
+                    NewEvent::new(RFQ_OPENED_V1, open_payload),
+                    NewEvent::new(SUPPLIER_QUOTE_SUBMITTED_V1, quote_payload),
+                ])
+                .expect("test batch must append to the authoritative store");
+        })
+        .await
+        .expect("append task must complete");
+
+        let query_store = Arc::clone(&append_store);
+        let records = tokio::task::spawn_blocking(move || {
+            let query = EventQuery::all().with_filters([
+                EventFilter::for_event_types([RFQ_OPENED_V1]),
+                EventFilter::for_event_types([SUPPLIER_QUOTE_SUBMITTED_V1]),
+            ]);
+            query_store
+                .query(&query)
+                .expect("facts must be queryable")
+                .event_records
+        })
+        .await
+        .expect("query task must complete");
+        assert_eq!(records.len(), 2);
+
+        let pool = PgPoolOptions::new()
+            .max_connections(2)
+            .connect(&database_url)
+            .await
+            .expect("projection pool must connect");
+        MIGRATOR
+            .run(&pool)
+            .await
+            .expect("projection migration must run");
+
+        let error = apply_events::apply_event_batch(&pool, records)
+            .await
+            .expect_err("quote referring to an RFQ absent from the projection must fail");
+        assert!(matches!(
+            error,
+            RfqSummaryProjectionError::MissingRfq { rfq_id, .. } if rfq_id == missing_rfq
+        ));
+
+        // The first RFQ_OPENED_V1 in the same transaction must have rolled back too.
+        let persisted = sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM rfq_summary_projection WHERE rfq_id = $1",
+        )
+        .bind(rfq_that_must_rollback)
+        .fetch_one(&pool)
+        .await
+        .expect("projection row count must be queryable after rollback");
+        assert_eq!(
+            persisted, 0,
+            "a failed batch must not partially persist earlier events"
+        );
+
+        drop(pool);
+        drop(append_store);
+        drop(container);
+    }
 }
