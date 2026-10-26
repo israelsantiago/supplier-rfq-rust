@@ -30,7 +30,7 @@ flowchart TD
     Core --> Outcome{Resultado}
     Outcome -->|rejeição| Reject[Resposta de negócio; sem append]
     Outcome -->|fato/consequências| Encode[Shell: serializar fato]
-    Encode --> CCC[append_if(query, versão observada)]
+    Encode --> CCC["append_if(query, versão observada)"]
     CCC --> Commit[Resposta após commit]
     CCC --> Conflict[Releitura limitada ou conflito recuperável]
 ```
@@ -52,16 +52,16 @@ sequenceDiagram
     autonumber
     participant R as RPU de comando
     participant ES as FACTSTR / Event Store
-    R->>ES: query dos fatos relevantes
-    ES-->>R: fatos + versão do contexto
-    R->>R: decidir usando snapshot explícito
+    R->>ES: Consulta dos fatos relevantes
+    ES-->>R: Fatos e versão do contexto
+    R->>R: Decide usando snapshot explícito
     R->>ES: append_if(query, versão esperada, fatos novos)
-    alt contexto continua válido
-        ES-->>R: append confirmado
-        R-->>R: retornar response
-    else contexto mudou
-        ES-->>R: conflito CCC; nenhum append deste comando
-        R->>ES: releitura limitada, quando fizer sentido
+    alt Contexto continua válido
+        ES-->>R: Append confirmado
+        R-->>R: Retornar resposta
+    else Contexto mudou
+        ES-->>R: Conflito CCC: nenhum append deste comando
+        R->>ES: Releitura limitada, quando fizer sentido
     end
 ```
 

@@ -38,3 +38,13 @@ jobs:
           node-version: 22
       - name: Lint OpenAPI contract
         run: bash scripts/verify-openapi.sh
+
+  mermaid-diagrams:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Validate all Mermaid diagrams embedded in Markdown
+        run: sh scripts/verify-mermaid-diagrams.sh
