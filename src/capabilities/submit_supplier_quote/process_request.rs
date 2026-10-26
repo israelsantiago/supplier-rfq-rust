@@ -39,8 +39,8 @@ pub struct PreparedSubmission {
 }
 
 impl PreparedSubmission {
-    /// Context version observed by the RPU before its pure decision was made.
-    /// Exposed to support deterministic CCC tests and operational diagnostics.
+    /// Context version observed before the pure decision; exposed only for CCC tests.
+    #[cfg(feature = "test-support")]
     pub fn expected_context_version(&self) -> Option<u64> {
         self.context.current_context_version
     }

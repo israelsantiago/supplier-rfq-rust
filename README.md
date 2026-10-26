@@ -2,7 +2,31 @@
 
 Implementação de referência em Rust de um pequeno fluxo de **Supply Chain / Request for Quotation (RFQ)**. Esta branch adiciona Event Sourcing com [FACTSTR](https://github.com/ricofritzsche/factstr) à implementação original relacional, preservada na branch `main` para estudo e comparação.
 
-> **Escopo educacional:** não é uma solução de procurement pronta para produção. Não inclui autenticação/autorização, anexos de documentos, impostos, workflow de aprovação, seleção multicritério nem uma idempotency key para requisições HTTP. Existe uma projeção persistida específica para resumos de RFQs, mas ela não é uma solução genérica de analytics e não foi validada por benchmarks de alto volume.
+> **Escopo educacional:** não é uma solução de procurement pronta para produção. A lista de pendências operacionais está em [Preparação para operação real](#pendências-para-operação-real). A projeção persistida é específica para resumos de RFQs, não é uma solução genérica de analytics e ainda não foi validada por benchmarks de alto volume.
+
+## Guia de arquitetura
+
+Leia [`docs/design-approach.md`](docs/design-approach.md) para a explicação dos conceitos, diagramas Mermaid dos fluxos RPU/CCC/projeção e checklist para evoluir capabilities. A decisão técnica específica desta variante está em [`docs/architecture-event-sourcing-factstr.md`](docs/architecture-event-sourcing-factstr.md).
+
+## Pendências para operação real
+
+Este repositório continua sendo uma referência educacional. Os itens abaixo permanecem explicitamente **pendentes** e precisam de critérios de aceite antes de qualquer uso real.
+
+| Estado | Área | Pendência / critério mínimo de saída |
+|---|---|---|
+| [ ] | Segurança | Autenticação, autorização por capability/fornecedor, gestão de segredos, rate limiting e limites de payload. Testes negativos de acesso indevido. |
+| [ ] | Idempotência HTTP | Definir idempotency key e persistência da resposta/resultado; testar retries após timeout e resposta perdida depois de um commit confirmado. |
+| [ ] | Contratos de API | Evoluir OpenAPI para cobrir todos os schemas de resposta, erros, códigos HTTP e política de versionamento; validar compatibilidade automática. |
+| [ ] | Erros e dados sensíveis | Respostas 5xx genéricas e estáveis; detalhes técnicos apenas nos logs; correlação de requisição sem vazar dados sensíveis. |
+| [ ] | Observabilidade | Métricas para latência/erros de comandos, CCC conflicts, atraso da projeção, falhas de handler, cursor e startup; alertas e dashboards. |
+| [ ] | Disponibilidade | Separar liveness/readiness, definir shutdown gracioso, timeouts, limites dos pools, política de retry/backoff e comportamento em indisponibilidade do PostgreSQL. |
+| [ ] | Projeções | Substituir instruções manuais que apagam cursor/tabelas internas por procedimento de rebuild versionado, testado e seguro; validar replay, retenção e recuperação. |
+| [ ] | Dados e recuperação | Política de backup/restore, RPO/RTO, testes periódicos de recuperação, migrações compatíveis e estratégia de versionamento/upcasting dos fatos. |
+| [ ] | Desempenho | Benchmarks reproduzíveis de throughput/latência e carga com históricos grandes; testar custo de `ListSupplierQuotes`, concorrência de append e catch-up da projeção. Definir limites e SLOs. |
+| [ ] | Escopo de procurement | Modelar e validar anexos, impostos, aprovação, seleção multicritério, retenção/auditoria e regras fiscais antes de assumir cobertura funcional de produto. |
+| [ ] | Operação | Runbooks de incidente, deploy/rollback, migração, projeção atrasada/falha, rotação de segredos e responsabilidades operacionais. |
+
+Não marque um item como concluído somente porque a aplicação compila. Cada pendência deve ter uma decisão registrada, testes adequados e evidência operacional verificável.
 
 ## Stack
 
@@ -205,7 +229,7 @@ O teste de aceitação `acceptance_rfq_summary_projection_tracks_open_quote_clos
 
 **O escopo da query de contexto é parte da regra de consistência.** Uma nova cotação de outro fornecedor não corresponde ao filtro de `supplier_quote_submitted.v1` deste comando, evitando que toda cotação na RFQ invalide desnecessariamente as outras. O fato de fechamento, por outro lado, é parte do contexto de toda submissão daquela RFQ e invalida uma decisão que ainda tentava usar o estado aberto.
 
-`OpenRfq`, `RegisterSupplier`, `SetSupplierEligibility` e `CloseRfq` também usam `append_if` nas suas respectivas queries de contexto. `OpenRfq` protege `rfq_id` e referência da RFQ; `RegisterSupplier` protege `supplier_id` e referência do fornecedor. A referência do fornecedor é imutável nesta versão; o status é um fato separado. Isso substitui, nesta variante, parte das garantias que na abordagem relacional seriam expressas por constraints `UNIQUE`: a consulta de contexto precisa incluir cada chave de negócio que exige unicidade. `SetSupplierEligibility` inclui o fato de registro e o histórico de elegibilidade daquele ID no seu contexto. A Query não altera Application State.
+`OpenRfq`, `RegisterSupplier`, `SetSupplierEligibility` e `CloseRfq` também usam `append_if` nas suas respectivas queries de contexto. `OpenRfq` protege `rfq_id` e referência da RFQ; `RegisterSupplier` protege `supplier_id` e referência do fornecedor. A referência do fornecedor é imutável nesta versão; o status é um fato separado. Isso substitui, nesta variante, parte das garantias que na abordagem relacional seriam expressas por constraints `UNIQUE`: a consulta de contexto precisa incluir cada chave de negócio que exige unicidade. `SetSupplierEligibility` protege apenas o fato de registro: nesta variante o comando é uma atribuição de estado e não decide com base no status anterior. A ordem dos appends confirmados determina o status corrente quando há atribuições concorrentes. A Query não altera Application State.
 
 ## Testes e raciocínio da estratégia de concorrência
 
@@ -231,15 +255,15 @@ O Docker precisa estar ativo para os testes que iniciam PostgreSQL via Testconta
 cargo generate-lockfile
 cargo fmt --all -- --check
 cargo test --lib
-cargo test --test acceptance_api
-cargo test
+cargo test --features test-support --test acceptance_api
+cargo test --features test-support
 cargo clippy --all-targets --all-features -- -D warnings
 ```
 
 `cargo test --lib` inclui o teste de idempotência da projeção com PostgreSQL Testcontainers; portanto, também requer Docker. Para rodar apenas a prova determinística de CCC:
 
 ```bash
-cargo test --test acceptance_api ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_fact -- --nocapture
+cargo test --features test-support --test acceptance_api ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_fact -- --nocapture
 ```
 
 Os testes criam containers de PostgreSQL descartáveis e não usam o banco do `docker-compose.yml`.
@@ -333,7 +357,7 @@ A suíte combina testes unitários do Functional Core, testes de propriedade (`p
 ```bash
 cargo fmt --all -- --check
 cargo check --all-targets
-cargo test --all-targets
+cargo test --all-targets --features test-support
 cargo clippy --all-targets --all-features -- -D warnings
 bash scripts/verify-rpu-boundaries.sh
 bash scripts/verify-openapi.sh

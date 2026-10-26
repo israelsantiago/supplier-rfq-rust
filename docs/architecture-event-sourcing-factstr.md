@@ -15,7 +15,7 @@ This is a reference implementation for one RFQ lifecycle, not a production procu
 |---|---|---|---|
 | `OpenRfq` | Open an RFQ with fixed requested items | RFQ ID **or** RFQ reference | `rfq_opened.v1` |
 | `RegisterSupplier` | Register supplier identity and its natural reference | Supplier ID **or** supplier reference | `supplier_registered.v1` |
-| `SetSupplierEligibility` | Register/change supplier eligibility | Supplier registration and eligibility history for supplier ID | `supplier_eligibility_changed.v1` |
+| `SetSupplierEligibility` | Assign supplier eligibility | Supplier registration for supplier ID; prior eligibility history is intentionally excluded | `supplier_eligibility_changed.v1` |
 | `SubmitSupplierQuote` | Validate and submit one supplier's quote for an RFQ | RFQ opened/closed state, supplier registration and eligibility, and existing quote for the RFQ/supplier pair | `supplier_quote_submitted.v1` |
 | `CloseRfq` | Close an open RFQ | RFQ opened/closed state | `rfq_closed.v1` |
 | `ListSupplierQuotes` | Read the quote view | Read only; no append | None |
@@ -50,7 +50,7 @@ FACTSTR has one global, monotonically increasing sequence. `current_context_vers
 
 - `OpenRfq`: `rfq_opened.v1` matching the requested `rfq_id` **or** the normalized `reference`. This provides an atomic CCC boundary for both identifier uniqueness and natural-reference uniqueness.
 - `RegisterSupplier`: `supplier_registered.v1` matching the requested `supplier_id` **or** natural `reference`. This protects both identities atomically against duplicates.
-- `SetSupplierEligibility`: the registration fact and all eligibility facts matching `supplier_id`. Eligibility cannot be changed before the supplier is registered. Supplier reference is immutable in this reference implementation; if the domain must allow reference changes, it needs an explicit capability/fact and defined historical uniqueness semantics.
+- `SetSupplierEligibility`: the registration fact matching `supplier_id`. This example treats the operation as a state assignment, not a transition guarded by the previous status. Concurrent accepted assignments are ordered by committed fact order, and the last committed assignment defines the current status. If the domain requires transition preconditions, revise both the decision and its CCC context to include the current eligibility status. Supplier reference is immutable in this reference implementation; if the domain must allow reference changes, it needs an explicit capability/fact and defined historical uniqueness semantics.
 - `SubmitSupplierQuote`: facts matching one of: the RFQ's opening fact, closure fact, registration and eligibility history for the given supplier, or an existing quote for that RFQ/supplier pair. A quote for supplier A does not alter supplier B's quote context.
 - `CloseRfq`: the RFQ's opening/closure facts. A close fact invalidates a quote decision prepared against the open state.
 
