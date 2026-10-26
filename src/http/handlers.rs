@@ -9,7 +9,9 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::dto::{
-    OpenRfqBody, RegisterSupplierBody, SetSupplierEligibilityBody, SubmitSupplierQuoteBody,
+    CloseRfqResponse, OpenRfqBody, OpenRfqResponse, RegisterSupplierBody, RegisterSupplierResponse,
+    SetSupplierEligibilityBody, SetSupplierEligibilityResponse, SubmitSupplierQuoteBody,
+    SubmitSupplierQuoteResponse, SupplierQuoteViewResponse,
 };
 
 use crate::{
@@ -54,7 +56,7 @@ pub async fn open_rfq(State(state): State<ApiState>, Json(request): Json<OpenRfq
     let request = request.into();
     let store = state.event_store.clone();
     match tokio::task::spawn_blocking(move || open_rfq::process(store.as_ref(), request)).await {
-        Ok(Ok(fact)) => (StatusCode::CREATED, Json(fact)).into_response(),
+        Ok(Ok(fact)) => (StatusCode::CREATED, Json(OpenRfqResponse::from(fact))).into_response(),
         Ok(Err(error)) => match error {
             OpenRfqError::InvalidInput(message) => {
                 error_response(StatusCode::UNPROCESSABLE_ENTITY, "invalid_rfq", message)
@@ -89,7 +91,11 @@ pub async fn register_supplier(
     match tokio::task::spawn_blocking(move || register_supplier::process(store.as_ref(), request))
         .await
     {
-        Ok(Ok(fact)) => (StatusCode::CREATED, Json(fact)).into_response(),
+        Ok(Ok(fact)) => (
+            StatusCode::CREATED,
+            Json(RegisterSupplierResponse::from(fact)),
+        )
+            .into_response(),
         Ok(Err(error)) => match error {
             RegisterSupplierError::InvalidInput(message) => error_response(
                 StatusCode::UNPROCESSABLE_ENTITY,
@@ -129,7 +135,11 @@ pub async fn set_supplier_eligibility(
     })
     .await
     {
-        Ok(Ok(fact)) => (StatusCode::OK, Json(fact)).into_response(),
+        Ok(Ok(fact)) => (
+            StatusCode::OK,
+            Json(SetSupplierEligibilityResponse::from(fact)),
+        )
+            .into_response(),
         Ok(Err(error)) => match error {
             SetSupplierEligibilityError::SupplierNotRegistered => error_response(
                 StatusCode::NOT_FOUND,
@@ -159,7 +169,11 @@ pub async fn submit_supplier_quote(
     })
     .await
     {
-        Ok(Ok(quote)) => (StatusCode::CREATED, Json(quote)).into_response(),
+        Ok(Ok(quote)) => (
+            StatusCode::CREATED,
+            Json(SubmitSupplierQuoteResponse::from(quote)),
+        )
+            .into_response(),
         Ok(Err(PrepareError::Rejected(rejection))) => submission_rejection(rejection),
         Ok(Err(PrepareError::Store(message))) => internal_error(message),
         Err(error) => internal_error(error.to_string()),
@@ -196,7 +210,7 @@ pub async fn close_rfq(State(state): State<ApiState>, Path(rfq_id): Path<Uuid>) 
     })
     .await
     {
-        Ok(Ok(fact)) => (StatusCode::OK, Json(fact)).into_response(),
+        Ok(Ok(fact)) => (StatusCode::OK, Json(CloseRfqResponse::from(fact))).into_response(),
         Ok(Err(CloseRfqError::Rejected(rejection))) => {
             let (status, code) = match &rejection {
                 CloseRfqRejection::RfqNotFound => (StatusCode::NOT_FOUND, "rfq_not_found"),
@@ -276,7 +290,13 @@ pub async fn list_supplier_quotes(
     })
     .await
     {
-        Ok(Ok(Some(quotes))) => (StatusCode::OK, Json(json!({ "quotes": quotes }))).into_response(),
+        Ok(Ok(Some(quotes))) => {
+            let responses = quotes
+                .into_iter()
+                .map(SupplierQuoteViewResponse::from)
+                .collect::<Vec<_>>();
+            (StatusCode::OK, Json(json!({ "quotes": responses }))).into_response()
+        }
         Ok(Ok(None)) => error_response(StatusCode::NOT_FOUND, "rfq_not_found", "RFQ was not found"),
         Ok(Err(error)) => internal_error(error.to_string()),
         Err(error) => internal_error(error.to_string()),

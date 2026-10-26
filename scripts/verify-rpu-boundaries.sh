@@ -186,8 +186,11 @@ echo
 echo "== 6. Validação Rust =="
 
 cargo fmt --all -- --check
-cargo check --all-targets
-cargo test --all-targets
+# Validate the normal library API without test-only helpers being enabled.
+cargo check --lib
+# Integration tests that prove the two-phase CCC boundary opt into the test-support feature.
+cargo check --all-targets --features test-support
+cargo test --all-targets --features test-support
 cargo clippy --all-targets --all-features -- -D warnings
 git diff --check
 

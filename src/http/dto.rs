@@ -3,17 +3,21 @@
 //! Estes tipos descrevem o protocolo externo. As conversões para os requests
 //! internos pertencem à Delivery Mechanism, não às decisões de domínio.
 
-use chrono::NaiveDate;
-use serde::Deserialize;
+use chrono::{DateTime, NaiveDate, Utc};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::capabilities::list_supplier_quotes::QuoteView;
 use crate::capabilities::{
     open_rfq::OpenRfqRequest,
     register_supplier::RegisterSupplierRequest,
     set_supplier_eligibility::SetSupplierEligibilityRequest,
     submit_supplier_quote::{QuotedItemInput, SubmitSupplierQuoteRequest},
 };
-use crate::events::{RfqItemFact, SupplierStatus};
+use crate::events::{
+    QuotedItemFact, RfqClosedFact, RfqItemFact, RfqOpenedFact, SupplierEligibilityChangedFact,
+    SupplierQuoteSubmittedFact, SupplierRegisteredFact, SupplierStatus,
+};
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -152,6 +156,179 @@ pub struct RfqSummaryListQuery {
     pub status: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
+}
+
+/// Outbound DTOs are API contracts, not persisted event payload types.
+#[derive(Debug, Serialize)]
+pub struct RfqItemResponse {
+    pub id: Uuid,
+    pub sku: String,
+    pub description: String,
+    pub required_quantity: i64,
+}
+
+impl From<RfqItemFact> for RfqItemResponse {
+    fn from(item: RfqItemFact) -> Self {
+        Self {
+            id: item.id,
+            sku: item.sku,
+            description: item.description,
+            required_quantity: item.required_quantity,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct OpenRfqResponse {
+    pub rfq_id: Uuid,
+    pub reference: String,
+    pub currency: String,
+    pub opened_at: DateTime<Utc>,
+    pub items: Vec<RfqItemResponse>,
+}
+
+impl From<RfqOpenedFact> for OpenRfqResponse {
+    fn from(fact: RfqOpenedFact) -> Self {
+        Self {
+            rfq_id: fact.rfq_id,
+            reference: fact.reference,
+            currency: fact.currency,
+            opened_at: fact.opened_at,
+            items: fact.items.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct RegisterSupplierResponse {
+    pub supplier_id: Uuid,
+    pub reference: String,
+    pub name: String,
+    pub registered_at: DateTime<Utc>,
+}
+
+impl From<SupplierRegisteredFact> for RegisterSupplierResponse {
+    fn from(fact: SupplierRegisteredFact) -> Self {
+        Self {
+            supplier_id: fact.supplier_id,
+            reference: fact.reference,
+            name: fact.name,
+            registered_at: fact.registered_at,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SupplierStatusResponse {
+    Eligible,
+    Blocked,
+}
+
+impl From<SupplierStatus> for SupplierStatusResponse {
+    fn from(status: SupplierStatus) -> Self {
+        match status {
+            SupplierStatus::Eligible => Self::Eligible,
+            SupplierStatus::Blocked => Self::Blocked,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SetSupplierEligibilityResponse {
+    pub supplier_id: Uuid,
+    pub status: SupplierStatusResponse,
+    pub changed_at: DateTime<Utc>,
+}
+
+impl From<SupplierEligibilityChangedFact> for SetSupplierEligibilityResponse {
+    fn from(fact: SupplierEligibilityChangedFact) -> Self {
+        Self {
+            supplier_id: fact.supplier_id,
+            status: fact.status.into(),
+            changed_at: fact.changed_at,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct QuotedItemResponse {
+    pub rfq_item_id: Uuid,
+    pub quantity: i64,
+    pub unit_price_cents: i64,
+    pub line_total_cents: i64,
+}
+
+impl From<QuotedItemFact> for QuotedItemResponse {
+    fn from(item: QuotedItemFact) -> Self {
+        Self {
+            rfq_item_id: item.rfq_item_id,
+            quantity: item.quantity,
+            unit_price_cents: item.unit_price_cents,
+            line_total_cents: item.line_total_cents,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SubmitSupplierQuoteResponse {
+    pub quote_id: Uuid,
+    pub rfq_id: Uuid,
+    pub supplier_id: Uuid,
+    pub currency: String,
+    pub total_amount_cents: i64,
+    pub delivery_days: i32,
+    pub valid_until: NaiveDate,
+    pub submitted_at: DateTime<Utc>,
+    pub items: Vec<QuotedItemResponse>,
+}
+
+impl From<SupplierQuoteSubmittedFact> for SubmitSupplierQuoteResponse {
+    fn from(fact: SupplierQuoteSubmittedFact) -> Self {
+        Self {
+            quote_id: fact.quote_id,
+            rfq_id: fact.rfq_id,
+            supplier_id: fact.supplier_id,
+            currency: fact.currency,
+            total_amount_cents: fact.total_amount_cents,
+            delivery_days: fact.delivery_days,
+            valid_until: fact.valid_until,
+            submitted_at: fact.submitted_at,
+            items: fact.items.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct CloseRfqResponse {
+    pub rfq_id: Uuid,
+    pub closed_at: DateTime<Utc>,
+}
+
+impl From<RfqClosedFact> for CloseRfqResponse {
+    fn from(fact: RfqClosedFact) -> Self {
+        Self {
+            rfq_id: fact.rfq_id,
+            closed_at: fact.closed_at,
+        }
+    }
+}
+
+/// Preserves the existing flattened quote-list JSON shape while decoupling it from event facts.
+#[derive(Debug, Serialize)]
+pub struct SupplierQuoteViewResponse {
+    pub sequence_number: u64,
+    #[serde(flatten)]
+    pub quote: SubmitSupplierQuoteResponse,
+}
+
+impl From<QuoteView> for SupplierQuoteViewResponse {
+    fn from(view: QuoteView) -> Self {
+        Self {
+            sequence_number: view.sequence_number,
+            quote: view.quote.into(),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -363,5 +540,70 @@ mod dto_boundary_tests {
             "unexpected": true
         }));
         assert!(result.is_err());
+    }
+}
+
+#[cfg(test)]
+mod response_dto_tests {
+    use super::*;
+    use crate::events::SupplierQuoteSubmittedFact;
+
+    #[test]
+    fn open_rfq_response_keeps_api_shape_without_serializing_the_event_type() {
+        let rfq_id = Uuid::from_u128(9901);
+        let item_id = Uuid::from_u128(9902);
+        let fact = RfqOpenedFact {
+            rfq_id,
+            reference: "RFQ-DTO-1".to_owned(),
+            currency: "BRL".to_owned(),
+            opened_at: Utc::now(),
+            items: vec![RfqItemFact {
+                id: item_id,
+                sku: "SKU-DTO".to_owned(),
+                description: "API response item".to_owned(),
+                required_quantity: 2,
+            }],
+        };
+        let value = serde_json::to_value(OpenRfqResponse::from(fact)).unwrap();
+        assert_eq!(value["rfq_id"], rfq_id.to_string());
+        assert_eq!(value["items"][0]["id"], item_id.to_string());
+        assert_eq!(value["items"][0]["required_quantity"], 2);
+        assert_eq!(value["reference"], "RFQ-DTO-1");
+    }
+
+    #[test]
+    fn quote_view_response_keeps_flattened_quote_json_shape() {
+        let quote_id = Uuid::from_u128(9911);
+        let rfq_id = Uuid::from_u128(9912);
+        let supplier_id = Uuid::from_u128(9913);
+        let item_id = Uuid::from_u128(9914);
+        let fact = SupplierQuoteSubmittedFact {
+            quote_id,
+            rfq_id,
+            supplier_id,
+            currency: "BRL".to_owned(),
+            total_amount_cents: 2500,
+            delivery_days: 3,
+            valid_until: NaiveDate::from_ymd_opt(2099, 12, 31).unwrap(),
+            submitted_at: Utc::now(),
+            items: vec![QuotedItemFact {
+                rfq_item_id: item_id,
+                quantity: 2,
+                unit_price_cents: 1250,
+                line_total_cents: 2500,
+            }],
+        };
+        let view = QuoteView {
+            sequence_number: 42,
+            quote: fact,
+        };
+        let value = serde_json::to_value(SupplierQuoteViewResponse::from(view)).unwrap();
+        assert_eq!(value["sequence_number"], 42);
+        assert_eq!(value["quote_id"], quote_id.to_string());
+        assert_eq!(value["items"][0]["line_total_cents"], 2500);
+        assert!(
+            value.get("quote").is_none(),
+            "existing quote fields stay flattened"
+        );
     }
 }

@@ -11,7 +11,8 @@ use supplier_rfq_rpu_rust::{
     capabilities::{
         set_supplier_eligibility::{self, SetSupplierEligibilityRequest},
         submit_supplier_quote::{
-            CommitError, SubmitSupplierQuoteRequest, commit_prepared, prepare,
+            SubmitSupplierQuoteRequest,
+            test_support::{CommitError, commit_prepared, prepare},
         },
     },
     events::{
