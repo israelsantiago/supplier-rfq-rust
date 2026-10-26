@@ -118,10 +118,9 @@ fn decide_for_rfq(
         if item.unit_price_cents <= 0 {
             return Err(SubmissionRejection::InvalidUnitPrice);
         }
-        let Some(required_quantity) = required_by_id.get(&item.rfq_item_id) else {
-            return Err(SubmissionRejection::ItemSetMismatch);
-        };
-        if item.quantity != *required_quantity {
+        // A validação do conjunto de IDs acima prova que esta chave existe.
+        let required_quantity = required_by_id[&item.rfq_item_id];
+        if item.quantity != required_quantity {
             return Err(SubmissionRejection::QuantityMismatch);
         }
         if item.quantity <= 0 {
@@ -158,6 +157,7 @@ fn decide_for_rfq(
 #[cfg(test)]
 mod tests {
     use chrono::{NaiveDate, TimeZone};
+    use proptest::prelude::*;
 
     use super::*;
     use crate::capabilities::submit_supplier_quote::request::QuotedItemInput;
@@ -257,5 +257,205 @@ mod tests {
             decide(&request, &context, Uuid::new_v4(), Utc::now()).unwrap_err(),
             SubmissionRejection::DuplicateSupplierQuote
         );
+    }
+
+    fn fixed_now() -> chrono::DateTime<Utc> {
+        Utc.with_ymd_and_hms(2026, 10, 23, 12, 0, 0).unwrap()
+    }
+
+    #[test]
+    fn rejects_missing_rfq() {
+        let (request, mut context) = fixture();
+        context.rfq = None;
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::RfqNotFound
+        );
+    }
+
+    #[test]
+    fn rejects_supplier_without_registration() {
+        let (request, mut context) = fixture();
+        context.supplier_registered = false;
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::SupplierNotRegistered
+        );
+    }
+
+    #[test]
+    fn rejects_supplier_without_eligibility() {
+        let (request, mut context) = fixture();
+        context.supplier_status = None;
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::SupplierEligibilityNotSet
+        );
+    }
+
+    #[test]
+    fn rejects_blocked_supplier() {
+        let (request, mut context) = fixture();
+        context.supplier_status = Some(SupplierStatus::Blocked);
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::SupplierNotEligible
+        );
+    }
+
+    #[test]
+    fn rejects_currency_mismatch_and_accepts_case_and_whitespace_normalization() {
+        let (mut request, context) = fixture();
+        request.currency = "USD".to_owned();
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::CurrencyMismatch
+        );
+
+        request.currency = " brl ".to_owned();
+        assert!(decide(&request, &context, Uuid::from_u128(3), fixed_now()).is_ok());
+    }
+
+    #[test]
+    fn rejects_non_positive_delivery_days() {
+        let (mut request, context) = fixture();
+        for days in [0, -1] {
+            request.delivery_days = days;
+            assert_eq!(
+                decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+                SubmissionRejection::InvalidDeliveryDays
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_validity_before_today() {
+        let (mut request, context) = fixture();
+        request.valid_until = NaiveDate::from_ymd_opt(2026, 10, 22).unwrap();
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::ValidityInPast
+        );
+    }
+
+    #[test]
+    fn rejects_empty_quote() {
+        let (mut request, context) = fixture();
+        request.items.clear();
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::EmptyQuote
+        );
+    }
+
+    #[test]
+    fn rejects_duplicate_quoted_item_ids() {
+        let (mut request, context) = fixture();
+        request.items[1].rfq_item_id = request.items[0].rfq_item_id;
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::DuplicateQuotedItem
+        );
+    }
+
+    #[test]
+    fn rejects_missing_or_unknown_rfq_item_ids() {
+        let (mut request, context) = fixture();
+        request.items.truncate(1);
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::ItemSetMismatch
+        );
+
+        let (mut request, context) = fixture();
+        request.items[1].rfq_item_id = Uuid::from_u128(999);
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::ItemSetMismatch
+        );
+    }
+
+    #[test]
+    fn rejects_non_positive_unit_price() {
+        let (mut request, context) = fixture();
+        for price in [0, -1] {
+            request.items[0].unit_price_cents = price;
+            assert_eq!(
+                decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+                SubmissionRejection::InvalidUnitPrice
+            );
+        }
+    }
+
+    #[test]
+    fn rejects_non_positive_quantity_even_if_loaded_context_is_invalid() {
+        let (mut request, mut context) = fixture();
+        request.items[0].quantity = 0;
+        context.rfq.as_mut().unwrap().items[0].required_quantity = 0;
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::QuantityMismatch
+        );
+    }
+
+    #[test]
+    fn rejects_line_total_overflow() {
+        let (mut request, mut context) = fixture();
+        request.items.truncate(1);
+        let rfq = context.rfq.as_mut().unwrap();
+        rfq.items.truncate(1);
+        rfq.items[0].required_quantity = i64::MAX;
+        request.items[0].quantity = i64::MAX;
+        request.items[0].unit_price_cents = 2;
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::AmountOverflow
+        );
+    }
+
+    #[test]
+    fn rejects_sum_overflow_across_valid_line_totals() {
+        let (mut request, mut context) = fixture();
+        let high_price = i64::MAX / 2 + 1;
+        for index in 0..2 {
+            request.items[index].quantity = 1;
+            request.items[index].unit_price_cents = high_price;
+            context.rfq.as_mut().unwrap().items[index].required_quantity = 1;
+        }
+        assert_eq!(
+            decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),
+            SubmissionRejection::AmountOverflow
+        );
+    }
+
+    proptest! {
+        #[test]
+        fn property_quote_total_equals_sum_of_integer_line_totals(
+            quantity_a in 1_i64..=10_000,
+            price_a in 1_i64..=1_000_000,
+            quantity_b in 1_i64..=10_000,
+            price_b in 1_i64..=1_000_000,
+        ) {
+            let (mut request, mut context) = fixture();
+            let rfq = context.rfq.as_mut().expect("fixture includes an RFQ");
+            let values = [(quantity_a, price_a), (quantity_b, price_b)];
+            for (index, (quantity, price)) in values.into_iter().enumerate() {
+                rfq.items[index].required_quantity = quantity;
+                request.items[index].quantity = quantity;
+                request.items[index].unit_price_cents = price;
+            }
+
+            let quote = decide(&request, &context, Uuid::from_u128(3), fixed_now())
+                .expect("positive bounded inputs must produce a quote");
+            let expected = quantity_a * price_a + quantity_b * price_b;
+            let sum_of_lines: i64 = quote.items.iter().map(|item| item.line_total_cents).sum();
+
+            prop_assert_eq!(quote.total_amount_cents, expected);
+            prop_assert_eq!(sum_of_lines, quote.total_amount_cents);
+            prop_assert_eq!(quote.rfq_id, Uuid::from_u128(1));
+            prop_assert_eq!(quote.supplier_id, Uuid::from_u128(2));
+            prop_assert_eq!(quote.quote_id, Uuid::from_u128(3));
+            prop_assert_eq!(quote.submitted_at, fixed_now());
+        }
     }
 }
