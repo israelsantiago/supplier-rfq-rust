@@ -202,4 +202,58 @@ mod tests {
         assert_eq!(fact.reference, "RFQ-001");
         assert_eq!(fact.currency, "BRL");
     }
+
+    #[test]
+    fn prepare_rejects_blank_reference_invalid_currency_empty_items_and_invalid_item_fields() {
+        let id = Uuid::from_u128(90);
+        let valid_item = item(Uuid::from_u128(91), "SKU-91");
+
+        assert!(matches!(
+            prepare(request("   ", "BRL", vec![valid_item.clone()]), id),
+            Err(OpenRfqError::InvalidInput("reference must not be blank"))
+        ));
+        assert!(matches!(
+            prepare(request("RFQ-90", "US", vec![valid_item.clone()]), id),
+            Err(OpenRfqError::InvalidInput(
+                "currency must be a three-letter ISO-style code"
+            ))
+        ));
+        assert!(matches!(
+            prepare(request("RFQ-90", "b!r", vec![valid_item.clone()]), id),
+            Err(OpenRfqError::InvalidInput(
+                "currency must be a three-letter ISO-style code"
+            ))
+        ));
+        assert!(matches!(
+            prepare(request("RFQ-90", "BRL", vec![]), id),
+            Err(OpenRfqError::InvalidInput(
+                "an RFQ must contain at least one item"
+            ))
+        ));
+        assert!(matches!(
+            prepare(
+                request("RFQ-90", "BRL", vec![item(Uuid::from_u128(92), "   ")]),
+                id
+            ),
+            Err(OpenRfqError::InvalidInput(
+                "item SKU and description must not be blank"
+            ))
+        ));
+        let mut blank_description = valid_item.clone();
+        blank_description.description = "   ".to_owned();
+        assert!(matches!(
+            prepare(request("RFQ-90", "BRL", vec![blank_description]), id),
+            Err(OpenRfqError::InvalidInput(
+                "item SKU and description must not be blank"
+            ))
+        ));
+        let mut zero_quantity = valid_item;
+        zero_quantity.required_quantity = 0;
+        assert!(matches!(
+            prepare(request("RFQ-90", "BRL", vec![zero_quantity]), id),
+            Err(OpenRfqError::InvalidInput(
+                "required item quantity must be positive"
+            ))
+        ));
+    }
 }

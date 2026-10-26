@@ -40,6 +40,7 @@ pub(super) fn build_context(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
 
     fn request(
         status: Option<&str>,
@@ -103,5 +104,34 @@ mod tests {
             build_context(request(None, None, Some(-1))),
             Err(ListRfqSummariesError::InvalidOffset)
         ));
+    }
+
+    #[test]
+    fn accepts_inclusive_pagination_boundaries() {
+        assert_eq!(
+            build_context(request(None, Some(1), Some(0)))
+                .unwrap()
+                .limit,
+            1
+        );
+        assert_eq!(
+            build_context(request(None, Some(100), Some(0)))
+                .unwrap()
+                .limit,
+            100
+        );
+    }
+
+    proptest! {
+        #[test]
+        fn property_valid_pagination_bounds_are_preserved(
+            limit in 1_i64..=100,
+            offset in 0_i64..=1_000_000,
+        ) {
+            let normalized = build_context(request(None, Some(limit), Some(offset))).unwrap();
+            prop_assert_eq!(normalized.limit, limit);
+            prop_assert_eq!(normalized.offset, offset);
+            prop_assert_eq!(normalized.status, None);
+        }
     }
 }

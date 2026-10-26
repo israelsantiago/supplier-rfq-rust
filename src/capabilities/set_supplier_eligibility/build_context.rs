@@ -27,3 +27,35 @@ pub(super) fn build_context(
         supplier_registered,
     }
 }
+
+#[cfg(test)]
+mod functional_core_tests {
+    use super::*;
+
+    #[test]
+    fn registration_fact_for_requested_supplier_is_required() {
+        let target = Uuid::from_u128(1001);
+        let other = Uuid::from_u128(1002);
+        assert!(!build_context(&[], target).supplier_registered);
+        assert!(
+            !build_context(
+                &[
+                    EligibilityContextFact::EligibilityChanged,
+                    EligibilityContextFact::Registered(other),
+                ],
+                target
+            )
+            .supplier_registered
+        );
+        assert!(
+            build_context(
+                &[
+                    EligibilityContextFact::EligibilityChanged,
+                    EligibilityContextFact::Registered(target),
+                ],
+                target
+            )
+            .supplier_registered
+        );
+    }
+}

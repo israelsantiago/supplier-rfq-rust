@@ -138,4 +138,10 @@ mod tests {
             Some(RegisterSupplierError::ReferenceAlreadyExists)
         ));
     }
+
+    #[test]
+    fn duplicate_rejection_returns_none_for_a_new_identity() {
+        let context = RegisterSupplierContext::default();
+        assert!(duplicate_rejection(&context, Uuid::from_u128(700), "SUP-NEW").is_none());
+    }
 }
