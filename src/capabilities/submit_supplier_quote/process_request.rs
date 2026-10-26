@@ -1,6 +1,6 @@
 //! RPU: query the decision context, run the pure decision, then conditionally append.
 
-use factstr::{EventStore, EventStoreError, NewEvent};
+use factstr::{EventStore, NewEvent};
 use serde_json::to_value;
 use thiserror::Error;
 use uuid::Uuid;
@@ -8,8 +8,10 @@ use uuid::Uuid;
 use crate::events::{SUPPLIER_QUOTE_SUBMITTED_V1, SupplierQuoteSubmittedFact};
 
 use super::{
-    context::{LoadedSubmissionContext, load_context},
+    append_consequences,
+    build_context::build_context,
     decision::{SubmissionRejection, decide},
+    load_context::{LoadedSubmissionContext, load_context},
     request::SubmitSupplierQuoteRequest,
 };
 
@@ -51,12 +53,8 @@ pub fn prepare(
 ) -> Result<PreparedSubmission, PrepareError> {
     let loaded = load_context(store, rfq_id, request.supplier_id)
         .map_err(|error| PrepareError::Store(error.to_string()))?;
-    let quote = decide(
-        &request,
-        &loaded.context,
-        Uuid::new_v4(),
-        chrono::Utc::now(),
-    )?;
+    let context = build_context(&loaded.facts);
+    let quote = decide(&request, &context, Uuid::new_v4(), chrono::Utc::now())?;
     let payload = to_value(&quote).map_err(|error| PrepareError::Store(error.to_string()))?;
     let event = NewEvent::new(SUPPLIER_QUOTE_SUBMITTED_V1, payload);
 
@@ -73,17 +71,14 @@ pub fn commit_prepared(
     store: &impl EventStore,
     prepared: PreparedSubmission,
 ) -> Result<SupplierQuoteSubmittedFact, CommitError> {
-    store
-        .append_if(
-            vec![prepared.event],
-            &prepared.context.query,
-            prepared.context.current_context_version,
-        )
-        .map(|_| prepared.quote)
-        .map_err(|error| match error {
-            EventStoreError::ConditionalAppendConflict { .. } => CommitError::ContextChanged,
-            other => CommitError::Store(other.to_string()),
-        })
+    let quote = prepared.quote;
+    append_consequences::append_consequences(
+        store,
+        &prepared.context.query,
+        prepared.context.current_context_version,
+        prepared.event,
+    )
+    .map(|()| quote)
 }
 
 pub fn process(

@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::events::{QuotedItemFact, RfqOpenedFact, SupplierQuoteSubmittedFact, SupplierStatus};
 
-use super::{context::RfqSubmissionContext, request::SubmitSupplierQuoteRequest};
+use super::{build_context::RfqSubmissionContext, request::SubmitSupplierQuoteRequest};
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
 pub enum SubmissionRejection {
