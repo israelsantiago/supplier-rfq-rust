@@ -159,7 +159,31 @@ else
 fi
 
 echo
-echo "== 5. Validação Rust =="
+echo "== 5. Feature slices e contratos compartilhados =="
+
+[[ -f src/events/mod.rs ]] || fail "módulo compartilhado src/events/mod.rs não encontrado"
+[[ ! -e src/facts.rs ]] || fail "src/facts.rs antigo ainda existe; contratos devem estar em src/events/"
+
+FEATURES=(
+  close_rfq
+  get_rfq_summary
+  list_rfq_summaries
+  list_supplier_quotes
+  open_rfq
+  register_supplier
+  set_supplier_eligibility
+  submit_supplier_quote
+)
+
+for feature in "${FEATURES[@]}"; do
+  [[ -f "$CAPABILITIES_DIR/$feature/mod.rs" ]] || fail "feature '$feature' precisa ter seu próprio mod.rs"
+  [[ -f "$CAPABILITIES_DIR/$feature/process_request.rs" ]] || fail "feature '$feature' precisa ter process_request.rs"
+done
+
+echo "OK: os oito RPUs possuem pasta de feature e process_request.rs."
+
+echo
+echo "== 6. Validação Rust =="
 
 cargo fmt --all -- --check
 cargo check --all-targets

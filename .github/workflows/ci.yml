@@ -13,5 +13,5 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Test (including PostgreSQL Testcontainers acceptance/concurrency tests)
-        run: cargo test --all-targets
+      - name: Validate RPU boundaries and Rust tests
+        run: bash scripts/verify-rpu-boundaries.sh
