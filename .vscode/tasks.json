@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Cargo: acceptance_api (test-support)",
+      "type": "process",
+      "command": "cargo",
+      "args": [
+        "test",
+        "--package",
+        "supplier-rfq-rpu-rust",
+        "--test",
+        "acceptance_api",
+        "--features",
+        "test-support",
+        "--",
+        "--nocapture"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
