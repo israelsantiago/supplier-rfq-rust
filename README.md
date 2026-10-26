@@ -368,3 +368,7 @@ O quality gate `scripts/coverage-functional-core.sh` exige 100% dos resultados d
 O mutation testing é complementar à cobertura e pode ser executado com `bash scripts/mutate-functional-core.sh`; o runner instala `cargo-mutants` se necessário. Cobertura demonstra execução dos caminhos instrumentados; mutation testing avalia se os testes detectam alterações semânticas nos resultados.
 
 O OpenAPI é lintado localmente e no CI com Redocly CLI. O validador usa Node.js 22+ instalado localmente, ou recorre à imagem `node:22-bookworm-slim` via Docker. A Etapa 18 verifica Docker antes de editar arquivos, evitando falhas previsíveis de pré-requisito no meio da etapa. A especificação está em `docs/openapi.yaml`, e os testes de `src/http/dto.rs` cobrem mapeamentos dos DTOs, campos desconhecidos, enumerações e datas.
+
+## Evidências arquiteturais verificáveis
+
+Consulte a [matriz de princípios, testes e comandos de reprodução](docs/testing/architecture-evidence.md). Ela separa evidências automatizadas, verificações estruturais e lacunas ainda não demonstradas.
