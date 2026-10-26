@@ -191,7 +191,11 @@ fn submission_rejection(rejection: SubmissionRejection) -> Response {
 
 pub async fn close_rfq(State(state): State<ApiState>, Path(rfq_id): Path<Uuid>) -> Response {
     let store = state.event_store.clone();
-    match tokio::task::spawn_blocking(move || close_rfq::process(store.as_ref(), rfq_id)).await {
+    match tokio::task::spawn_blocking(move || {
+        close_rfq::process(store.as_ref(), close_rfq::CloseRfqRequest { rfq_id })
+    })
+    .await
+    {
         Ok(Ok(fact)) => (StatusCode::OK, Json(fact)).into_response(),
         Ok(Err(CloseRfqError::Rejected(rejection))) => {
             let (status, code) = match &rejection {
