@@ -324,3 +324,23 @@ Compare as implementações com `git diff main...event-sourcing-factstr` ou alte
 - Todos os contratos de evento são JSON versionado por nome. Evoluções futuras precisam de uma política de compatibilidade e replay.
 - Não há idempotency key para repetições de rede. A regra “uma cotação por RFQ/fornecedor” é protegida pela query de contexto e `append_if`, não por uma tabela unique da aplicação.
 - O resumo da RFQ é uma projeção eventualmente consistente; as capacidades de comando continuam lendo o Event Store. A implementação não deve ser tratada como arquitetura de alta escala sem benchmarks end-to-end e medição do atraso dos consumidores.
+
+
+## Validação de testes, cobertura e contrato HTTP
+
+A suíte combina testes unitários do Functional Core, testes de propriedade (`proptest`), testes de aceitação HTTP/PostgreSQL com Testcontainers e cenários diretos de Command Context Consistency (CCC).
+
+```bash
+cargo fmt --all -- --check
+cargo check --all-targets
+cargo test --all-targets
+cargo clippy --all-targets --all-features -- -D warnings
+bash scripts/verify-rpu-boundaries.sh
+bash scripts/verify-openapi.sh
+```
+
+O quality gate `scripts/coverage-functional-core.sh` exige 100% dos resultados de ramos e regiões de produção nos módulos do Functional Core explicitamente listados no verificador. A medição de branch usa Rust nightly e `cargo-llvm-cov --branch`, recurso instável no toolchain de cobertura. O gate falha fechado quando o formato do relatório não é reconhecido; ele não declara 100% sem evidência. Relatórios HTML/JSON são gerados em `target/`.
+
+O mutation testing é complementar à cobertura e pode ser executado com `bash scripts/mutate-functional-core.sh`; o runner instala `cargo-mutants` se necessário. Cobertura demonstra execução dos caminhos instrumentados; mutation testing avalia se os testes detectam alterações semânticas nos resultados.
+
+O OpenAPI é lintado localmente e no CI com Redocly CLI. O validador usa Node.js 22+ instalado localmente, ou recorre à imagem `node:22-bookworm-slim` via Docker. A Etapa 18 verifica Docker antes de editar arquivos, evitando falhas previsíveis de pré-requisito no meio da etapa. A especificação está em `docs/openapi.yaml`, e os testes de `src/http/dto.rs` cobrem mapeamentos dos DTOs, campos desconhecidos, enumerações e datas.

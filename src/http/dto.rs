@@ -257,6 +257,105 @@ mod dto_boundary_tests {
     }
 
     #[test]
+    fn open_rfq_json_defaults_optional_id_and_rejects_unknown_item_fields() {
+        let body: OpenRfqBody = serde_json::from_value(serde_json::json!({
+            "reference": "RFQ-JSON-1",
+            "currency": "BRL",
+            "items": [{
+                "id": "00000000-0000-0000-0000-000000000011",
+                "sku": "SKU-1",
+                "description": "Item",
+                "required_quantity": 2
+            }]
+        }))
+        .expect("valid HTTP body without optional id should deserialize");
+        assert_eq!(body.id, None);
+        assert_eq!(body.items.len(), 1);
+        assert_eq!(body.items[0].required_quantity, 2);
+
+        let result = serde_json::from_value::<OpenRfqBody>(serde_json::json!({
+            "reference": "RFQ-JSON-2",
+            "currency": "BRL",
+            "items": [{
+                "id": "00000000-0000-0000-0000-000000000012",
+                "sku": "SKU-2",
+                "description": "Item",
+                "required_quantity": 1,
+                "unexpected": true
+            }]
+        }));
+        assert!(
+            result.is_err(),
+            "unknown nested item fields must be rejected"
+        );
+    }
+
+    #[test]
+    fn eligibility_json_accepts_only_known_snake_case_statuses() {
+        let eligible = serde_json::from_value::<SetSupplierEligibilityBody>(
+            serde_json::json!({"status": "eligible"}),
+        )
+        .expect("eligible must be a valid HTTP status");
+        let blocked = serde_json::from_value::<SetSupplierEligibilityBody>(
+            serde_json::json!({"status": "blocked"}),
+        )
+        .expect("blocked must be a valid HTTP status");
+        assert!(matches!(eligible.status, SupplierStatusBody::Eligible));
+        assert!(matches!(blocked.status, SupplierStatusBody::Blocked));
+
+        let unknown = serde_json::from_value::<SetSupplierEligibilityBody>(
+            serde_json::json!({"status": "pending"}),
+        );
+        assert!(
+            unknown.is_err(),
+            "unknown status must not silently map to a known state"
+        );
+    }
+
+    #[test]
+    fn quote_json_requires_iso_date_and_rejects_unknown_fields() {
+        let valid = serde_json::from_value::<SubmitSupplierQuoteBody>(serde_json::json!({
+            "supplier_id": "00000000-0000-0000-0000-000000000021",
+            "currency": "BRL",
+            "delivery_days": 5,
+            "valid_until": "2099-12-31",
+            "items": [{
+                "rfq_item_id": "00000000-0000-0000-0000-000000000022",
+                "quantity": 3,
+                "unit_price_cents": 1250
+            }]
+        }))
+        .expect("valid quote JSON should deserialize");
+        assert_eq!(valid.delivery_days, 5);
+        assert_eq!(valid.items[0].unit_price_cents, 1250);
+
+        let invalid_date = serde_json::from_value::<SubmitSupplierQuoteBody>(serde_json::json!({
+            "supplier_id": "00000000-0000-0000-0000-000000000021",
+            "currency": "BRL",
+            "delivery_days": 5,
+            "valid_until": "31-12-2099",
+            "items": []
+        }));
+        assert!(
+            invalid_date.is_err(),
+            "date must use the documented ISO date shape"
+        );
+
+        let unknown_field = serde_json::from_value::<SubmitSupplierQuoteBody>(serde_json::json!({
+            "supplier_id": "00000000-0000-0000-0000-000000000021",
+            "currency": "BRL",
+            "delivery_days": 5,
+            "valid_until": "2099-12-31",
+            "items": [],
+            "unexpected": true
+        }));
+        assert!(
+            unknown_field.is_err(),
+            "unknown quote fields must be rejected"
+        );
+    }
+
+    #[test]
     fn http_dto_rejects_unknown_fields_for_command_bodies() {
         let result = serde_json::from_value::<RegisterSupplierBody>(serde_json::json!({
             "reference": "SUP-HTTP-2",

@@ -28,3 +28,13 @@ jobs:
           tool: cargo-llvm-cov
       - name: Require 100% Functional Core branch coverage
         run: bash scripts/coverage-functional-core.sh
+
+  openapi-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Lint OpenAPI contract
+        run: bash scripts/verify-openapi.sh
