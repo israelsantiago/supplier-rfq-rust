@@ -67,7 +67,7 @@ sequenceDiagram
 
 A query é uma parte da regra de negócio:
 
-- Filtros alternativos de eventos representam alternativas (`OR` entre filtros); predicados do mesmo filtro restringem conjuntamente o evento (`AND`).
+- O `EventQuery` combina os filtros por `OR`. Dentro de cada `EventFilter`, os valores de `event_types` são alternativas (`OR`), assim como os valores de `payload_predicates` (`OR`). A condição de tipo e a condição de payload precisam ambas corresponder ao evento (`AND` entre esses dois resultados).
 - Um contexto excessivamente amplo gera conflitos falsos e reduz concorrência lógica.
 - Um contexto estreito demais pode permitir que uma decisão seja confirmada após um fato relevante ter mudado.
 - Toda alteração das regras da decisão deve provocar uma revisão da query de contexto e um teste de contexto obsoleto.

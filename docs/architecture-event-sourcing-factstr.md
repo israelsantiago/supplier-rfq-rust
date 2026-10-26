@@ -44,7 +44,7 @@ The process is:
 4. Call `append_if(facts, context_query, current_context_version)`.
 5. If the command context changed, append nothing. Re-read once where helpful to return a current business rejection (e.g. duplicate quote or closed RFQ); otherwise return `command_context_changed`.
 
-FACTSTR has one global, monotonically increasing sequence. `current_context_version` is the latest sequence number among facts matching the full context query; it is **not** the same as `last_returned_sequence_number` when a read cursor is applied. The EventQuery API combines filters as alternatives, and payload predicates within a filter are also alternatives. Therefore, the exact scope of the query is business logic, not merely a performance tuning detail.
+FACTSTR has one global, monotonically increasing sequence. `current_context_version` is the latest sequence number among facts matching the full context query; it is **not** the same as `last_returned_sequence_number` when a read cursor is applied. For FACTSTR 0.5.2, `EventQuery` combines filters with `OR`. Within one `EventFilter`, entries in `event_types` are alternatives (`OR`), and entries in `payload_predicates` are also alternatives (`OR`); the event-type match and payload match are combined with `AND`. In compact form: `OR(filters)`, with each filter evaluating `OR(event_types) AND OR(payload_predicates)`. This behavior is implemented by FACTSTR's PostgreSQL query matcher (`matches_query`/`matches_filter`; see [query_match.rs](https://github.com/ricofritzsche/factstr/blob/main/factstr-postgres/src/query_match.rs)). Therefore, query scope is business logic, not merely performance tuning.
 
 ### Contexts chosen by this implementation
 

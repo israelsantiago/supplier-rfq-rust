@@ -722,3 +722,99 @@ async fn acceptance_rfq_summary_projection_tracks_open_quote_close_and_paginated
         .expect("invalid filter request must complete");
     assert_eq!(invalid_status.status(), StatusCode::BAD_REQUEST);
 }
+
+/// FACTSTR EventQuery: filtros distintos representam alternativas (OR).
+#[tokio::test]
+async fn event_query_ors_separate_filters() {
+    let app = spawn_app().await;
+    let rfq_id = Uuid::parse_str(RFQ_ID).unwrap();
+    let supplier_id = Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap();
+    let query = EventQuery::all().with_filters([
+        EventFilter::for_event_types([RFQ_OPENED_V1])
+            .with_payload_predicates([json!({ "rfq_id": rfq_id })]),
+        EventFilter::for_event_types([SUPPLIER_REGISTERED_V1])
+            .with_payload_predicates([json!({ "supplier_id": supplier_id })]),
+    ]);
+
+    let result = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+
+    assert_eq!(result.event_records.len(), 2);
+    assert!(
+        result
+            .event_records
+            .iter()
+            .any(|record| record.event_type.as_str() == RFQ_OPENED_V1)
+    );
+    assert!(result.event_records.iter().any(|record| {
+        record.event_type.as_str() == SUPPLIER_REGISTERED_V1
+            && record.payload.get("supplier_id").and_then(Value::as_str)
+                == Some(SUPPLIER_ELIGIBLE_ID)
+    }));
+}
+
+/// Dentro de um EventFilter, tipos e predicados são alternativas (OR).
+#[tokio::test]
+async fn event_filter_ors_event_types_and_payload_predicates() {
+    let app = spawn_app().await;
+    let rfq_id = Uuid::parse_str(RFQ_ID).unwrap();
+    let supplier_id = Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap();
+    let query = EventQuery::all().with_filters([EventFilter::for_event_types([
+        RFQ_OPENED_V1,
+        SUPPLIER_REGISTERED_V1,
+    ])
+    .with_payload_predicates([
+        json!({ "rfq_id": rfq_id }),
+        json!({ "supplier_id": supplier_id }),
+    ])]);
+
+    let result = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+
+    assert_eq!(result.event_records.len(), 2);
+    assert!(
+        result
+            .event_records
+            .iter()
+            .any(|record| record.event_type.as_str() == RFQ_OPENED_V1)
+    );
+    assert!(
+        result
+            .event_records
+            .iter()
+            .any(|record| record.event_type.as_str() == SUPPLIER_REGISTERED_V1)
+    );
+}
+
+/// Tipo de evento e payload são condições conjuntas (AND), não alternativas.
+#[tokio::test]
+async fn event_filter_requires_event_type_and_payload_match() {
+    let app = spawn_app().await;
+    let supplier_id = Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap();
+    // O payload supplier_id existe em supplier_registered.v1, mas não em rfq_opened.v1.
+    let query = EventQuery::all().with_filters([EventFilter::for_event_types([RFQ_OPENED_V1])
+        .with_payload_predicates([json!({ "supplier_id": supplier_id })])]);
+
+    let result = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+
+    assert!(
+        result.event_records.is_empty(),
+        "a matching payload on another event type must not satisfy this filter"
+    );
+}
