@@ -5,16 +5,19 @@ info:
   description: API REST de referência para Domain Capabilities, RPU, Event Sourcing e CCC com FACTSTR.
 servers:
   - url: http://127.0.0.1:3000
+security: []
 paths:
   /health:
     get:
       summary: Health check
+      operationId: healthCheck
       responses:
         '200':
           description: API está ativa e configurada para FACTSTR/PostgreSQL.
   /api/rfqs:
     post:
       summary: OpenRfq — abre RFQ e registra os itens num fato imutável
+      operationId: openRfq
       requestBody:
         required: true
         content:
@@ -35,6 +38,7 @@ paths:
   /api/suppliers:
     post:
       summary: RegisterSupplier — registra a identidade imutável do fornecedor
+      operationId: registerSupplier
       requestBody:
         required: true
         content:
@@ -55,6 +59,7 @@ paths:
   /api/suppliers/{supplier_id}/eligibility:
     put:
       summary: SetSupplierEligibility — registra uma alteração de elegibilidade
+      operationId: setSupplierEligibility
       parameters:
         - $ref: '#/components/parameters/SupplierId'
       requestBody:
@@ -79,6 +84,7 @@ paths:
   /api/rfqs/summaries:
     get:
       summary: ListRfqSummaries — consulta a projeção paginada de RFQs
+      operationId: listRfqSummaries
       parameters:
         - name: status
           in: query
@@ -113,6 +119,7 @@ paths:
   /api/rfqs/{rfq_id}/summary:
     get:
       summary: GetRfqSummary — consulta o resumo materializado de uma RFQ
+      operationId: getRfqSummary
       parameters:
         - $ref: '#/components/parameters/RfqId'
       responses:
@@ -127,6 +134,7 @@ paths:
   /api/rfqs/{rfq_id}/quotes:
     post:
       summary: SubmitSupplierQuote — valida e registra a cotação com append_if
+      operationId: submitSupplierQuote
       parameters:
         - $ref: '#/components/parameters/RfqId'
       requestBody:
@@ -150,6 +158,7 @@ paths:
           $ref: '#/components/responses/Unprocessable'
     get:
       summary: ListSupplierQuotes — materializa a consulta a partir dos fatos
+      operationId: listSupplierQuotes
       parameters:
         - $ref: '#/components/parameters/RfqId'
       responses:
@@ -177,6 +186,7 @@ paths:
   /api/rfqs/{rfq_id}/close:
     post:
       summary: CloseRfq — registra o fechamento por append condicional
+      operationId: closeRfq
       parameters:
         - $ref: '#/components/parameters/RfqId'
       responses:
