@@ -256,4 +256,39 @@ mod tests {
             ))
         ));
     }
+    #[test]
+    fn duplicate_rejection_returns_none_when_id_and_reference_are_new() {
+        let context = vec![ExistingRfqIdentity {
+            rfq_id: Uuid::from_u128(910),
+            reference: "RFQ-EXISTING-910".to_owned(),
+        }];
+
+        assert!(duplicate_rejection(&context, Uuid::from_u128(911), "RFQ-NEW-911").is_none());
+    }
+
+    #[test]
+    fn generate_consequences_rejects_duplicate_identity() {
+        let rfq_id = Uuid::from_u128(920);
+        let prepared = prepare(
+            request(
+                "RFQ-920",
+                "BRL",
+                vec![item(Uuid::from_u128(921), "SKU-920")],
+            ),
+            rfq_id,
+        )
+        .expect("valid RFQ should be prepared");
+        let context = vec![ExistingRfqIdentity {
+            rfq_id,
+            reference: "RFQ-OTHER-920".to_owned(),
+        }];
+        let opened_at = chrono::DateTime::parse_from_rfc3339("2026-01-02T03:04:05Z")
+            .expect("fixture timestamp must be valid")
+            .with_timezone(&chrono::Utc);
+
+        assert!(matches!(
+            generate_consequences(&prepared, &context, opened_at),
+            Err(OpenRfqError::AlreadyExists)
+        ));
+    }
 }

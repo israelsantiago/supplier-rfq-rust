@@ -144,4 +144,26 @@ mod tests {
         let context = RegisterSupplierContext::default();
         assert!(duplicate_rejection(&context, Uuid::from_u128(700), "SUP-NEW").is_none());
     }
+    #[test]
+    fn generate_consequences_uses_prepared_identity_and_supplied_timestamp() {
+        let id = Uuid::from_u128(930);
+        let prepared = prepare(
+            RegisterSupplierRequest {
+                id: Some(id),
+                reference: " SUP-930 ".to_owned(),
+                name: " Fornecedor 930 ".to_owned(),
+            },
+            id,
+        )
+        .expect("valid supplier registration should be prepared");
+        let registered_at = chrono::DateTime::parse_from_rfc3339("2026-01-02T03:04:05Z")
+            .expect("fixture timestamp must be valid")
+            .with_timezone(&chrono::Utc);
+
+        let fact = generate_consequences(&prepared, registered_at);
+        assert_eq!(fact.supplier_id, id);
+        assert_eq!(fact.reference, "SUP-930");
+        assert_eq!(fact.name, "Fornecedor 930");
+        assert_eq!(fact.registered_at, registered_at);
+    }
 }

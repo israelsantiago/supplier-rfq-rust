@@ -15,3 +15,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Validate RPU boundaries and Rust tests
         run: bash scripts/verify-rpu-boundaries.sh
+
+  functional-core-branch-coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Require 100% Functional Core branch coverage
+        run: bash scripts/coverage-functional-core.sh
