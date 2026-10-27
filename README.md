@@ -237,9 +237,9 @@ A suíte combina testes unitários, aceitação HTTP e provas de consistência s
 
 1. **Testes unitários do Functional Core** (`decision.rs`): verificam cálculo, quantidade e rejeições com entradas/contextos construídos diretamente, sem rede ou Event Store.
 2. **Testes de aceitação REST** (`tests/acceptance_api.rs`): iniciam PostgreSQL 16 descartável com Testcontainers, conectam FACTSTR ao banco real, sobem Axum em uma porta efêmera e chamam os endpoints via HTTP. Verificam o ciclo de abertura/registro/elegibilidade/submissão, pré-condições de elegibilidade, respostas, fatos persistidos, rejeições sem escrita e o cenário de fechamento concorrente.
-3. **Prova determinística de CCC** (`ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_fact`): cria **duas instâncias independentes de `PostgresStore`**, carrega o mesmo contexto nas duas, prepara duas decisões, confirma por asserção que ambas viram a mesma versão e só então libera uma `Barrier` imediatamente antes do `append_if`. As duas escritas tentam gravar usando a mesma versão esperada. O teste exige um append bem-sucedido, um `ConditionalAppendConflict` e exatamente um fato de cotação persistido.
-4. **CCC sem conflito falso entre contextos independentes** (`ccc_independent_supplier_contexts_commit_without_false_conflict`): prepara cotações para dois fornecedores diferentes na mesma RFQ e as comita com stores independentes. Ambas devem ser aceitas porque uma submissão para o fornecedor A não muda o contexto de elegibilidade nem a unicidade da cotação do fornecedor B.
-5. **Consistência sob mudança de elegibilidade** (`ccc_supplier_eligibility_change_invalidates_a_prepared_quote`): prepara uma cotação enquanto o fornecedor está elegível, registra o bloqueio através de outro `PostgresStore` e prova que a cotação preparada contra o snapshot antigo não é gravada.
+3. **Prova determinística de CCC** (`src/capabilities/submit_supplier_quote/process_request/ccc_tests.rs`, teste `ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_fact`): cria **duas instâncias independentes de `PostgresStore`**, carrega o mesmo contexto nas duas, prepara duas decisões, confirma por asserção que ambas viram a mesma versão e só então libera uma `Barrier` imediatamente antes do `append_if`. As duas escritas tentam gravar usando a mesma versão esperada. O teste exige um append bem-sucedido, um `ConditionalAppendConflict` e exatamente um fato de cotação persistido.
+4. **CCC sem conflito falso entre contextos independentes** (`src/capabilities/submit_supplier_quote/process_request/ccc_tests.rs`, teste `ccc_independent_supplier_contexts_commit_without_false_conflict`): prepara cotações para dois fornecedores diferentes na mesma RFQ e as comita com stores independentes. Ambas devem ser aceitas porque uma submissão para o fornecedor A não muda o contexto de elegibilidade nem a unicidade da cotação do fornecedor B.
+5. **Consistência sob mudança de elegibilidade** (`src/capabilities/submit_supplier_quote/process_request/ccc_tests.rs`, teste `ccc_supplier_eligibility_change_invalidates_a_prepared_quote`): prepara uma cotação enquanto o fornecedor está elegível, registra o bloqueio através de outro `PostgresStore` e prova que a cotação preparada contra o snapshot antigo não é gravada.
 6. **Pré-condições do fornecedor** (`acceptance_requires_registration_and_eligibility_before_quote_submission`): fornecedor não registrado resulta em `404`; fornecedor registrado sem elegibilidade definida resulta em `409`; nenhum dos comandos rejeitados grava fato de cotação.
 7. **Chaves naturais únicas** (`acceptance_rejects_duplicate_natural_references_without_appending_facts`): valida por HTTP que referências já usadas por RFQ ou fornecedor não são reutilizadas e que as tentativas rejeitadas não adicionam fatos.
 
@@ -255,7 +255,7 @@ O Docker precisa estar ativo para os testes que iniciam PostgreSQL via Testconta
 cargo generate-lockfile
 cargo fmt --all -- --check
 cargo test --lib
-cargo test --features test-support --test acceptance_api
+cargo test --test acceptance_api
 cargo test --features test-support
 cargo clippy --all-targets --all-features -- -D warnings
 ```
@@ -263,7 +263,7 @@ cargo clippy --all-targets --all-features -- -D warnings
 `cargo test --lib` inclui o teste de idempotência da projeção com PostgreSQL Testcontainers; portanto, também requer Docker. Para rodar apenas a prova determinística de CCC:
 
 ```bash
-cargo test --features test-support --test acceptance_api ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_fact -- --nocapture
+cargo test --lib ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_fact -- --nocapture
 ```
 
 Os testes criam containers de PostgreSQL descartáveis e não usam o banco do `docker-compose.yml`.
@@ -368,3 +368,7 @@ O quality gate `scripts/coverage-functional-core.sh` exige 100% dos resultados d
 O mutation testing é complementar à cobertura e pode ser executado com `bash scripts/mutate-functional-core.sh`; o runner instala `cargo-mutants` se necessário. Cobertura demonstra execução dos caminhos instrumentados; mutation testing avalia se os testes detectam alterações semânticas nos resultados.
 
 O OpenAPI é lintado localmente e no CI com Redocly CLI. O validador usa Node.js 22+ instalado localmente, ou recorre à imagem `node:22-bookworm-slim` via Docker. A Etapa 18 verifica Docker antes de editar arquivos, evitando falhas previsíveis de pré-requisito no meio da etapa. A especificação está em `docs/openapi.yaml`, e os testes de `src/http/dto.rs` cobrem mapeamentos dos DTOs, campos desconhecidos, enumerações e datas.
+
+## Evidências arquiteturais verificáveis
+
+Consulte a [matriz de princípios, testes e comandos de reprodução](docs/testing/architecture-evidence.md). Ela separa evidências automatizadas, verificações estruturais e lacunas ainda não demonstradas.
