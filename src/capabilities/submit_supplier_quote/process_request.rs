@@ -105,3 +105,6 @@ pub fn process(
         SubmissionRejection::CommandContextChanged,
     ))
 }
+
+#[cfg(test)]
+mod ccc_tests;
