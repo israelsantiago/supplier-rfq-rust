@@ -4,6 +4,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::events::SupplierEligibilityChangedFact;
+use crate::providers::{ClockProvider, SystemClockProvider};
 
 use super::{append_consequences, build_context, generate_consequences, load_context};
 
@@ -28,13 +29,23 @@ pub fn process(
     supplier_id: Uuid,
     request: SetSupplierEligibilityRequest,
 ) -> Result<SupplierEligibilityChangedFact, SetSupplierEligibilityError> {
+    process_with_providers(store, supplier_id, request, &SystemClockProvider)
+}
+
+/// Executa a capability com o relógio explicitamente injetado na shell.
+pub fn process_with_providers(
+    store: &impl EventStore,
+    supplier_id: Uuid,
+    request: SetSupplierEligibilityRequest,
+    clock: &dyn ClockProvider,
+) -> Result<SupplierEligibilityChangedFact, SetSupplierEligibilityError> {
     let query = load_context::eligibility_context_query(supplier_id);
     let loaded = load_context::load_context(store, &query)?;
     let context = build_context::build_context(&loaded.facts, supplier_id);
     let fact = generate_consequences::generate_consequences(
         supplier_id,
         request.status,
-        chrono::Utc::now(),
+        clock.now_utc(),
         &context,
     )?;
 

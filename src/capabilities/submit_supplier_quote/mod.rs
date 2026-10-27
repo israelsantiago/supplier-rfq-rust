@@ -8,7 +8,7 @@ mod process_request;
 mod request;
 
 pub use decision::SubmissionRejection;
-pub use process_request::{PrepareError, process};
+pub use process_request::{PrepareError, process, process_with_providers};
 pub use request::{QuotedItemInput, SubmitSupplierQuoteRequest};
 
 /// Explicitly opt-in seam for deterministic integration tests of CCC.

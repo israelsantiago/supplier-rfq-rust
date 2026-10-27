@@ -55,7 +55,13 @@ pub async fn health() -> impl IntoResponse {
 pub async fn open_rfq(State(state): State<ApiState>, Json(request): Json<OpenRfqBody>) -> Response {
     let request = request.into();
     let store = state.event_store.clone();
-    match tokio::task::spawn_blocking(move || open_rfq::process(store.as_ref(), request)).await {
+    let clock = state.clock_provider.clone();
+    let ids = state.id_provider.clone();
+    match tokio::task::spawn_blocking(move || {
+        open_rfq::process_with_providers(store.as_ref(), request, clock.as_ref(), ids.as_ref())
+    })
+    .await
+    {
         Ok(Ok(fact)) => (StatusCode::CREATED, Json(OpenRfqResponse::from(fact))).into_response(),
         Ok(Err(error)) => match error {
             OpenRfqError::InvalidInput(message) => {
@@ -88,8 +94,17 @@ pub async fn register_supplier(
 ) -> Response {
     let request = request.into();
     let store = state.event_store.clone();
-    match tokio::task::spawn_blocking(move || register_supplier::process(store.as_ref(), request))
-        .await
+    let clock = state.clock_provider.clone();
+    let ids = state.id_provider.clone();
+    match tokio::task::spawn_blocking(move || {
+        register_supplier::process_with_providers(
+            store.as_ref(),
+            request,
+            clock.as_ref(),
+            ids.as_ref(),
+        )
+    })
+    .await
     {
         Ok(Ok(fact)) => (
             StatusCode::CREATED,
@@ -130,8 +145,14 @@ pub async fn set_supplier_eligibility(
 ) -> Response {
     let request = request.into();
     let store = state.event_store.clone();
+    let clock = state.clock_provider.clone();
     match tokio::task::spawn_blocking(move || {
-        set_supplier_eligibility::process(store.as_ref(), supplier_id, request)
+        set_supplier_eligibility::process_with_providers(
+            store.as_ref(),
+            supplier_id,
+            request,
+            clock.as_ref(),
+        )
     })
     .await
     {
@@ -164,8 +185,16 @@ pub async fn submit_supplier_quote(
 ) -> Response {
     let request = request.into();
     let store = state.event_store.clone();
+    let clock = state.clock_provider.clone();
+    let ids = state.id_provider.clone();
     match tokio::task::spawn_blocking(move || {
-        submit_supplier_quote::process(store.as_ref(), rfq_id, request)
+        submit_supplier_quote::process_with_providers(
+            store.as_ref(),
+            rfq_id,
+            request,
+            clock.as_ref(),
+            ids.as_ref(),
+        )
     })
     .await
     {
@@ -205,8 +234,13 @@ fn submission_rejection(rejection: SubmissionRejection) -> Response {
 
 pub async fn close_rfq(State(state): State<ApiState>, Path(rfq_id): Path<Uuid>) -> Response {
     let store = state.event_store.clone();
+    let clock = state.clock_provider.clone();
     match tokio::task::spawn_blocking(move || {
-        close_rfq::process(store.as_ref(), close_rfq::CloseRfqRequest { rfq_id })
+        close_rfq::process_with_providers(
+            store.as_ref(),
+            close_rfq::CloseRfqRequest { rfq_id },
+            clock.as_ref(),
+        )
     })
     .await
     {

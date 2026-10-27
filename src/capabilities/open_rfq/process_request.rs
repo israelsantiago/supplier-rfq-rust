@@ -1,10 +1,10 @@
-use chrono::Utc;
 use factstr::EventStore;
 use serde::Deserialize;
 use thiserror::Error;
 use uuid::Uuid;
 
 use crate::events::RfqOpenedFact;
+use crate::providers::{ClockProvider, IdProvider, SystemClockProvider, UuidV4Provider};
 
 use super::{append_consequences, build_context, generate_consequences, load_context};
 
@@ -38,14 +38,24 @@ pub fn process(
     store: &impl EventStore,
     request: OpenRfqRequest,
 ) -> Result<RfqOpenedFact, OpenRfqError> {
+    process_with_providers(store, request, &SystemClockProvider, &UuidV4Provider)
+}
+
+/// Executa a capability com recursos externos explicitamente injetados na shell.
+pub fn process_with_providers(
+    store: &impl EventStore,
+    request: OpenRfqRequest,
+    clock: &dyn ClockProvider,
+    ids: &dyn IdProvider,
+) -> Result<RfqOpenedFact, OpenRfqError> {
     // Nondeterministic values are supplied to the pure decision rather than read there.
-    let assigned_id = request.id.unwrap_or_else(Uuid::new_v4);
+    let assigned_id = request.id.unwrap_or_else(|| ids.new_uuid());
     let prepared = generate_consequences::prepare(request, assigned_id)?;
     let query = load_context::context_query(prepared.rfq_id, &prepared.reference);
 
     let loaded = load_context::load_context(store, &query)?;
     let context = build_context::build_context(&loaded.event_records)?;
-    let fact = generate_consequences::generate_consequences(&prepared, &context, Utc::now())?;
+    let fact = generate_consequences::generate_consequences(&prepared, &context, clock.now_utc())?;
 
     match append_consequences::append_consequences(
         store,

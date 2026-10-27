@@ -4,6 +4,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::events::SupplierRegisteredFact;
+use crate::providers::{ClockProvider, IdProvider, SystemClockProvider, UuidV4Provider};
 
 use super::{append_consequences, build_context, generate_consequences, load_context};
 
@@ -35,7 +36,17 @@ pub fn process(
     store: &impl EventStore,
     request: RegisterSupplierRequest,
 ) -> Result<SupplierRegisteredFact, RegisterSupplierError> {
-    let assigned_id = request.id.unwrap_or_else(Uuid::new_v4);
+    process_with_providers(store, request, &SystemClockProvider, &UuidV4Provider)
+}
+
+/// Executa a capability com recursos externos explicitamente injetados na shell.
+pub fn process_with_providers(
+    store: &impl EventStore,
+    request: RegisterSupplierRequest,
+    clock: &dyn ClockProvider,
+    ids: &dyn IdProvider,
+) -> Result<SupplierRegisteredFact, RegisterSupplierError> {
+    let assigned_id = request.id.unwrap_or_else(|| ids.new_uuid());
     let prepared = generate_consequences::prepare(request, assigned_id)?;
     let query = load_context::identity_context_query(prepared.supplier_id, &prepared.reference);
     let loaded = load_context::load_context(store, &query)?;
@@ -49,7 +60,7 @@ pub fn process(
         return Err(rejection);
     }
 
-    let fact = generate_consequences::generate_consequences(&prepared, chrono::Utc::now());
+    let fact = generate_consequences::generate_consequences(&prepared, clock.now_utc());
     match append_consequences::append_consequences(
         store,
         &query,

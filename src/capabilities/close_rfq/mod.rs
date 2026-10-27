@@ -7,4 +7,6 @@ mod generate_consequences;
 mod load_context;
 mod process_request;
 
-pub use process_request::{CloseRfqError, CloseRfqRejection, CloseRfqRequest, process};
+pub use process_request::{
+    CloseRfqError, CloseRfqRejection, CloseRfqRequest, process, process_with_providers,
+};

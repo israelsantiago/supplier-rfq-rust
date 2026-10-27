@@ -1,11 +1,11 @@
 # Architecture decision — Event Sourcing with FACTSTR
 
-Status: reference implementation on branch `event-sourcing-factstr`
-Baseline: relational implementation on branch `main`
+Status: reference implementation maintained on the default branch `main`
+Historical baseline: relational implementation preserved in Git history and backup refs
 
 ## Decision
 
-Keep `main` unchanged as a comparison baseline. Implement this variant with a FACTSTR-backed append-only fact log in PostgreSQL. The application does not write its own domain tables: FACTSTR owns the event-store schema and exposes `query`, `append`, and `append_if` through `factstr::EventStore`.
+Maintain the FACTSTR-backed append-only fact log in PostgreSQL as the authoritative store on `main`. The earlier relational implementation is a historical baseline retained in Git history and backup refs. The application does not write its own domain tables: FACTSTR owns the event-store schema and exposes `query`, `append`, and `append_if` through `factstr::EventStore`.
 
 This is a reference implementation for one RFQ lifecycle, not a production procurement platform. `ListSupplierQuotes` still reconstructs quotes from facts; the `rfq_summary_projection` read model supports RFQ summary/list queries. A high-volume implementation must benchmark the projection and its consumer independently.
 
@@ -86,19 +86,9 @@ Unit tests in `submit_supplier_quote/decision.rs` test calculations and rejectio
 
 `ccc_supplier_eligibility_change_invalidates_a_prepared_quote` prepares an eligible quote, appends a later blocked-eligibility fact through another store instance, and proves that the old quote cannot append. `ccc_independent_supplier_contexts_commit_without_false_conflict` proves that one supplier's quote does not logically invalidate another supplier's quote context. HTTP-level duplicate and close/submission tests cover status mapping and end-to-end behavior but are not the primary proof of database concurrency; a single `PostgresStore` instance queues operations on its own worker thread.
 
-## Branch comparison
+## Historical baseline comparison
 
-```bash
-# Inspect the event-sourced implementation from main
-git diff main...event-sourcing-factstr
-
-# Compare by changing branches
-git switch main
-git switch event-sourcing-factstr
-```
-
-`main` keeps the relational tables, SQLx Application State and row/constraint-based CCC. `event-sourcing-factstr` keeps the same procurement slice but makes the append-only fact log authoritative and uses FACTSTR's `append_if` for command context consistency. Supplier registration and setting eligibility are separate Domain Capabilities on this branch.
-
+The current default branch `main` contains the FACTSTR-backed implementation described here. The earlier relational implementation is retained in Git history and in the verified backup refs; no active comparison branch is required. To compare a preserved baseline, select its explicit commit or backup tag and inspect it against `main`; do not rely on a branch that has been deleted during repository consolidation.
 ## References
 
 - [Rico Fritzsche — Request Processing Units](https://architecture.ricofritzsche.me/concepts/request-processing-units/)
@@ -108,3 +98,12 @@ git switch event-sourcing-factstr
 - [FACTSTR PostgreSQL append implementation](https://github.com/ricofritzsche/factstr/blob/main/factstr-postgres/src/postgres_store.rs)
 - [FACTSTR Tool Rental example](https://github.com/ricofritzsche/factstr-tool-rental-example)
 
+
+
+## Providers de tempo e identidade
+
+A Imperative Shell obtém tempo e IDs por `ClockProvider` e `IdProvider`. O Functional Core recebe somente valores concretos. Em `SubmitSupplierQuote`, `quote_id` e `submitted_at` são escolhidos antes do laço de retries CCC e reaproveitados em todas as tentativas internas.
+
+A semântica adotada é horário estável de submissão por execução lógica. Se um requisito fiscal/comercial exigir validação de validade no instante da aceitação, separar `submitted_at` de `decision_at`/`accepted_at`, mudar a decisão explicitamente e adicionar testes para a nova regra; essa alternativa não deve ser inferida incidentalmente do retry.
+
+Decisões relacionadas: [catálogo de ADRs](architecture/adr/README.md), especialmente ADR-0010 e ADR-0011.

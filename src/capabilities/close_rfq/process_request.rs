@@ -3,6 +3,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::events::RfqClosedFact;
+use crate::providers::{ClockProvider, SystemClockProvider};
 
 use super::{append_consequences, build_context, generate_consequences, load_context};
 
@@ -33,14 +34,25 @@ pub fn process(
     store: &impl EventStore,
     request: CloseRfqRequest,
 ) -> Result<RfqClosedFact, CloseRfqError> {
+    process_with_providers(store, request, &SystemClockProvider)
+}
+
+/// Executa o fechamento com o relógio explicitamente injetado na shell.
+pub fn process_with_providers(
+    store: &impl EventStore,
+    request: CloseRfqRequest,
+    clock: &dyn ClockProvider,
+) -> Result<RfqClosedFact, CloseRfqError> {
     let query = load_context::rfq_lifecycle_query(request.rfq_id);
+
+    // O timestamp representa o instante lógico da solicitação e permanece estável no retry CCC.
+    let closed_at = clock.now_utc();
 
     // Uma releitura após o primeiro conflito converte corridas comuns em rejeições de negócio.
     for attempt in 0..2 {
         let loaded = load_context::load_context(store, &query)?;
         let context = build_context::build_context(&loaded.facts);
-        let fact =
-            generate_consequences::generate_consequences(request, &context, chrono::Utc::now())?;
+        let fact = generate_consequences::generate_consequences(request, &context, closed_at)?;
 
         match append_consequences::append_consequences(
             store,

@@ -2,7 +2,10 @@ use std::{env, error::Error, sync::Arc};
 
 use factstr_postgres::PostgresStore;
 use supplier_rfq_rpu_rust::{
-    api_state::ApiState, app, projections::rfq_summary_projection::RfqSummaryProjection,
+    api_state::ApiState,
+    app,
+    projections::rfq_summary_projection::RfqSummaryProjection,
+    providers::{SystemClockProvider, UuidV4Provider},
 };
 use tokio::net::TcpListener;
 use tracing::{error, info};
@@ -29,7 +32,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     info!("starting durable RFQ summary projection; startup replays unapplied facts");
     let projection =
         Arc::new(RfqSummaryProjection::start(&database_url, Arc::clone(&store)).await?);
-    let app = app::router(ApiState::from_shared_event_store(store, projection));
+    let clock_provider = Arc::new(SystemClockProvider);
+    let id_provider = Arc::new(UuidV4Provider);
+    let api_state = ApiState::from_shared_event_store_with_providers(
+        store,
+        projection,
+        clock_provider,
+        id_provider,
+    );
+    let app = app::router(api_state);
     let listener = TcpListener::bind(&bind_address).await?;
     info!(address = %listener.local_addr()?, "Supplier RFQ API listening");
 

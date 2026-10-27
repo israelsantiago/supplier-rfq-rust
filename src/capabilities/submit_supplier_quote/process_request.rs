@@ -1,11 +1,13 @@
 //! RPU: query the decision context, run the pure decision, then conditionally append.
 
+use chrono::{DateTime, Utc};
 use factstr::{EventStore, NewEvent};
 use serde_json::to_value;
 use thiserror::Error;
 use uuid::Uuid;
 
 use crate::events::{SUPPLIER_QUOTE_SUBMITTED_V1, SupplierQuoteSubmittedFact};
+use crate::providers::{ClockProvider, IdProvider, SystemClockProvider, UuidV4Provider};
 
 use super::{
     append_consequences,
@@ -51,10 +53,24 @@ pub fn prepare(
     rfq_id: Uuid,
     request: SubmitSupplierQuoteRequest,
 ) -> Result<PreparedSubmission, PrepareError> {
+    let quote_id = UuidV4Provider.new_uuid();
+    let submitted_at = SystemClockProvider.now_utc();
+    prepare_with_values(store, rfq_id, request, quote_id, submitted_at)
+}
+
+/// Prepara a cotação usando valores já escolhidos para a execução lógica do comando.
+/// Esta função não lê o relógio nem gera IDs.
+pub fn prepare_with_values(
+    store: &impl EventStore,
+    rfq_id: Uuid,
+    request: SubmitSupplierQuoteRequest,
+    quote_id: Uuid,
+    submitted_at: DateTime<Utc>,
+) -> Result<PreparedSubmission, PrepareError> {
     let loaded = load_context(store, rfq_id, request.supplier_id)
         .map_err(|error| PrepareError::Store(error.to_string()))?;
     let context = build_context(&loaded.facts);
-    let quote = decide(&request, &context, Uuid::new_v4(), chrono::Utc::now())?;
+    let quote = decide(&request, &context, quote_id, submitted_at)?;
     let payload = to_value(&quote).map_err(|error| PrepareError::Store(error.to_string()))?;
     let event = NewEvent::new(SUPPLIER_QUOTE_SUBMITTED_V1, payload);
 
@@ -86,10 +102,31 @@ pub fn process(
     rfq_id: Uuid,
     request: SubmitSupplierQuoteRequest,
 ) -> Result<SupplierQuoteSubmittedFact, PrepareError> {
+    process_with_providers(
+        store,
+        rfq_id,
+        request,
+        &SystemClockProvider,
+        &UuidV4Provider,
+    )
+}
+
+/// Executa a RPU com Providers explícitos. O ID e submitted_at são capturados uma
+/// única vez e permanecem estáveis durante as tentativas internas de CCC.
+pub fn process_with_providers(
+    store: &impl EventStore,
+    rfq_id: Uuid,
+    request: SubmitSupplierQuoteRequest,
+    clock: &dyn ClockProvider,
+    ids: &dyn IdProvider,
+) -> Result<SupplierQuoteSubmittedFact, PrepareError> {
+    let quote_id = ids.new_uuid();
+    let submitted_at = clock.now_utc();
+
     // A single re-read after CCC conflict turns common races into the current
     // business rejection (duplicate or closed), without blind retry loops.
     for attempt in 0..2 {
-        let prepared = prepare(store, rfq_id, request.clone())?;
+        let prepared = prepare_with_values(store, rfq_id, request.clone(), quote_id, submitted_at)?;
         match commit_prepared(store, prepared) {
             Ok(quote) => return Ok(quote),
             Err(CommitError::ContextChanged) if attempt == 0 => continue,

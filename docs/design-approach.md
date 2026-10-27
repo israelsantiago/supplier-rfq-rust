@@ -131,7 +131,15 @@ Ao adicionar ou mudar uma regra, use esta revisão como checklist:
 - O backend PostgreSQL do FACTSTR deve ser avaliado por benchmarks de throughput e latência para a carga-alvo. Independência lógica de contextos não implica gravações fisicamente paralelas.
 - A estratégia de reconstrução de projeções precisa de um procedimento operacional versionado e seguro; não dependa de apagar manualmente tabelas internas do Event Store como procedimento normal.
 
-## 7. Referências primárias
+## 7. Providers e estabilidade durante retries
+
+`ClockProvider` e `IdProvider` encapsulam os efeitos de relógio e geração de IDs na Imperative Shell. As funções puras recebem instantes e IDs como valores; não recebem Providers. Os handlers de produção obtêm as dependências da composição da aplicação.
+
+Para `SubmitSupplierQuote`, o ID e o horário de submissão são capturados uma vez por execução lógica e reutilizados após conflito CCC. O horário de submissão é distinto de qualquer futuro instante de aceitação. Caso o domínio exija validade no instante da aceitação, a decisão deverá receber ambos os instantes com semântica explícita.
+
+Veja o [catálogo de ADRs](architecture/adr/README.md), especialmente ADR-0010 e ADR-0011.
+
+## 8. Referências primárias
 
 - [Architecture Knowledge Base — conceitos](https://architecture.ricofritzsche.me/concepts/)
 - [Request Processing Units](https://architecture.ricofritzsche.me/concepts/request-processing-units/)

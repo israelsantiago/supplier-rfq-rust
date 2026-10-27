@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 use supplier_rfq_rpu_rust::{
     api_state::ApiState,
     app,
+    capabilities::submit_supplier_quote::SubmitSupplierQuoteRequest,
     events::{
         RFQ_OPENED_V1, RfqItemFact, RfqOpenedFact, SUPPLIER_ELIGIBILITY_CHANGED_V1,
         SUPPLIER_QUOTE_SUBMITTED_V1, SUPPLIER_REGISTERED_V1, SupplierEligibilityChangedFact,
@@ -817,4 +818,155 @@ async fn event_filter_requires_event_type_and_payload_match() {
         result.event_records.is_empty(),
         "a matching payload on another event type must not satisfy this filter"
     );
+}
+
+struct ConflictOnceStore {
+    inner: Arc<PostgresStore>,
+    supplier_id: Uuid,
+    injected: Arc<std::sync::atomic::AtomicBool>,
+}
+
+impl factstr::EventStore for ConflictOnceStore {
+    fn query(
+        &self,
+        query: &factstr::EventQuery,
+    ) -> Result<factstr::QueryResult, factstr::EventStoreError> {
+        self.inner.query(query)
+    }
+
+    fn append(
+        &self,
+        events: Vec<factstr::NewEvent>,
+    ) -> Result<factstr::AppendResult, factstr::EventStoreError> {
+        self.inner.append(events)
+    }
+
+    fn append_if(
+        &self,
+        events: Vec<factstr::NewEvent>,
+        query: &factstr::EventQuery,
+        expected_context_version: Option<u64>,
+    ) -> Result<factstr::AppendResult, factstr::EventStoreError> {
+        if !self
+            .injected
+            .swap(true, std::sync::atomic::Ordering::SeqCst)
+        {
+            let harmless_eligibility_reaffirmation = SupplierEligibilityChangedFact {
+                supplier_id: self.supplier_id,
+                status: SupplierStatus::Eligible,
+                changed_at: chrono::DateTime::parse_from_rfc3339("2026-10-27T12:00:00Z")
+                    .expect("fixed timestamp is valid")
+                    .with_timezone(&Utc),
+            };
+            self.inner.append(vec![NewEvent::new(
+                SUPPLIER_ELIGIBILITY_CHANGED_V1,
+                json!(harmless_eligibility_reaffirmation),
+            )])?;
+        }
+        self.inner
+            .append_if(events, query, expected_context_version)
+    }
+
+    fn stream_all(
+        &self,
+        handler: factstr::HandleStream,
+    ) -> Result<factstr::EventStream, factstr::EventStoreError> {
+        self.inner.stream_all(handler)
+    }
+
+    fn stream_to(
+        &self,
+        query: &factstr::EventQuery,
+        handler: factstr::HandleStream,
+    ) -> Result<factstr::EventStream, factstr::EventStoreError> {
+        self.inner.stream_to(query, handler)
+    }
+
+    fn stream_all_durable(
+        &self,
+        stream: &factstr::DurableStream,
+        handler: factstr::HandleStream,
+    ) -> Result<factstr::EventStream, factstr::EventStoreError> {
+        self.inner.stream_all_durable(stream, handler)
+    }
+
+    fn stream_to_durable(
+        &self,
+        stream: &factstr::DurableStream,
+        query: &factstr::EventQuery,
+        handler: factstr::HandleStream,
+    ) -> Result<factstr::EventStream, factstr::EventStoreError> {
+        self.inner.stream_to_durable(stream, query, handler)
+    }
+}
+
+struct CountingFixedClock {
+    instant: chrono::DateTime<Utc>,
+    calls: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl supplier_rfq_rpu_rust::providers::ClockProvider for CountingFixedClock {
+    fn now_utc(&self) -> chrono::DateTime<Utc> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.instant
+    }
+}
+
+struct CountingFixedId {
+    id: Uuid,
+    calls: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl supplier_rfq_rpu_rust::providers::IdProvider for CountingFixedId {
+    fn new_uuid(&self) -> Uuid {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        self.id
+    }
+}
+
+#[tokio::test]
+async fn quote_id_and_submitted_at_are_stable_across_ccc_retry() {
+    let app = spawn_app().await;
+    let rfq_id = Uuid::parse_str(RFQ_ID).unwrap();
+    let supplier_id = Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap();
+    let fixed_quote_id = Uuid::from_u128(0xaaaaaaaa_bbbb_4ccc_8ddd_eeeeeeeeeeee);
+    let fixed_time = chrono::DateTime::parse_from_rfc3339("2026-10-27T12:34:56Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let clock_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let id_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let clock = CountingFixedClock {
+        instant: fixed_time,
+        calls: Arc::clone(&clock_calls),
+    };
+    let ids = CountingFixedId {
+        id: fixed_quote_id,
+        calls: Arc::clone(&id_calls),
+    };
+    let injected = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let store = ConflictOnceStore {
+        inner: Arc::clone(&app.store),
+        supplier_id,
+        injected: Arc::clone(&injected),
+    };
+    let request: SubmitSupplierQuoteRequest =
+        serde_json::from_value(valid_request(SUPPLIER_ELIGIBLE_ID)).unwrap();
+
+    let quote = tokio::task::spawn_blocking(move || {
+        supplier_rfq_rpu_rust::capabilities::submit_supplier_quote::process_with_providers(
+            &store, rfq_id, request, &clock, &ids,
+        )
+    })
+    .await
+    .unwrap()
+    .expect("the same logical submission should succeed after a harmless CCC conflict");
+
+    assert!(
+        injected.load(std::sync::atomic::Ordering::SeqCst),
+        "the test must induce a CCC context change"
+    );
+    assert_eq!(quote.quote_id, fixed_quote_id);
+    assert_eq!(quote.submitted_at, fixed_time);
+    assert_eq!(clock_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(id_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
 }

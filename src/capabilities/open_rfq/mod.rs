@@ -7,4 +7,4 @@ mod generate_consequences;
 mod load_context;
 mod process_request;
 
-pub use process_request::{OpenRfqError, OpenRfqRequest, process};
+pub use process_request::{OpenRfqError, OpenRfqRequest, process, process_with_providers};
