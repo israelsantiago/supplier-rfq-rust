@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Cargo: acceptance_api (test-support)",
+      "label": "Cargo: acceptance_api",
       "type": "process",
       "command": "cargo",
       "args": [
@@ -11,8 +11,6 @@
         "supplier-rfq-rpu-rust",
         "--test",
         "acceptance_api",
-        "--features",
-        "test-support",
         "--",
         "--nocapture"
       ],
