@@ -226,7 +226,7 @@ pub use super::dto::RfqSummaryListQuery;
 pub async fn get_rfq_summary(State(state): State<ApiState>, Path(rfq_id): Path<Uuid>) -> Response {
     let request = get_rfq_summary_rpu::GetRfqSummaryRequest { rfq_id };
 
-    match get_rfq_summary_rpu::process(state.rfq_summary_projection.as_ref(), request).await {
+    match state.queries.get_rfq_summary(request).await {
         Ok(summary) => (StatusCode::OK, Json(summary)).into_response(),
         Err(get_rfq_summary_rpu::GetRfqSummaryError::NotAvailableYet) => error_response(
             StatusCode::NOT_FOUND,
@@ -249,7 +249,7 @@ pub async fn list_rfq_summaries(
         offset: query.offset,
     };
 
-    match list_rfq_summaries_rpu::process(state.rfq_summary_projection.as_ref(), request).await {
+    match state.queries.list_rfq_summaries(request).await {
         Ok(page) => (StatusCode::OK, Json(page)).into_response(),
         Err(list_rfq_summaries_rpu::ListRfqSummariesError::InvalidLimit) => error_response(
             StatusCode::BAD_REQUEST,
@@ -276,12 +276,9 @@ pub async fn list_supplier_quotes(
     State(state): State<ApiState>,
     Path(rfq_id): Path<Uuid>,
 ) -> Response {
-    let store = state.event_store.clone();
+    let queries = state.queries.clone();
     match tokio::task::spawn_blocking(move || {
-        list_supplier_quotes::process(
-            store.as_ref(),
-            list_supplier_quotes::ListSupplierQuotesRequest { rfq_id },
-        )
+        queries.list_supplier_quotes(list_supplier_quotes::ListSupplierQuotesRequest { rfq_id })
     })
     .await
     {

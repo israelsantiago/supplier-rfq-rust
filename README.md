@@ -15,7 +15,8 @@ Este repositório continua sendo uma referência educacional. Os itens abaixo pe
 | Estado | Área | Pendência / critério mínimo de saída |
 |---|---|---|
 | [ ] | Segurança | Autenticação, autorização por capability/fornecedor, gestão de segredos, rate limiting e limites de payload. Testes negativos de acesso indevido. |
-| [ ] | Idempotência HTTP | Definir idempotency key e persistência da resposta/resultado; testar retries após timeout e resposta perdida depois de um commit confirmado. |
+| [~] | Idempotência HTTP | `Idempotency-Key`, fingerprint, replay e bloqueio conservador implementados; ainda exige reconciliação operacional, observabilidade e testes de recuperação antes de produção. |
+| [~] | Application State Provider | Porta tipada e adaptador FACTSTR implementados nesta mudança; exigir suíte de contrato/CCC verde e revisão do diff antes do merge. |
 | [ ] | Contratos de API | Evoluir OpenAPI para cobrir todos os schemas de resposta, erros, códigos HTTP e política de versionamento; validar compatibilidade automática. |
 | [ ] | Erros e dados sensíveis | Respostas 5xx genéricas e estáveis; detalhes técnicos apenas nos logs; correlação de requisição sem vazar dados sensíveis. |
 | [ ] | Observabilidade | Métricas para latência/erros de comandos, CCC conflicts, atraso da projeção, falhas de handler, cursor e startup; alertas e dashboards. |
@@ -83,6 +84,14 @@ O diagrama descreve o princípio de composição. Na implementação, cada Domai
 - **FACTSTR:** contrato de Event Store para fatos append-only, consultas de contexto, append condicional e streams.
 
 Referências: [Architecture Knowledge Base — conceitos](https://architecture.ricofritzsche.me/concepts/), [Request Processing Units](https://architecture.ricofritzsche.me/concepts/request-processing-units/), [Command Context Consistency](https://architecture.ricofritzsche.me/concepts/command-context-consistency/), [FACTSTR](https://github.com/ricofritzsche/factstr), [exemplo Tool Rental de Rico](https://github.com/ricofritzsche/factstr-tool-rental-example).
+
+## Application State Provider e confiabilidade HTTP
+
+`ApplicationStateProvider` é a porta da aplicação para ler fatos tipados e registrar consequências contra uma versão de contexto opaca. `FactstrApplicationStateProvider` concentra a conversão para `EventQuery`/`EventFilter`/`EventRecord`/`NewEvent` e os conflitos CCC. `CommandRpus`/`QueryRpus` consomem a porta; handlers não recebem o Store bruto. A projeção de resumos permanece um read model SQLx independente.
+
+O ledger HTTP usa um pool limitado dedicado, estado `in_progress`/`completed`/`unknown` e controles de inicialização/checksum próprios. A migration original em `migrations/` permanece preservada para compatibilidade com bancos que já a registraram no migrator SQLx; a cópia em `migrations_idempotency/` é idempotente e tem histórico/checksum próprio. A separação de pool não cria transação distribuída entre FACTSTR e ledger.
+
+Leia [`ADR-0026`](docs/architecture/adr/0026-application-state-provider.md), [`ADR-0027`](docs/architecture/adr/0027-http-idempotency-failure-testing.md), [`guia de testes ASP`](docs/testing/application-state-provider.md), [`testes de idempotência`](docs/testing/http-idempotency-testing.md) e o [`runbook`](docs/operations/http-idempotency.md). Antes de commit/push, execute `bash scripts/run-all.sh` ou as etapas listadas em `docs/PLANO-E-CRITERIOS-DE-ACEITE.md`; commit/push exige `PUSH_TO_GITHUB=YES` explícito.
 
 ## Domain Capabilities implementadas
 

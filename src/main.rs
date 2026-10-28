@@ -4,6 +4,7 @@ use factstr_postgres::PostgresStore;
 use supplier_rfq_rpu_rust::{
     api_state::ApiState,
     app,
+    http::idempotency::HttpIdempotencyStore,
     projections::rfq_summary_projection::RfqSummaryProjection,
     providers::{SystemClockProvider, UuidV4Provider},
 };
@@ -32,6 +33,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
     info!("starting durable RFQ summary projection; startup replays unapplied facts");
     let projection =
         Arc::new(RfqSummaryProjection::start(&database_url, Arc::clone(&store)).await?);
+    let idempotency_store =
+        HttpIdempotencyStore::connect(&database_url, Arc::new(UuidV4Provider)).await?;
     let clock_provider = Arc::new(SystemClockProvider);
     let id_provider = Arc::new(UuidV4Provider);
     let api_state = ApiState::from_shared_event_store_with_providers(
@@ -39,6 +42,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         projection,
         clock_provider,
         id_provider,
+        idempotency_store,
     );
     let app = app::router(api_state);
     let listener = TcpListener::bind(&bind_address).await?;

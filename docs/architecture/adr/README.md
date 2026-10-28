@@ -33,6 +33,8 @@ Cada ADR individual registra contexto, decisão e consequências. `Accepted` sig
 | [ADR-0023](./0023-no-cross-rpu-orchestrator.md) | Sem orquestrador transversal de RPUs no fluxo atual | Accepted |
 | [ADR-0024](./0024-test-support-feature.md) | Seam de teste protegido por feature | Accepted |
 | [ADR-0025](./0025-rpu-command-facade.md) | Fachada pública de comandos e encapsulamento de Providers | Accepted |
+| [ADR-0026](./0026-application-state-provider.md) | Application State Provider como porta de estado autoritativo | Accepted |
+| [ADR-0027](./0027-http-idempotency-failure-testing.md) | Testes de falha e concorrência da idempotência HTTP | Accepted |
 
 ## Políticas não negociáveis nesta refatoração
 

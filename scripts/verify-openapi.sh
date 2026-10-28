@@ -8,6 +8,8 @@ cd "$ROOT"
   exit 2
 }
 
+python3 scripts/verify-idempotency-openapi.py
+
 if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
   NODE_MAJOR="$(node -p 'Number(process.versions.node.split(".")[0])')"
   if [[ "$NODE_MAJOR" -ge 22 ]]; then

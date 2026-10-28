@@ -1,4 +1,4 @@
-use factstr::EventStore;
+use crate::application_state::ApplicationStateProvider;
 use serde::Deserialize;
 use thiserror::Error;
 use uuid::Uuid;
@@ -36,7 +36,7 @@ pub enum OpenRfqError {
 /// as consequências somente se o contexto de identidade continuar inalterado.
 /// Executa a capability com recursos externos explicitamente injetados na shell.
 pub(crate) fn process_with_providers(
-    store: &impl EventStore,
+    state: &dyn ApplicationStateProvider,
     request: OpenRfqRequest,
     clock: &dyn ClockProvider,
     ids: &dyn IdProvider,
@@ -47,14 +47,14 @@ pub(crate) fn process_with_providers(
     let opened_at = clock.now_utc();
     let query = load_context::context_query(prepared.rfq_id, &prepared.reference);
 
-    let loaded = load_context::load_context(store, &query)?;
-    let context = build_context::build_context(&loaded.event_records)?;
+    let loaded = load_context::load_context(state, &query)?;
+    let context = build_context::build_context(&loaded.facts)?;
     let fact = generate_consequences::generate_consequences(&prepared, &context, opened_at)?;
 
     match append_consequences::append_consequences(
-        store,
+        state,
         &query,
-        loaded.current_context_version,
+        &loaded.current_context_version,
         &fact,
     ) {
         Ok(()) => Ok(fact),
@@ -64,8 +64,8 @@ pub(crate) fn process_with_providers(
         Err(append_consequences::AppendConsequencesError::ContextChanged) => {
             // Re-read the same context after a CCC conflict to return a specific duplicate
             // rejection when the concurrent fact establishes one; otherwise report a retryable conflict.
-            let current = load_context::load_context(store, &query)?;
-            let current_context = build_context::build_context(&current.event_records)?;
+            let current = load_context::load_context(state, &query)?;
+            let current_context = build_context::build_context(&current.facts)?;
             match generate_consequences::duplicate_rejection(
                 &current_context,
                 prepared.rfq_id,

@@ -15,7 +15,8 @@ use axum::{
 };
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
-use sqlx::{PgPool, Row};
+use sqlx::{PgPool, Row, postgres::PgPoolOptions};
+use thiserror::Error;
 use uuid::Uuid;
 
 use crate::providers::IdProvider;
@@ -30,10 +31,92 @@ pub struct HttpIdempotencyStore {
     ids: Arc<dyn IdProvider>,
 }
 
+// HTTP_IDEMPOTENCY_SETUP_ERROR: setup errors are explicit and do not hide migration drift.
+#[derive(Debug, Error)]
+pub enum HttpIdempotencySetupError {
+    #[error("could not connect the HTTP idempotency pool: {0}")]
+    Database(#[from] sqlx::Error),
+    #[error(
+        "HTTP idempotency migration {version} checksum mismatch: expected {expected}, found {actual}"
+    )]
+    MigrationChecksumMismatch {
+        version: i64,
+        expected: String,
+        actual: String,
+    },
+}
+
+const HTTP_IDEMPOTENCY_MIGRATION_VERSION: i64 = 202610270001;
+const HTTP_IDEMPOTENCY_MIGRATION_LOCK: i64 = 202610270001;
+const HTTP_IDEMPOTENCY_MIGRATION_SQL: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/migrations_idempotency/202610270001_http_idempotency.sql"
+));
+
 impl HttpIdempotencyStore {
+    /// Pool independente e limitado. Usa o mesmo banco, mas não o pool da projeção.
+    pub async fn connect(
+        database_url: &str,
+        ids: Arc<dyn IdProvider>,
+    ) -> Result<Self, HttpIdempotencySetupError> {
+        let pool = PgPoolOptions::new()
+            .max_connections(4)
+            .connect(database_url)
+            .await?;
+        initialize_http_idempotency_schema(&pool).await?;
+        Ok(Self { pool, ids })
+    }
+
+    /// Construtor de baixo nível mantido para testes internos; produção deve usar `connect`.
     pub fn new(pool: PgPool, ids: Arc<dyn IdProvider>) -> Self {
         Self { pool, ids }
     }
+}
+
+async fn initialize_http_idempotency_schema(
+    pool: &PgPool,
+) -> Result<(), HttpIdempotencySetupError> {
+    use sha2::{Digest, Sha256};
+    let mut transaction = pool.begin().await?;
+    sqlx::query("SELECT pg_advisory_xact_lock($1)")
+        .bind(HTTP_IDEMPOTENCY_MIGRATION_LOCK)
+        .execute(&mut *transaction)
+        .await?;
+    sqlx::query("CREATE TABLE IF NOT EXISTS http_idempotency_migrations (version BIGINT PRIMARY KEY, checksum TEXT NOT NULL, installed_at TIMESTAMPTZ NOT NULL DEFAULT now())")
+        .execute(&mut *transaction).await?;
+    let expected_checksum = encode_hex(&Sha256::digest(HTTP_IDEMPOTENCY_MIGRATION_SQL.as_bytes()));
+    let installed_checksum = sqlx::query_scalar::<_, String>(
+        "SELECT checksum FROM http_idempotency_migrations WHERE version = $1",
+    )
+    .bind(HTTP_IDEMPOTENCY_MIGRATION_VERSION)
+    .fetch_optional(&mut *transaction)
+    .await?;
+    match installed_checksum {
+        Some(actual) if actual == expected_checksum => {}
+        Some(actual) => {
+            return Err(HttpIdempotencySetupError::MigrationChecksumMismatch {
+                version: HTTP_IDEMPOTENCY_MIGRATION_VERSION,
+                expected: expected_checksum,
+                actual,
+            });
+        }
+        None => {
+            // The legacy migration in `migrations/` is intentionally retained for SQLx history
+            // compatibility. Its DDL is idempotent; this subsystem separately validates checksum.
+            sqlx::raw_sql(HTTP_IDEMPOTENCY_MIGRATION_SQL)
+                .execute(&mut *transaction)
+                .await?;
+            sqlx::query(
+                "INSERT INTO http_idempotency_migrations (version, checksum) VALUES ($1, $2)",
+            )
+            .bind(HTTP_IDEMPOTENCY_MIGRATION_VERSION)
+            .bind(&expected_checksum)
+            .execute(&mut *transaction)
+            .await?;
+        }
+    }
+    transaction.commit().await?;
+    Ok(())
 }
 
 /// Axum route middleware. Requests without a key retain the existing API behavior;
@@ -437,11 +520,27 @@ fn encode_hex(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{canonicalize_json, encode_hex, valid_key};
+    use super::{
+        HttpIdempotencyStore, canonicalize_json, claim_key, complete_key, encode_hex,
+        inspect_existing, mark_unknown, valid_key,
+    };
+    use crate::providers::UuidV4Provider;
+    use axum::{
+        body::{Body, to_bytes},
+        http::Response,
+    };
+    use serde_json::{Value, json};
+    use std::sync::Arc;
+    use testcontainers_modules::{
+        postgres::Postgres,
+        testcontainers::{ImageExt, runners::AsyncRunner},
+    };
 
     #[test]
     fn idempotency_key_validation_accepts_visible_ascii_only() {
         assert!(valid_key("request-123"));
+        assert!(valid_key("x"));
+        assert!(valid_key(&"x".repeat(200)));
         assert!(!valid_key(""));
         assert!(!valid_key("contains space"));
         assert!(!valid_key("non-ascii-ç"));
@@ -457,6 +556,234 @@ mod tests {
             serde_json::from_str(r#"{"items":[{"x":2,"y":1},4],"nested":{"a":3,"b":2},"z":1}"#)
                 .unwrap();
         assert_eq!(canonicalize_json(first), canonicalize_json(second));
+    }
+
+    async fn response_code(response: Response<Body>) -> String {
+        let bytes = to_bytes(response.into_body(), 4096).await.unwrap();
+        serde_json::from_slice::<Value>(&bytes).unwrap()["code"]
+            .as_str()
+            .unwrap()
+            .to_owned()
+    }
+
+    #[tokio::test]
+    async fn ledger_state_machine_fails_closed_and_expires_only_completed_records() {
+        let container = Postgres::default()
+            .with_db_name("supplier_rfq")
+            .with_user("rfq_user")
+            .with_password("rfq_password")
+            .with_tag("16-alpine")
+            .start()
+            .await
+            .expect("PostgreSQL container must start; Docker must be available");
+        let host = container
+            .get_host()
+            .await
+            .expect("container host must exist");
+        let port = container
+            .get_host_port_ipv4(5432)
+            .await
+            .expect("PostgreSQL port must be mapped");
+        let url = format!("postgres://rfq_user:rfq_password@{host}:{port}/supplier_rfq");
+        let store = HttpIdempotencyStore::connect(&url, Arc::new(UuidV4Provider))
+            .await
+            .expect("dedicated ledger migration and pool must initialize");
+        let repeated = HttpIdempotencyStore::connect(&url, Arc::new(UuidV4Provider))
+            .await
+            .expect("startup must verify the previously applied migration checksum");
+        drop(repeated);
+
+        let dedicated_migrations: bool =
+            sqlx::query_scalar("SELECT to_regclass('http_idempotency_migrations') IS NOT NULL")
+                .fetch_one(&store.pool)
+                .await
+                .unwrap();
+        assert!(dedicated_migrations, "ledger has its own checksum history");
+
+        let scope = "POST /test-command";
+        let fingerprint = "a".repeat(64);
+        let key = "same-key-concurrent";
+        let (one, two) = tokio::join!(
+            claim_key(&store.pool, store.ids.as_ref(), scope, key, &fingerprint),
+            claim_key(&store.pool, store.ids.as_ref(), scope, key, &fingerprint),
+        );
+        let one = one.unwrap();
+        let two = two.unwrap();
+        assert_ne!(
+            one.is_some(),
+            two.is_some(),
+            "exactly one concurrent claim owns execution"
+        );
+        let owner = one.or(two).unwrap();
+        let pending = inspect_existing(&store.pool, scope, key, &fingerprint).await;
+        assert_eq!(pending.status(), axum::http::StatusCode::CONFLICT);
+        assert_eq!(response_code(pending).await, "idempotency_in_progress");
+
+        mark_unknown(&store.pool, scope, key, owner).await;
+        sqlx::query("UPDATE http_idempotency_keys SET expires_at = now() - INTERVAL '1 hour' WHERE operation_scope = $1 AND idempotency_key = $2")
+            .bind(scope).bind(key).execute(&store.pool).await.unwrap();
+        assert!(
+            claim_key(&store.pool, store.ids.as_ref(), scope, key, &fingerprint)
+                .await
+                .unwrap()
+                .is_none(),
+            "an expired unknown record must still block a second execution"
+        );
+        let unknown = inspect_existing(&store.pool, scope, key, &fingerprint).await;
+        assert_eq!(response_code(unknown).await, "idempotency_outcome_unknown");
+
+        let failed_key = "response-completion-fails";
+        let failed_owner = claim_key(
+            &store.pool,
+            store.ids.as_ref(),
+            scope,
+            failed_key,
+            &fingerprint,
+        )
+        .await
+        .unwrap()
+        .expect("new key must be claimed");
+        sqlx::query("CREATE OR REPLACE FUNCTION fail_http_idempotency_completion() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.state = 'completed' THEN RAISE EXCEPTION 'injected completion failure'; END IF; RETURN NEW; END; $$")
+            .execute(&store.pool).await.unwrap();
+        sqlx::query("CREATE TRIGGER fail_http_idempotency_completion BEFORE UPDATE ON http_idempotency_keys FOR EACH ROW EXECUTE FUNCTION fail_http_idempotency_completion()")
+            .execute(&store.pool).await.unwrap();
+        let result = complete_key(
+            &store.pool,
+            scope,
+            failed_key,
+            failed_owner,
+            201,
+            &json!({"content-type":"application/json"}),
+            br#"{"ok":true}"#,
+        )
+        .await;
+        assert!(
+            result.is_err(),
+            "an injected completion write failure must surface"
+        );
+        mark_unknown(&store.pool, scope, failed_key, failed_owner).await;
+        let failed = inspect_existing(&store.pool, scope, failed_key, &fingerprint).await;
+        assert_eq!(response_code(failed).await, "idempotency_outcome_unknown");
+        sqlx::query("DROP TRIGGER fail_http_idempotency_completion ON http_idempotency_keys")
+            .execute(&store.pool)
+            .await
+            .unwrap();
+        sqlx::query("DROP FUNCTION fail_http_idempotency_completion()")
+            .execute(&store.pool)
+            .await
+            .unwrap();
+
+        let completed_key = "completed-expiry";
+        let completed_owner = claim_key(
+            &store.pool,
+            store.ids.as_ref(),
+            scope,
+            completed_key,
+            &fingerprint,
+        )
+        .await
+        .unwrap()
+        .expect("new key must be claimed");
+        complete_key(
+            &store.pool,
+            scope,
+            completed_key,
+            completed_owner,
+            201,
+            &json!({"content-type":"application/json"}),
+            br#"{"created":true}"#,
+        )
+        .await
+        .unwrap();
+        sqlx::query("UPDATE http_idempotency_keys SET expires_at = now() - INTERVAL '1 second' WHERE operation_scope = $1 AND idempotency_key = $2")
+            .bind(scope).bind(completed_key).execute(&store.pool).await.unwrap();
+        assert!(
+            claim_key(
+                &store.pool,
+                store.ids.as_ref(),
+                scope,
+                completed_key,
+                &fingerprint
+            )
+            .await
+            .unwrap()
+            .is_some(),
+            "expired completed rows may be reclaimed"
+        );
+        drop(store);
+        drop(container);
+    }
+
+    #[tokio::test]
+    async fn oversized_response_marks_key_unknown_and_blocks_retry() {
+        let container = Postgres::default()
+            .with_db_name("supplier_rfq")
+            .with_user("rfq_user")
+            .with_password("rfq_password")
+            .with_tag("16-alpine")
+            .start()
+            .await
+            .expect("PostgreSQL container must start; Docker must be available");
+        let host = container
+            .get_host()
+            .await
+            .expect("container host must exist");
+        let port = container
+            .get_host_port_ipv4(5432)
+            .await
+            .expect("PostgreSQL port must be mapped");
+        let url = format!("postgres://rfq_user:rfq_password@{host}:{port}/supplier_rfq");
+        let store = HttpIdempotencyStore::connect(&url, Arc::new(UuidV4Provider))
+            .await
+            .unwrap();
+        let router = axum::Router::new()
+            .route(
+                "/large",
+                axum::routing::post(|| async {
+                    (
+                        axum::http::StatusCode::CREATED,
+                        vec![b'x'; 4 * 1024 * 1024 + 1],
+                    )
+                }),
+            )
+            .route_layer(axum::middleware::from_fn_with_state(
+                store.clone(),
+                super::idempotency_middleware,
+            ));
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = tokio::spawn(async move {
+            axum::serve(listener, router).await.unwrap();
+        });
+        let client = reqwest::Client::new();
+        let first = client
+            .post(format!("http://{address}/large"))
+            .header("Idempotency-Key", "large-response-key")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(
+            first.status(),
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        );
+        assert_eq!(
+            first.json::<serde_json::Value>().await.unwrap()["code"],
+            "idempotency_response_unavailable"
+        );
+        let retry = client
+            .post(format!("http://{address}/large"))
+            .header("Idempotency-Key", "large-response-key")
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(retry.status(), axum::http::StatusCode::CONFLICT);
+        assert_eq!(
+            retry.json::<serde_json::Value>().await.unwrap()["code"],
+            "idempotency_outcome_unknown"
+        );
+        server.abort();
+        drop(store);
+        drop(container);
     }
 
     #[test]

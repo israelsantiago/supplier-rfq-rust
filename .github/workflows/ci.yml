@@ -5,6 +5,7 @@ on:
     branches: [main, event-sourcing-factstr]
   pull_request:
     branches: [main, event-sourcing-factstr]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -48,3 +49,13 @@ jobs:
           node-version: 22
       - name: Validate all Mermaid diagrams embedded in Markdown
         run: sh scripts/verify-mermaid-diagrams.sh
+
+  mutation-testing:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run targeted Functional Core mutation tests
+        run: bash scripts/mutate-functional-core.sh

@@ -1,4 +1,4 @@
-use factstr::EventStore;
+use crate::application_state::ApplicationStateProvider;
 use serde::Deserialize;
 use thiserror::Error;
 use uuid::Uuid;
@@ -34,7 +34,7 @@ pub enum RegisterSupplierError {
 /// Shell do RPU: carrega o contexto de identidade e só grava contra a versão observada.
 /// Executa a capability com recursos externos explicitamente injetados na shell.
 pub(crate) fn process_with_providers(
-    store: &impl EventStore,
+    state: &dyn ApplicationStateProvider,
     request: RegisterSupplierRequest,
     clock: &dyn ClockProvider,
     ids: &dyn IdProvider,
@@ -43,7 +43,7 @@ pub(crate) fn process_with_providers(
     let prepared = generate_consequences::prepare(request, assigned_id)?;
     let registered_at = clock.now_utc();
     let query = load_context::identity_context_query(prepared.supplier_id, &prepared.reference);
-    let loaded = load_context::load_context(store, &query)?;
+    let loaded = load_context::load_context(state, &query)?;
     let context = build_context::build_context(loaded.existing_suppliers);
 
     if let Some(rejection) = generate_consequences::duplicate_rejection(
@@ -56,9 +56,9 @@ pub(crate) fn process_with_providers(
 
     let fact = generate_consequences::generate_consequences(&prepared, registered_at);
     match append_consequences::append_consequences(
-        store,
+        state,
         &query,
-        loaded.current_context_version,
+        &loaded.current_context_version,
         &fact,
     ) {
         Ok(()) => Ok(fact),
@@ -68,7 +68,7 @@ pub(crate) fn process_with_providers(
         Err(append_consequences::AppendConsequencesError::ContextChanged) => {
             // Releitura classifica duplicidade concorrente; se não houver duplicata,
             // devolve conflito recuperável sem aceitar a decisão antiga.
-            let current = load_context::load_context(store, &query)?;
+            let current = load_context::load_context(state, &query)?;
             let context = build_context::build_context(current.existing_suppliers);
             match generate_consequences::duplicate_rejection(
                 &context,

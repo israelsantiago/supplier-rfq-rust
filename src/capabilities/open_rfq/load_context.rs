@@ -1,36 +1,34 @@
-use factstr::{EventFilter, EventQuery, EventRecord, EventStore};
-use serde_json::json;
+use super::process_request::OpenRfqError;
+use crate::application_state::{
+    ApplicationFact, ApplicationStateProvider, ContextVersion, StateQuery, StateReadError,
+    StoredFact,
+};
 use uuid::Uuid;
 
-use crate::events::RFQ_OPENED_V1;
-
-use super::process_request::OpenRfqError;
-
 pub(super) struct LoadedRfqContext {
-    pub(super) event_records: Vec<EventRecord>,
-    pub(super) current_context_version: Option<u64>,
+    pub(super) facts: Vec<StoredFact>,
+    pub(super) current_context_version: ContextVersion,
 }
-
-/// Descreve exatamente os fatos que protegem a identidade da RFQ.
-pub(super) fn context_query(rfq_id: Uuid, reference: &str) -> EventQuery {
-    EventQuery::all().with_filters([EventFilter::for_event_types([RFQ_OPENED_V1])
-        .with_payload_predicates([
-            json!({ "rfq_id": rfq_id }),
-            json!({ "reference": reference }),
-        ])])
+pub(super) fn context_query(rfq_id: Uuid, reference: &str) -> StateQuery {
+    StateQuery::RfqIdentity {
+        rfq_id,
+        reference: reference.to_owned(),
+    }
 }
-
-/// Shell de leitura: recupera fatos e a versão de contexto fornecida pelo FACTSTR.
 pub(super) fn load_context(
-    store: &impl EventStore,
-    query: &EventQuery,
+    state: &dyn ApplicationStateProvider,
+    query: &StateQuery,
 ) -> Result<LoadedRfqContext, OpenRfqError> {
-    let result = store
-        .query(query)
-        .map_err(|error| OpenRfqError::Store(error.to_string()))?;
-
+    let snapshot = state
+        .read(query)
+        .map_err(|error: StateReadError| OpenRfqError::Store(error.to_string()))?;
+    let facts = snapshot
+        .facts
+        .into_iter()
+        .filter(|record| matches!(&record.fact, ApplicationFact::RfqOpened(_)))
+        .collect();
     Ok(LoadedRfqContext {
-        event_records: result.event_records,
-        current_context_version: result.current_context_version,
+        facts,
+        current_context_version: snapshot.version,
     })
 }

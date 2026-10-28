@@ -183,18 +183,19 @@ done
 echo "OK: os oito RPUs possuem pasta de feature e process_request.rs."
 
 echo
-echo "== 6. Validação Rust =="
-
-cargo fmt --all -- --check
-# Validate the normal library and all targets with Cargo's default feature set.
-cargo check --lib
-cargo check --all-targets
-# The default developer workflow must run every test without extra feature flags.
-cargo test --all-targets
-# Keep the opt-in test-support API compiling without making it a default feature.
-cargo check --all-targets --features test-support
-cargo clippy --all-targets --all-features -- -D warnings
-git diff --check
+if [[ "${SKIP_RUST_VALIDATION:-0}" == "1" ]]; then
+  echo "Validação estrutural executada; os comandos Cargo foram executados pela etapa chamadora."
+else
+  echo "== 6. Validação Rust =="
+  cargo fmt --all -- --check
+  cargo check --lib --all-features --locked
+  cargo check --all-targets --all-features --locked
+  cargo test --all-targets --all-features --locked
+  cargo clippy --all-targets --all-features --locked -- -D warnings
+  git diff --check
+fi
 
 echo
+bash scripts/verify-application-state-boundary.sh
+
 echo "Verificações concluídas."

@@ -19,3 +19,7 @@ A saída JSON e o HTML são criados em `target/functional-core-branch-coverage.j
 ## Ferramenta e limitação
 
 `cargo-llvm-cov --branch` requer nightly neste fluxo porque o branch coverage é instável/opcional no cargo-llvm-cov. O script falha fechado se o JSON da versão instalada não tiver counters reconhecidos — não converte um relatório desconhecido em um falso sucesso.
+
+## Fronteiras fora do Functional Core
+
+A meta de 100% aplica-se apenas aos arquivos listados em `scripts/check-functional-core-branch-coverage.py`. Ela não mede `ApplicationStateProvider`, seu adaptador FACTSTR, as fachadas, o middleware HTTP, migrations ou estados operacionais. Esses componentes usam teste de contrato, integração PostgreSQL, concorrência e injeção de falha; veja [`application-state-provider.md`](application-state-provider.md) e [`http-idempotency-testing.md`](http-idempotency-testing.md).

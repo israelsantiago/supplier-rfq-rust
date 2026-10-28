@@ -178,14 +178,26 @@ async fn ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_
     let request_2 = request_1.clone();
     let store_1_for_prepare = Arc::clone(&store_1);
     let prepared_1 = tokio::task::spawn_blocking(move || {
-        prepare(store_1_for_prepare.as_ref(), rfq_id, request_1)
+        prepare(
+            &crate::application_state::factstr::FactstrApplicationStateProvider::new(
+                store_1_for_prepare.as_ref(),
+            ),
+            rfq_id,
+            request_1,
+        )
     })
     .await
     .unwrap()
     .expect("first command should be valid");
     let store_2_for_prepare = Arc::clone(&store_2);
     let prepared_2 = tokio::task::spawn_blocking(move || {
-        prepare(store_2_for_prepare.as_ref(), rfq_id, request_2)
+        prepare(
+            &crate::application_state::factstr::FactstrApplicationStateProvider::new(
+                store_2_for_prepare.as_ref(),
+            ),
+            rfq_id,
+            request_2,
+        )
     })
     .await
     .unwrap()
@@ -201,13 +213,23 @@ async fn ccc_two_independent_stores_from_same_snapshot_commit_exactly_one_quote_
     let first_store = Arc::clone(&store_1);
     let first = tokio::task::spawn_blocking(move || {
         first_barrier.wait();
-        commit_prepared(first_store.as_ref(), prepared_1)
+        commit_prepared(
+            &crate::application_state::factstr::FactstrApplicationStateProvider::new(
+                first_store.as_ref(),
+            ),
+            prepared_1,
+        )
     });
     let second_barrier = Arc::clone(&barrier);
     let second_store = Arc::clone(&store_2);
     let second = tokio::task::spawn_blocking(move || {
         second_barrier.wait();
-        commit_prepared(second_store.as_ref(), prepared_2)
+        commit_prepared(
+            &crate::application_state::factstr::FactstrApplicationStateProvider::new(
+                second_store.as_ref(),
+            ),
+            prepared_2,
+        )
     });
     let (result_1, result_2) = tokio::join!(first, second);
     let results = [result_1.unwrap(), result_2.unwrap()];
@@ -265,16 +287,27 @@ async fn ccc_supplier_eligibility_change_invalidates_a_prepared_quote() {
     let request: SubmitSupplierQuoteRequest =
         serde_json::from_value(valid_request(SUPPLIER_ELIGIBLE_ID)).unwrap();
     let store_for_prepare = Arc::clone(&store_1);
-    let prepared =
-        tokio::task::spawn_blocking(move || prepare(store_for_prepare.as_ref(), rfq_id, request))
-            .await
-            .unwrap()
-            .expect("quote should be valid while supplier is eligible");
-    let prepared_version = prepared.context.current_context_version;
+    let prepared = tokio::task::spawn_blocking(move || {
+        prepare(
+            &crate::application_state::factstr::FactstrApplicationStateProvider::new(
+                store_for_prepare.as_ref(),
+            ),
+            rfq_id,
+            request,
+        )
+    })
+    .await
+    .unwrap()
+    .expect("quote should be valid while supplier is eligible");
+    let prepared_version = prepared.context.current_context_version.clone();
 
     let store_for_change = Arc::clone(&store_2);
     let commands = crate::app::CommandRpus::new(
-        store_for_change,
+        Arc::new(
+            crate::application_state::factstr::FactstrApplicationStateProvider::new(
+                store_for_change,
+            ),
+        ),
         Arc::new(crate::providers::SystemClockProvider),
         Arc::new(crate::providers::UuidV4Provider),
     );
@@ -291,13 +324,19 @@ async fn ccc_supplier_eligibility_change_invalidates_a_prepared_quote() {
     .expect("blocking a registered supplier must append an eligibility fact");
 
     let store_for_commit = Arc::clone(&store_1);
-    let commit =
-        tokio::task::spawn_blocking(move || commit_prepared(store_for_commit.as_ref(), prepared))
-            .await
-            .unwrap();
+    let commit = tokio::task::spawn_blocking(move || {
+        commit_prepared(
+            &crate::application_state::factstr::FactstrApplicationStateProvider::new(
+                store_for_commit.as_ref(),
+            ),
+            prepared,
+        )
+    })
+    .await
+    .unwrap();
     assert!(matches!(commit, Err(CommitError::ContextChanged)));
     assert!(
-        prepared_version.is_some(),
+        prepared_version.is_present(),
         "the command must have observed supplier facts"
     );
 
@@ -368,14 +407,26 @@ async fn ccc_independent_supplier_contexts_commit_without_false_conflict() {
         serde_json::from_value(valid_request(SUPPLIER_OTHER_ELIGIBLE_ID)).unwrap();
     let store_1_for_prepare = Arc::clone(&store_1);
     let prepared_1 = tokio::task::spawn_blocking(move || {
-        prepare(store_1_for_prepare.as_ref(), rfq_id, request_1)
+        prepare(
+            &crate::application_state::factstr::FactstrApplicationStateProvider::new(
+                store_1_for_prepare.as_ref(),
+            ),
+            rfq_id,
+            request_1,
+        )
     })
     .await
     .unwrap()
     .expect("first supplier quote should be valid");
     let store_2_for_prepare = Arc::clone(&store_2);
     let prepared_2 = tokio::task::spawn_blocking(move || {
-        prepare(store_2_for_prepare.as_ref(), rfq_id, request_2)
+        prepare(
+            &crate::application_state::factstr::FactstrApplicationStateProvider::new(
+                store_2_for_prepare.as_ref(),
+            ),
+            rfq_id,
+            request_2,
+        )
     })
     .await
     .unwrap()
@@ -386,13 +437,23 @@ async fn ccc_independent_supplier_contexts_commit_without_false_conflict() {
     let first_store = Arc::clone(&store_1);
     let first = tokio::task::spawn_blocking(move || {
         first_barrier.wait();
-        commit_prepared(first_store.as_ref(), prepared_1)
+        commit_prepared(
+            &crate::application_state::factstr::FactstrApplicationStateProvider::new(
+                first_store.as_ref(),
+            ),
+            prepared_1,
+        )
     });
     let second_barrier = Arc::clone(&barrier);
     let second_store = Arc::clone(&store_2);
     let second = tokio::task::spawn_blocking(move || {
         second_barrier.wait();
-        commit_prepared(second_store.as_ref(), prepared_2)
+        commit_prepared(
+            &crate::application_state::factstr::FactstrApplicationStateProvider::new(
+                second_store.as_ref(),
+            ),
+            prepared_2,
+        )
     });
     let (result_1, result_2) = tokio::join!(first, second);
     assert!(

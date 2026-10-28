@@ -1,4 +1,4 @@
-use factstr::EventStore;
+use crate::application_state::ApplicationStateProvider;
 use serde::Deserialize;
 use thiserror::Error;
 use uuid::Uuid;
@@ -26,14 +26,14 @@ pub enum SetSupplierEligibilityError {
 
 /// Executa a capability com o relógio explicitamente injetado na shell.
 pub(crate) fn process_with_providers(
-    store: &impl EventStore,
+    state: &dyn ApplicationStateProvider,
     supplier_id: Uuid,
     request: SetSupplierEligibilityRequest,
     clock: &dyn ClockProvider,
 ) -> Result<SupplierEligibilityChangedFact, SetSupplierEligibilityError> {
     let changed_at = clock.now_utc();
     let query = load_context::eligibility_context_query(supplier_id);
-    let loaded = load_context::load_context(store, &query)?;
+    let loaded = load_context::load_context(state, &query)?;
     let context = build_context::build_context(&loaded.facts, supplier_id);
     let fact = generate_consequences::generate_consequences(
         supplier_id,
@@ -43,9 +43,9 @@ pub(crate) fn process_with_providers(
     )?;
 
     match append_consequences::append_consequences(
-        store,
+        state,
         &query,
-        loaded.current_context_version,
+        &loaded.current_context_version,
         &fact,
     ) {
         Ok(()) => Ok(fact),
@@ -54,7 +54,7 @@ pub(crate) fn process_with_providers(
         }
         Err(append_consequences::AppendConsequencesError::ContextChanged) => {
             // Releitura é usada para distinguir cadastro inexistente de outra alteração concorrente.
-            let current = load_context::load_context(store, &query)?;
+            let current = load_context::load_context(state, &query)?;
             let context = build_context::build_context(&current.facts, supplier_id);
             if !context.supplier_registered {
                 Err(SetSupplierEligibilityError::SupplierNotRegistered)

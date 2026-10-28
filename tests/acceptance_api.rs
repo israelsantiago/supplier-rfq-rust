@@ -8,13 +8,16 @@ use serde_json::{Value, json};
 use supplier_rfq_rpu_rust::{
     api_state::ApiState,
     app,
+    application_state::factstr::FactstrApplicationStateProvider,
     capabilities::submit_supplier_quote::SubmitSupplierQuoteRequest,
     events::{
         RFQ_OPENED_V1, RfqItemFact, RfqOpenedFact, SUPPLIER_ELIGIBILITY_CHANGED_V1,
         SUPPLIER_QUOTE_SUBMITTED_V1, SUPPLIER_REGISTERED_V1, SupplierEligibilityChangedFact,
         SupplierRegisteredFact, SupplierStatus,
     },
+    http::idempotency::HttpIdempotencyStore,
     projections::rfq_summary_projection::RfqSummaryProjection,
+    providers::UuidV4Provider,
 };
 use testcontainers_modules::{
     postgres::Postgres,
@@ -31,6 +34,7 @@ const ITEM_B_ID: &str = "44444444-4444-4444-8444-444444444442";
 
 struct TestApp {
     base_url: String,
+    database_url: String,
     store: Arc<PostgresStore>,
     _projection: Arc<RfqSummaryProjection>,
     server_task: JoinHandle<()>,
@@ -76,6 +80,9 @@ async fn spawn_app() -> TestApp {
             .await
             .expect("RFQ summary projection must migrate and replay the durable stream"),
     );
+    let idempotency_store = HttpIdempotencyStore::connect(&database_url, Arc::new(UuidV4Provider))
+        .await
+        .expect("HTTP idempotency ledger must use its own bounded pool and checksum history");
 
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
@@ -86,6 +93,7 @@ async fn spawn_app() -> TestApp {
     let api = app::router(ApiState::from_shared_event_store(
         Arc::clone(&store),
         Arc::clone(&projection),
+        idempotency_store,
     ));
     let server_task = tokio::spawn(async move {
         if let Err(error) = axum::serve(listener, api).await {
@@ -95,6 +103,7 @@ async fn spawn_app() -> TestApp {
 
     TestApp {
         base_url: format!("http://{address}"),
+        database_url: database_url.clone(),
         store,
         _projection: projection,
         server_task,
@@ -963,7 +972,7 @@ async fn quote_id_and_submitted_at_are_stable_across_ccc_retry() {
         serde_json::from_value(valid_request(SUPPLIER_ELIGIBLE_ID)).unwrap();
 
     let commands = supplier_rfq_rpu_rust::app::CommandRpus::new(
-        Arc::new(store),
+        Arc::new(FactstrApplicationStateProvider::new(Arc::new(store))),
         Arc::new(clock),
         Arc::new(ids),
     );
@@ -1007,7 +1016,7 @@ async fn close_rfq_timestamp_is_stable_across_ccc_retry() {
         synthetic_conflict: true,
     };
     let commands = supplier_rfq_rpu_rust::app::CommandRpus::new(
-        Arc::new(store),
+        Arc::new(FactstrApplicationStateProvider::new(Arc::new(store))),
         Arc::new(clock),
         Arc::new(ids),
     );
@@ -1083,6 +1092,478 @@ async fn http_idempotency_replays_the_original_success_response() {
         result.event_records.len(),
         1,
         "the repeated HTTP request must not append a second RFQ fact"
+    );
+}
+
+#[tokio::test]
+async fn http_idempotency_concurrent_same_key_appends_one_fact() {
+    let app = spawn_app().await;
+    let client = Client::new();
+    let rfq_id = Uuid::new_v4();
+    let item_id = Uuid::new_v4();
+    let key = format!("open-rfq-concurrent-{rfq_id}");
+    let body = json!({ "id": rfq_id, "reference": format!("RFQ-IDEMPOTENCY-CONCURRENT-{rfq_id}"),
+        "currency": "BRL", "items": [{ "id": item_id, "sku": "SKU-IDEMPOTENCY-CONCURRENT",
+        "description": "Concurrent idempotency test", "required_quantity": 1 }] });
+    let url = format!("{}/api/rfqs", app.base_url);
+    let c1 = client.clone();
+    let u1 = url.clone();
+    let b1 = body.clone();
+    let k1 = key.clone();
+    let first = async move {
+        c1.post(u1)
+            .header("Idempotency-Key", k1)
+            .json(&b1)
+            .send()
+            .await
+            .unwrap()
+    };
+    let c2 = client.clone();
+    let u2 = url.clone();
+    let b2 = body.clone();
+    let k2 = key.clone();
+    let second = async move {
+        c2.post(u2)
+            .header("Idempotency-Key", k2)
+            .json(&b2)
+            .send()
+            .await
+            .unwrap()
+    };
+    let (one, two) = tokio::join!(first, second);
+    let mut original = 0;
+    let mut replayed = 0;
+    let mut pending = 0;
+    for response in [one, two] {
+        if response.status() == StatusCode::CREATED {
+            if response
+                .headers()
+                .get("idempotency-replayed")
+                .is_some_and(|v| v.as_bytes() == b"true")
+            {
+                replayed += 1;
+            } else {
+                original += 1;
+            }
+        } else {
+            assert_eq!(response.status(), StatusCode::CONFLICT);
+            let error: Value = response.json().await.unwrap();
+            assert_eq!(error["code"], "idempotency_in_progress");
+            pending += 1;
+        }
+    }
+    assert_eq!(original, 1, "one request must own the domain execution");
+    assert_eq!(
+        replayed + pending,
+        1,
+        "the second request is replayed or blocked in progress"
+    );
+    if pending == 1 {
+        let mut eventually_replayed = false;
+        for _ in 0..30 {
+            let response = client
+                .post(&url)
+                .header("Idempotency-Key", &key)
+                .json(&body)
+                .send()
+                .await
+                .unwrap();
+            if response.status() == StatusCode::CREATED {
+                assert_eq!(
+                    response.headers().get("idempotency-replayed").unwrap(),
+                    "true"
+                );
+                eventually_replayed = true;
+                break;
+            }
+            assert_eq!(response.status(), StatusCode::CONFLICT);
+            let error: Value = response.json().await.unwrap();
+            assert_eq!(error["code"], "idempotency_in_progress");
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert!(
+            eventually_replayed,
+            "retry must eventually replay the completed result"
+        );
+    }
+    let query = EventQuery::all().with_filters([EventFilter::for_event_types([RFQ_OPENED_V1])
+        .with_payload_predicates([json!({"rfq_id":rfq_id})])]);
+    let result = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        result.event_records.len(),
+        1,
+        "one logical request produces one fact"
+    );
+}
+
+#[tokio::test]
+async fn http_idempotency_store_unavailable_prevents_command_execution() {
+    let app = spawn_app().await;
+    let client = Client::new();
+    let rfq_id = Uuid::new_v4();
+    let item_id = Uuid::new_v4();
+    let key = format!("ledger-down-{rfq_id}");
+    let body = json!({"id":rfq_id,"reference":format!("RFQ-LEDGER-DOWN-{rfq_id}"),"currency":"BRL",
+        "items":[{"id":item_id,"sku":"SKU-LEDGER-DOWN","description":"Ledger availability test","required_quantity":1}]});
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(1)
+        .connect(&app.database_url)
+        .await
+        .unwrap();
+    sqlx::query("DROP TABLE http_idempotency_keys CASCADE")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let response = client
+        .post(format!("{}/api/rfqs", app.base_url))
+        .header("Idempotency-Key", &key)
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let error: Value = response.json().await.unwrap();
+    assert_eq!(error["code"], "idempotency_store_unavailable");
+    let query = EventQuery::all().with_filters([EventFilter::for_event_types([RFQ_OPENED_V1])
+        .with_payload_predicates([json!({"rfq_id":rfq_id})])]);
+    let result = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(
+        result.event_records.is_empty(),
+        "command must not run if the ledger cannot claim the key"
+    );
+    pool.close().await;
+}
+
+#[tokio::test]
+async fn http_idempotency_failure_after_append_marks_unknown_without_duplicate_fact() {
+    let app = spawn_app().await;
+    let client = Client::new();
+    let rfq_id = Uuid::new_v4();
+    let item_id = Uuid::new_v4();
+    let key = format!("open-rfq-response-persist-failure-{rfq_id}");
+    let body = json!({"id":rfq_id,"reference":format!("RFQ-IDEMPOTENCY-RESPONSE-FAILURE-{rfq_id}"),
+        "currency":"BRL","items":[{"id":item_id,"sku":"SKU-IDEMPOTENCY-RESPONSE-FAILURE",
+        "description":"Response ledger failure after domain append","required_quantity":1}]});
+    let url = format!("{}/api/rfqs", app.base_url);
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(2)
+        .connect(&app.database_url)
+        .await
+        .unwrap();
+    sqlx::query("CREATE OR REPLACE FUNCTION fail_http_idempotency_completion() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.state = 'completed' THEN RAISE EXCEPTION 'injected completion failure after domain append'; END IF; RETURN NEW; END; $$")
+        .execute(&pool).await.unwrap();
+    sqlx::query("CREATE TRIGGER fail_http_idempotency_completion BEFORE UPDATE ON http_idempotency_keys FOR EACH ROW EXECUTE FUNCTION fail_http_idempotency_completion()")
+        .execute(&pool).await.unwrap();
+    let first = client
+        .post(&url)
+        .header("Idempotency-Key", &key)
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        first.status(),
+        StatusCode::CREATED,
+        "domain execution already succeeded"
+    );
+    let _ = first.bytes().await.unwrap();
+    let retry = client
+        .post(&url)
+        .header("Idempotency-Key", &key)
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(retry.status(), StatusCode::CONFLICT);
+    let error: Value = retry.json().await.unwrap();
+    assert_eq!(error["code"], "idempotency_outcome_unknown");
+    let query = EventQuery::all().with_filters([EventFilter::for_event_types([RFQ_OPENED_V1])
+        .with_payload_predicates([json!({"rfq_id":rfq_id})])]);
+    let result = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        result.event_records.len(),
+        1,
+        "retry after ledger failure must not duplicate the domain fact"
+    );
+    sqlx::query("DROP TRIGGER fail_http_idempotency_completion ON http_idempotency_keys")
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("DROP FUNCTION fail_http_idempotency_completion()")
+        .execute(&pool)
+        .await
+        .unwrap();
+    pool.close().await;
+}
+
+#[tokio::test]
+async fn http_idempotency_replays_same_semantic_json_with_reordered_keys() {
+    let app = spawn_app().await;
+    let client = Client::new();
+    let rfq_id = Uuid::new_v4();
+    let item_id = Uuid::new_v4();
+    let reference = format!("RFQ-CANONICAL-{rfq_id}");
+    let key = format!("canonical-json-{rfq_id}");
+    let body_first = format!(
+        r#"{{"id":"{rfq_id}","reference":"{reference}","currency":"BRL","items":[{{"id":"{item_id}","sku":"SKU-CANONICAL","description":"Canonical JSON property order","required_quantity":1}}]}}"#
+    );
+    let body_reordered = format!(
+        r#"{{"items":[{{"required_quantity":1,"description":"Canonical JSON property order","sku":"SKU-CANONICAL","id":"{item_id}"}}],"currency":"BRL","reference":"{reference}","id":"{rfq_id}"}}"#
+    );
+    let url = format!("{}/api/rfqs", app.base_url);
+
+    let first = client
+        .post(&url)
+        .header("Idempotency-Key", &key)
+        .header("content-type", "application/json")
+        .body(body_first)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+    let content_type = first
+        .headers()
+        .get("content-type")
+        .expect("content type must exist")
+        .clone();
+    let first_body = first.bytes().await.unwrap();
+
+    let second = client
+        .post(&url)
+        .header("Idempotency-Key", &key)
+        .header("content-type", "application/json")
+        .body(body_reordered)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::CREATED);
+    assert_eq!(
+        second.headers().get("idempotency-replayed").unwrap(),
+        "true"
+    );
+    assert_eq!(second.headers().get("content-type"), Some(&content_type));
+    assert_eq!(second.bytes().await.unwrap(), first_body);
+
+    let query = EventQuery::all().with_filters([EventFilter::for_event_types([RFQ_OPENED_V1])
+        .with_payload_predicates([json!({"rfq_id":rfq_id})])]);
+    let persisted = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        persisted.event_records.len(),
+        1,
+        "canonical JSON replay must not append twice"
+    );
+}
+
+#[tokio::test]
+async fn http_idempotency_rejects_invalid_key_and_oversized_request_before_command() {
+    let app = spawn_app().await;
+    let client = Client::new();
+    let rfq_id = Uuid::new_v4();
+    let item_id = Uuid::new_v4();
+    let reference = format!("RFQ-INVALID-KEY-{rfq_id}");
+    let key = format!("request-limits-{rfq_id}");
+    let body = json!({ "id": rfq_id, "reference": reference, "currency": "BRL",
+        "items": [{ "id": item_id, "sku": "SKU-LIMIT", "description": "Request limit test", "required_quantity": 1 }] });
+    let url = format!("{}/api/rfqs", app.base_url);
+
+    let invalid = client
+        .post(&url)
+        .header("Idempotency-Key", "bad key")
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(invalid.status(), StatusCode::BAD_REQUEST);
+    let invalid_error: Value = invalid.json().await.unwrap();
+    assert_eq!(invalid_error["code"], "invalid_idempotency_key");
+
+    let mut duplicate_request = client.post(&url).json(&body).build().unwrap();
+    let duplicate_headers = duplicate_request.headers_mut();
+    duplicate_headers.append(
+        "Idempotency-Key",
+        reqwest::header::HeaderValue::from_static("duplicate-one"),
+    );
+    duplicate_headers.append(
+        "Idempotency-Key",
+        reqwest::header::HeaderValue::from_static("duplicate-two"),
+    );
+    let duplicate = client.execute(duplicate_request).await.unwrap();
+    assert_eq!(duplicate.status(), StatusCode::BAD_REQUEST);
+    let duplicate_error: Value = duplicate.json().await.unwrap();
+    assert_eq!(duplicate_error["code"], "invalid_idempotency_key");
+
+    let padding = "x".repeat(2 * 1024 * 1024);
+    let oversized = format!(
+        r#"{{"id":"{rfq_id}","reference":"{reference}","currency":"BRL","items":[{{"id":"{item_id}","sku":"SKU-LIMIT","description":"Request limit test","required_quantity":1}}],"padding":"{padding}"}}"#
+    );
+    let too_large = client
+        .post(&url)
+        .header("Idempotency-Key", &key)
+        .header("content-type", "application/json")
+        .body(oversized)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(too_large.status(), StatusCode::PAYLOAD_TOO_LARGE);
+    let size_error: Value = too_large.json().await.unwrap();
+    assert_eq!(size_error["code"], "idempotency_request_too_large");
+
+    let query = EventQuery::all().with_filters([EventFilter::for_event_types([RFQ_OPENED_V1])
+        .with_payload_predicates([json!({"rfq_id":rfq_id})])]);
+    let persisted = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert!(
+        persisted.event_records.is_empty(),
+        "invalid key and oversized body must not run the command"
+    );
+}
+
+#[tokio::test]
+async fn http_idempotency_fingerprint_includes_path_query_and_content_type() {
+    let app = spawn_app().await;
+    let client = Client::new();
+    let key = format!("quote-fingerprint-{}", Uuid::new_v4());
+    let body = serde_json::to_string(&valid_request(SUPPLIER_ELIGIBLE_ID)).unwrap();
+    let base = format!("{}/api/rfqs/{}/quotes", app.base_url, RFQ_ID);
+    let original_url = format!("{base}?source=one");
+
+    let first = client
+        .post(&original_url)
+        .header("Idempotency-Key", &key)
+        .header("content-type", "application/json")
+        .body(body.clone())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+    let _ = first.bytes().await.unwrap();
+
+    let content_type_change = client
+        .post(&original_url)
+        .header("Idempotency-Key", &key)
+        .header("content-type", "application/json; charset=utf-8")
+        .body(body.clone())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(content_type_change.status(), StatusCode::CONFLICT);
+    assert_eq!(
+        content_type_change.json::<Value>().await.unwrap()["code"],
+        "idempotency_key_reused"
+    );
+
+    let query_change = client
+        .post(format!("{base}?source=two"))
+        .header("Idempotency-Key", &key)
+        .header("content-type", "application/json")
+        .body(body.clone())
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(query_change.status(), StatusCode::CONFLICT);
+    assert_eq!(
+        query_change.json::<Value>().await.unwrap()["code"],
+        "idempotency_key_reused"
+    );
+
+    let path_change = format!(
+        "{}/api/rfqs/{}/quotes?source=one",
+        app.base_url,
+        Uuid::new_v4()
+    );
+    let path_mismatch = client
+        .post(path_change)
+        .header("Idempotency-Key", &key)
+        .header("content-type", "application/json")
+        .body(body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(path_mismatch.status(), StatusCode::CONFLICT);
+    assert_eq!(
+        path_mismatch.json::<Value>().await.unwrap()["code"],
+        "idempotency_key_reused"
+    );
+
+    let query = quote_context_query(
+        Uuid::parse_str(RFQ_ID).unwrap(),
+        Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap(),
+    );
+    let persisted = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        persisted.event_records.len(),
+        1,
+        "fingerprint mismatches must be rejected before a second append"
+    );
+}
+
+#[tokio::test]
+async fn http_idempotency_replays_final_business_4xx_response() {
+    let app = spawn_app().await;
+    let client = Client::new();
+    let rfq_id = Uuid::new_v4();
+    let key = format!("close-missing-rfq-{rfq_id}");
+    let url = format!("{}/api/rfqs/{rfq_id}/close", app.base_url);
+
+    let first = client
+        .post(&url)
+        .header("Idempotency-Key", &key)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::NOT_FOUND);
+    let first_body = first.bytes().await.unwrap();
+
+    let second = client
+        .post(&url)
+        .header("Idempotency-Key", &key)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::NOT_FOUND);
+    assert_eq!(
+        second.headers().get("idempotency-replayed").unwrap(),
+        "true"
+    );
+    assert_eq!(
+        second.bytes().await.unwrap(),
+        first_body,
+        "final business errors below 500 must be replayed as the original result"
     );
 }
 

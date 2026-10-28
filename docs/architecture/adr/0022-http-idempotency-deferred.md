@@ -26,3 +26,9 @@ As entradas `in_progress` e `unknown` não expiram automaticamente. Exigem recon
 - O escopo de segurança é global por rota enquanto autenticação/tenant estiver adiado. Se autenticação e tenancy forem introduzidos, o principal autenticado/tenant deverá fazer parte do escopo.
 - Rejeições 4xx são armazenadas como resultado da execução lógica. Para corrigir a requisição ou tentar uma operação lógica nova, usar uma nova chave.
 - Isso é independente de CCC, da estabilidade de IDs/timestamps durante retries internos e da idempotência do consumidor de projeção.
+
+## Evidência de falhas e isolamento de pool
+
+`HttpIdempotencyStore::connect` cria um pool SQLx limitado independente do pool da projeção, no mesmo banco quando configurado dessa forma. A migration raiz original é mantida para compatibilidade com o histórico SQLx; `migrations_idempotency/` contém DDL idempotente e o ledger verifica versão/checksum em `http_idempotency_migrations`. Isso separa conexões e ownership de inicialização do ledger sem prometer isolamento transacional entre os dois sistemas.
+
+Os testes de máquina de estados cobrem ownership concorrente, `in_progress`, falha de `completed` levando a `unknown`, bloqueio de `unknown` expirado e reuse de `completed` expirado. Os testes HTTP verificam indisponibilidade do ledger sem executar o comando, concorrência com mesma chave e falha após append sem duplicar fato. Permanecem necessários runbooks/alertas de reconciliação e testes operacionais de crash/failover.

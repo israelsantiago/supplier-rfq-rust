@@ -1,63 +1,86 @@
-//! Runtime dependencies for HTTP delivery. FACTSTR is authoritative; the summary is a read model.
-
+//! Composition root for HTTP delivery: only facades and the separate idempotency ledger escape.
 use std::sync::Arc;
 
 use factstr_postgres::PostgresStore;
 
 use crate::{
-    app::CommandRpus,
+    app::{CommandRpus, QueryRpus},
+    application_state::{ApplicationStateProvider, factstr::FactstrApplicationStateProvider},
+    http::idempotency::HttpIdempotencyStore,
     projections::rfq_summary_projection::RfqSummaryProjection,
     providers::{ClockProvider, IdProvider, SystemClockProvider, UuidV4Provider},
 };
 
 #[derive(Clone)]
 pub struct ApiState {
-    pub event_store: Arc<PostgresStore>,
-    pub rfq_summary_projection: Arc<RfqSummaryProjection>,
-    /// Public delivery state contains the command facade, not raw Providers.
-    pub commands: Arc<CommandRpus<PostgresStore>>,
+    pub commands: Arc<CommandRpus>,
+    pub queries: Arc<QueryRpus>,
+    pub http_idempotency_store: HttpIdempotencyStore,
 }
 
 impl ApiState {
-    /// Compatibility constructor using production Providers.
-    pub fn new(store: PostgresStore, rfq_summary_projection: RfqSummaryProjection) -> Self {
-        Self::from_shared_event_store_with_providers(
-            Arc::new(store),
-            Arc::new(rfq_summary_projection),
-            Arc::new(SystemClockProvider),
-            Arc::new(UuidV4Provider),
-        )
+    pub fn new(
+        store: PostgresStore,
+        projection: RfqSummaryProjection,
+        idempotency_store: HttpIdempotencyStore,
+    ) -> Self {
+        Self::from_shared_event_store(Arc::new(store), Arc::new(projection), idempotency_store)
     }
 
-    /// Compatibility constructor using production Providers.
     pub fn from_shared_event_store(
         store: Arc<PostgresStore>,
-        rfq_summary_projection: Arc<RfqSummaryProjection>,
+        projection: Arc<RfqSummaryProjection>,
+        idempotency_store: HttpIdempotencyStore,
     ) -> Self {
         Self::from_shared_event_store_with_providers(
             store,
-            rfq_summary_projection,
+            projection,
             Arc::new(SystemClockProvider),
             Arc::new(UuidV4Provider),
+            idempotency_store,
         )
     }
 
-    /// Composition root: Providers are injected once and hidden from delivery handlers.
     pub fn from_shared_event_store_with_providers(
         store: Arc<PostgresStore>,
-        rfq_summary_projection: Arc<RfqSummaryProjection>,
+        projection: Arc<RfqSummaryProjection>,
         clock_provider: Arc<dyn ClockProvider>,
         id_provider: Arc<dyn IdProvider>,
+        idempotency_store: HttpIdempotencyStore,
     ) -> Self {
+        let application_state: Arc<dyn ApplicationStateProvider> =
+            Arc::new(FactstrApplicationStateProvider::new(store));
         let commands = Arc::new(CommandRpus::new(
-            Arc::clone(&store),
+            Arc::clone(&application_state),
             clock_provider,
             id_provider,
         ));
+        let queries = Arc::new(QueryRpus::new(application_state, projection));
         Self {
-            event_store: store,
-            rfq_summary_projection,
             commands,
+            queries,
+            http_idempotency_store: idempotency_store,
+        }
+    }
+
+    /// Injection seam for alternate state providers in adapter/contract tests.
+    pub fn from_application_state_provider(
+        application_state: Arc<dyn ApplicationStateProvider>,
+        projection: Arc<RfqSummaryProjection>,
+        clock_provider: Arc<dyn ClockProvider>,
+        id_provider: Arc<dyn IdProvider>,
+        idempotency_store: HttpIdempotencyStore,
+    ) -> Self {
+        let commands = Arc::new(CommandRpus::new(
+            Arc::clone(&application_state),
+            clock_provider,
+            id_provider,
+        ));
+        let queries = Arc::new(QueryRpus::new(application_state, projection));
+        Self {
+            commands,
+            queries,
+            http_idempotency_store: idempotency_store,
         }
     }
 }

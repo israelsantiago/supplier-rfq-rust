@@ -48,3 +48,9 @@ DATABASE_URL="$DATABASE_URL" bash ~/Downloads/supplier-rfq-hardening/scripts/ops
 ```
 
 O SQL remove apenas registros `completed` com `expires_at <= now()`. Nunca remova `in_progress` ou `unknown` por rotina de limpeza; esses registros exigem reconciliação com os fatos do FACTSTR.
+
+## Pool e migration do ledger
+
+Na composição de produção, `HttpIdempotencyStore::connect` cria pool limitado independente (máximo de quatro conexões) e valida/inicializa o ledger com checksum próprio sob advisory lock. O banco PostgreSQL pode ser o mesmo do FACTSTR/projeção, mas não há pool compartilhado. A migration raiz `migrations/202610270001_http_idempotency.sql` é preservada para compatibilidade histórica do migrator SQLx; a cópia em `migrations_idempotency/` mantém o mesmo DDL idempotente e é controlada por `http_idempotency_migrations`. Não altere o conteúdo aplicado sem uma nova versão de migration.
+
+Para investigar, procure `in_progress` e `unknown` com a consulta acima e faça a reconciliação com os fatos antes de liberar uma chave. Não tente limpar esses estados com o job normal de expiração.

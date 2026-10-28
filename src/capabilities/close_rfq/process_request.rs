@@ -1,4 +1,4 @@
-use factstr::EventStore;
+use crate::application_state::ApplicationStateProvider;
 use thiserror::Error;
 use uuid::Uuid;
 
@@ -32,7 +32,7 @@ pub enum CloseRfqError {
 
 /// Executa o fechamento com o relógio explicitamente injetado na shell.
 pub(crate) fn process_with_providers(
-    store: &impl EventStore,
+    state: &dyn ApplicationStateProvider,
     request: CloseRfqRequest,
     clock: &dyn ClockProvider,
 ) -> Result<RfqClosedFact, CloseRfqError> {
@@ -43,14 +43,14 @@ pub(crate) fn process_with_providers(
 
     // Uma releitura após o primeiro conflito converte corridas comuns em rejeições de negócio.
     for attempt in 0..2 {
-        let loaded = load_context::load_context(store, &query)?;
+        let loaded = load_context::load_context(state, &query)?;
         let context = build_context::build_context(&loaded.facts);
         let fact = generate_consequences::generate_consequences(request, &context, closed_at)?;
 
         match append_consequences::append_consequences(
-            store,
+            state,
             &query,
-            loaded.current_context_version,
+            &loaded.current_context_version,
             &fact,
         ) {
             Ok(()) => return Ok(fact),

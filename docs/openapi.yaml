@@ -142,6 +142,7 @@ paths:
       operationId: submitSupplierQuote
       parameters:
         - $ref: '#/components/parameters/RfqId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -166,7 +167,6 @@ paths:
       operationId: listSupplierQuotes
       parameters:
         - $ref: '#/components/parameters/RfqId'
-        - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
           description: Cotações da RFQ

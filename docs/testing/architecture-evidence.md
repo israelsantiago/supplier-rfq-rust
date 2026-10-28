@@ -41,3 +41,21 @@ O relatório gerado localmente pelo script de validação fica em `target/archit
 ## Fonte externa da semântica de query
 
 A semântica usada nesta matriz está implementada em [`factstr-postgres/src/query_match.rs`](https://github.com/ricofritzsche/factstr/blob/main/factstr-postgres/src/query_match.rs) no projeto FACTSTR. A suíte local acima é um contrato de regressão para o comportamento que as RPUs deste repositório dependem.
+
+## ASP e estados/falhas da idempotência HTTP
+
+| Contrato | Evidência executável | Como reproduzir | Limite |
+|---|---|---|---|
+| Capabilities não conhecem FACTSTR | `scripts/verify-application-state-boundary.sh` | `bash scripts/verify-application-state-boundary.sh` | Guardrail estrutural, complementado por revisão. |
+| Adaptador lê fatos tipados e recusa append com versão obsoleta | `provider_reads_typed_facts_and_rejects_stale_conditional_append` | `cargo test --lib provider_reads_typed_facts_and_rejects_stale_conditional_append -- --nocapture` | PostgreSQL/Testcontainers; não é benchmark. |
+| Um owner por chave e `unknown` não expira | `ledger_state_machine_fails_closed_and_expires_only_completed_records` | `cargo test --lib ledger_state_machine_fails_closed_and_expires_only_completed_records -- --nocapture` | Concorrência controlada, não stress de carga. |
+| Ledger indisponível não executa comando | `http_idempotency_store_unavailable_prevents_command_execution` | `cargo test --test acceptance_api http_idempotency_store_unavailable_prevents_command_execution -- --nocapture` | Simula tabela indisponível em DB de teste. |
+| Falha após append não duplica o fato | `http_idempotency_failure_after_append_marks_unknown_without_duplicate_fact` | `cargo test --test acceptance_api http_idempotency_failure_after_append_marks_unknown_without_duplicate_fact -- --nocapture` | Trigger SQL não equivale a matar o processo ou failover. |
+| Requests concorrentes com a mesma chave não duplicam fato | `http_idempotency_concurrent_same_key_appends_one_fact` | `cargo test --test acceptance_api http_idempotency_concurrent_same_key_appends_one_fact -- --nocapture` | Duas requests controladas, não benchmark. |
+| JSON semântico reordenado é reproduzido | `http_idempotency_replays_same_semantic_json_with_reordered_keys` | `cargo test --test acceptance_api http_idempotency_replays_same_semantic_json_with_reordered_keys -- --nocapture` | Ordena propriedades recursivamente; a ordem de arrays permanece significativa. |
+| Resposta final de negócio 4xx é reproduzida | `http_idempotency_replays_final_business_4xx_response` | `cargo test --test acceptance_api http_idempotency_replays_final_business_4xx_response -- --nocapture` | 404 final preserva status/corpo e sinaliza replay. |
+| Chave inválida/duplicada e request acima de 2 MiB não executam comando | `http_idempotency_rejects_invalid_key_and_oversized_request_before_command` | `cargo test --test acceptance_api http_idempotency_rejects_invalid_key_and_oversized_request_before_command -- --nocapture` | Limites específicos do middleware idempotente. |
+| Path/query/Content-Type são parte do fingerprint | `http_idempotency_fingerprint_includes_path_query_and_content_type` | `cargo test --test acceptance_api http_idempotency_fingerprint_includes_path_query_and_content_type -- --nocapture` | Casos principais, não todos os headers possíveis. |
+| Resposta acima de 4 MiB bloqueia replay incerto | `oversized_response_marks_key_unknown_and_blocks_retry` | `cargo test --lib oversized_response_marks_key_unknown_and_blocks_retry -- --nocapture` | Teste de middleware com router sintético e PostgreSQL, não falha real de streaming em produção. |
+
+A cobertura 100% de Functional Core não mede automaticamente o ASP, fachadas, middleware, migrations ou cenários operacionais.

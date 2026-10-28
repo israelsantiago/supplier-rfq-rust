@@ -8,13 +8,10 @@ use axum::{
 };
 use tower_http::trace::TraceLayer;
 
-use crate::{api_state::ApiState, http::idempotency::HttpIdempotencyStore};
+use crate::api_state::ApiState;
 
 pub fn router(state: ApiState) -> Router {
-    let idempotency_store = HttpIdempotencyStore::new(
-        state.rfq_summary_projection.database_pool(),
-        std::sync::Arc::new(crate::providers::UuidV4Provider),
-    );
+    let idempotency_store = state.http_idempotency_store.clone();
 
     Router::new()
         .route("/health", get(handlers::health))

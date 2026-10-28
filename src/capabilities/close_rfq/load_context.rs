@@ -1,56 +1,33 @@
-use factstr::{EventFilter, EventQuery, EventStore};
-use serde_json::json;
-use uuid::Uuid;
-
-use crate::events::{RFQ_CLOSED_V1, RFQ_OPENED_V1, RfqClosedFact, RfqOpenedFact};
-
 use super::{build_context::RfqLifecycleFact, process_request::CloseRfqError};
-
+use crate::application_state::{
+    ApplicationFact, ApplicationStateProvider, ContextVersion, StateQuery,
+};
+use uuid::Uuid;
 pub(super) struct LoadedRfqLifecycle {
     pub(super) facts: Vec<RfqLifecycleFact>,
-    pub(super) current_context_version: Option<u64>,
+    pub(super) current_context_version: ContextVersion,
 }
-
-pub(super) fn rfq_lifecycle_query(rfq_id: Uuid) -> EventQuery {
-    EventQuery::all().with_filters([
-        EventFilter::for_event_types([RFQ_OPENED_V1])
-            .with_payload_predicates([json!({ "rfq_id": rfq_id })]),
-        EventFilter::for_event_types([RFQ_CLOSED_V1])
-            .with_payload_predicates([json!({ "rfq_id": rfq_id })]),
-    ])
+pub(super) fn rfq_lifecycle_query(rfq_id: Uuid) -> StateQuery {
+    StateQuery::RfqLifecycle { rfq_id }
 }
-
 pub(super) fn load_context(
-    store: &impl EventStore,
-    query: &EventQuery,
+    state: &dyn ApplicationStateProvider,
+    query: &StateQuery,
 ) -> Result<LoadedRfqLifecycle, CloseRfqError> {
-    let result = store
-        .query(query)
+    let snapshot = state
+        .read(query)
         .map_err(|error| CloseRfqError::Store(error.to_string()))?;
-    let mut facts = Vec::with_capacity(result.event_records.len());
-
-    for record in result.event_records {
-        match record.event_type.as_str() {
-            RFQ_OPENED_V1 => {
-                let _fact: RfqOpenedFact =
-                    serde_json::from_value(record.payload).map_err(|error| {
-                        CloseRfqError::Store(format!("invalid RFQ opened fact: {error}"))
-                    })?;
-                facts.push(RfqLifecycleFact::Opened);
-            }
-            RFQ_CLOSED_V1 => {
-                let _fact: RfqClosedFact =
-                    serde_json::from_value(record.payload).map_err(|error| {
-                        CloseRfqError::Store(format!("invalid RFQ closed fact: {error}"))
-                    })?;
-                facts.push(RfqLifecycleFact::Closed);
-            }
-            _ => {}
-        }
-    }
-
+    let facts = snapshot
+        .facts
+        .into_iter()
+        .filter_map(|record| match record.fact {
+            ApplicationFact::RfqOpened(_) => Some(RfqLifecycleFact::Opened),
+            ApplicationFact::RfqClosed(_) => Some(RfqLifecycleFact::Closed),
+            _ => None,
+        })
+        .collect();
     Ok(LoadedRfqLifecycle {
         facts,
-        current_context_version: result.current_context_version,
+        current_context_version: snapshot.version,
     })
 }
