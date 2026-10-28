@@ -1,15 +1,21 @@
 pub mod dto;
 pub mod handlers;
+pub mod idempotency;
 
 use axum::{
-    Router,
+    Router, middleware,
     routing::{get, post, put},
 };
 use tower_http::trace::TraceLayer;
 
-use crate::api_state::ApiState;
+use crate::{api_state::ApiState, http::idempotency::HttpIdempotencyStore};
 
 pub fn router(state: ApiState) -> Router {
+    let idempotency_store = HttpIdempotencyStore::new(
+        state.rfq_summary_projection.database_pool(),
+        std::sync::Arc::new(crate::providers::UuidV4Provider),
+    );
+
     Router::new()
         .route("/health", get(handlers::health))
         .route("/api/rfqs", post(handlers::open_rfq))
@@ -25,6 +31,10 @@ pub fn router(state: ApiState) -> Router {
             "/api/suppliers/{supplier_id}/eligibility",
             put(handlers::set_supplier_eligibility),
         )
+        .route_layer(middleware::from_fn_with_state(
+            idempotency_store,
+            idempotency::idempotency_middleware,
+        ))
         .layer(TraceLayer::new_for_http())
         .with_state(state)
 }

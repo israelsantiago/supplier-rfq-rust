@@ -20,10 +20,10 @@ use crate::{
         close_rfq::{self, CloseRfqError, CloseRfqRejection},
         get_rfq_summary as get_rfq_summary_rpu, list_rfq_summaries as list_rfq_summaries_rpu,
         list_supplier_quotes,
-        open_rfq::{self, OpenRfqError},
-        register_supplier::{self, RegisterSupplierError},
-        set_supplier_eligibility::{self, SetSupplierEligibilityError},
-        submit_supplier_quote::{self, PrepareError, SubmissionRejection},
+        open_rfq::OpenRfqError,
+        register_supplier::RegisterSupplierError,
+        set_supplier_eligibility::SetSupplierEligibilityError,
+        submit_supplier_quote::{PrepareError, SubmissionRejection},
     },
 };
 
@@ -54,14 +54,8 @@ pub async fn health() -> impl IntoResponse {
 
 pub async fn open_rfq(State(state): State<ApiState>, Json(request): Json<OpenRfqBody>) -> Response {
     let request = request.into();
-    let store = state.event_store.clone();
-    let clock = state.clock_provider.clone();
-    let ids = state.id_provider.clone();
-    match tokio::task::spawn_blocking(move || {
-        open_rfq::process_with_providers(store.as_ref(), request, clock.as_ref(), ids.as_ref())
-    })
-    .await
-    {
+    let commands = state.commands.clone();
+    match tokio::task::spawn_blocking(move || commands.open_rfq(request)).await {
         Ok(Ok(fact)) => (StatusCode::CREATED, Json(OpenRfqResponse::from(fact))).into_response(),
         Ok(Err(error)) => match error {
             OpenRfqError::InvalidInput(message) => {
@@ -93,19 +87,8 @@ pub async fn register_supplier(
     Json(request): Json<RegisterSupplierBody>,
 ) -> Response {
     let request = request.into();
-    let store = state.event_store.clone();
-    let clock = state.clock_provider.clone();
-    let ids = state.id_provider.clone();
-    match tokio::task::spawn_blocking(move || {
-        register_supplier::process_with_providers(
-            store.as_ref(),
-            request,
-            clock.as_ref(),
-            ids.as_ref(),
-        )
-    })
-    .await
-    {
+    let commands = state.commands.clone();
+    match tokio::task::spawn_blocking(move || commands.register_supplier(request)).await {
         Ok(Ok(fact)) => (
             StatusCode::CREATED,
             Json(RegisterSupplierResponse::from(fact)),
@@ -144,15 +127,9 @@ pub async fn set_supplier_eligibility(
     Json(request): Json<SetSupplierEligibilityBody>,
 ) -> Response {
     let request = request.into();
-    let store = state.event_store.clone();
-    let clock = state.clock_provider.clone();
+    let commands = state.commands.clone();
     match tokio::task::spawn_blocking(move || {
-        set_supplier_eligibility::process_with_providers(
-            store.as_ref(),
-            supplier_id,
-            request,
-            clock.as_ref(),
-        )
+        commands.set_supplier_eligibility(supplier_id, request)
     })
     .await
     {
@@ -184,19 +161,8 @@ pub async fn submit_supplier_quote(
     Json(request): Json<SubmitSupplierQuoteBody>,
 ) -> Response {
     let request = request.into();
-    let store = state.event_store.clone();
-    let clock = state.clock_provider.clone();
-    let ids = state.id_provider.clone();
-    match tokio::task::spawn_blocking(move || {
-        submit_supplier_quote::process_with_providers(
-            store.as_ref(),
-            rfq_id,
-            request,
-            clock.as_ref(),
-            ids.as_ref(),
-        )
-    })
-    .await
+    let commands = state.commands.clone();
+    match tokio::task::spawn_blocking(move || commands.submit_supplier_quote(rfq_id, request)).await
     {
         Ok(Ok(quote)) => (
             StatusCode::CREATED,
@@ -233,14 +199,9 @@ fn submission_rejection(rejection: SubmissionRejection) -> Response {
 }
 
 pub async fn close_rfq(State(state): State<ApiState>, Path(rfq_id): Path<Uuid>) -> Response {
-    let store = state.event_store.clone();
-    let clock = state.clock_provider.clone();
+    let commands = state.commands.clone();
     match tokio::task::spawn_blocking(move || {
-        close_rfq::process_with_providers(
-            store.as_ref(),
-            close_rfq::CloseRfqRequest { rfq_id },
-            clock.as_ref(),
-        )
+        commands.close_rfq(close_rfq::CloseRfqRequest { rfq_id })
     })
     .await
     {

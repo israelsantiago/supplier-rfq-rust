@@ -29,16 +29,18 @@ Cada ADR individual registra contexto, decisão e consequências. `Accepted` sig
 | [ADR-0019](./0019-eligibility-assignment-semantics.md) | Elegibilidade como atribuição de estado | Accepted |
 | [ADR-0020](./0020-event-query-semantics.md) | Semântica explícita das EventQueries CCC | Accepted |
 | [ADR-0021](./0021-api-security-deferred.md) | Autenticação e autorização fora do escopo da referência | Deferred |
-| [ADR-0022](./0022-http-idempotency-deferred.md) | Idempotência de comandos HTTP | Deferred |
+| [ADR-0022](./0022-http-idempotency-deferred.md) | Idempotência de comandos HTTP | Accepted |
 | [ADR-0023](./0023-no-cross-rpu-orchestrator.md) | Sem orquestrador transversal de RPUs no fluxo atual | Accepted |
 | [ADR-0024](./0024-test-support-feature.md) | Seam de teste protegido por feature | Accepted |
+| [ADR-0025](./0025-rpu-command-facade.md) | Fachada pública de comandos e encapsulamento de Providers | Accepted |
 
 ## Políticas não negociáveis nesta refatoração
 
 - Não alterar regras de negócio, validações, códigos HTTP, nomes/versionamento de fatos ou a semântica das queries CCC nesta mudança.
 - Manter a suíte existente e executar `cargo fmt`, `cargo check`, `cargo clippy` e `cargo test --all-features` antes do commit.
 - O núcleo funcional recebe valores concretos; Providers são usados somente na Imperative Shell/composição.
-- `quote_id` e `submitted_at` são capturados uma vez por execução lógica e permanecem estáveis em retries CCC internos.
+- IDs e timestamps de ocorrência são escolhidos na shell uma vez por execução lógica; `CloseRfq` e `SubmitSupplierQuote` os mantêm estáveis em retries CCC internos. Commands sem retry interno retornam conflito em vez de refazer silenciosamente a decisão.
+- Endpoints de comando podem usar `Idempotency-Key` para reproduzir a resposta de uma requisição HTTP repetida; sem a chave, não há essa garantia. O ledger não é atomicamente commitado junto ao FACTSTR e `in_progress`/`unknown` exigem reconciliação.
 - Se a regra futura exigir validade no instante da aceitação, separar o instante de submissão (`submitted_at`) do instante de decisão/aceitação (`decision_at`/`accepted_at`) em ADR e alteração de domínio próprios.
 - Os scripts de commit/push exigem opt-in explícito via `PUSH_TO_GITHUB=YES`.
 

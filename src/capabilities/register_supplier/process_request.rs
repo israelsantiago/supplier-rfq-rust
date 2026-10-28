@@ -4,7 +4,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::events::SupplierRegisteredFact;
-use crate::providers::{ClockProvider, IdProvider, SystemClockProvider, UuidV4Provider};
+use crate::providers::{ClockProvider, IdProvider};
 
 use super::{append_consequences, build_context, generate_consequences, load_context};
 
@@ -32,15 +32,8 @@ pub enum RegisterSupplierError {
 }
 
 /// Shell do RPU: carrega o contexto de identidade e só grava contra a versão observada.
-pub fn process(
-    store: &impl EventStore,
-    request: RegisterSupplierRequest,
-) -> Result<SupplierRegisteredFact, RegisterSupplierError> {
-    process_with_providers(store, request, &SystemClockProvider, &UuidV4Provider)
-}
-
 /// Executa a capability com recursos externos explicitamente injetados na shell.
-pub fn process_with_providers(
+pub(crate) fn process_with_providers(
     store: &impl EventStore,
     request: RegisterSupplierRequest,
     clock: &dyn ClockProvider,
@@ -48,6 +41,7 @@ pub fn process_with_providers(
 ) -> Result<SupplierRegisteredFact, RegisterSupplierError> {
     let assigned_id = request.id.unwrap_or_else(|| ids.new_uuid());
     let prepared = generate_consequences::prepare(request, assigned_id)?;
+    let registered_at = clock.now_utc();
     let query = load_context::identity_context_query(prepared.supplier_id, &prepared.reference);
     let loaded = load_context::load_context(store, &query)?;
     let context = build_context::build_context(loaded.existing_suppliers);
@@ -60,7 +54,7 @@ pub fn process_with_providers(
         return Err(rejection);
     }
 
-    let fact = generate_consequences::generate_consequences(&prepared, clock.now_utc());
+    let fact = generate_consequences::generate_consequences(&prepared, registered_at);
     match append_consequences::append_consequences(
         store,
         &query,

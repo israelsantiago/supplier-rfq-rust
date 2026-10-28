@@ -18,6 +18,8 @@ paths:
     post:
       summary: OpenRfq — abre RFQ e registra os itens num fato imutável
       operationId: openRfq
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -39,6 +41,8 @@ paths:
     post:
       summary: RegisterSupplier — registra a identidade imutável do fornecedor
       operationId: registerSupplier
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -62,6 +66,7 @@ paths:
       operationId: setSupplierEligibility
       parameters:
         - $ref: '#/components/parameters/SupplierId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
@@ -161,6 +166,7 @@ paths:
       operationId: listSupplierQuotes
       parameters:
         - $ref: '#/components/parameters/RfqId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
           description: Cotações da RFQ
@@ -189,6 +195,7 @@ paths:
       operationId: closeRfq
       parameters:
         - $ref: '#/components/parameters/RfqId'
+        - $ref: '#/components/parameters/IdempotencyKey'
       responses:
         '200':
           description: RFQ fechada
@@ -198,6 +205,17 @@ paths:
           $ref: '#/components/responses/Conflict'
 components:
   parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: >-
+        Optional key for replay-safe retries of the same logical command. Reuse the same key only with the same method, route, path, query and JSON body. Every final response below 500, including command_context_changed, is replayed for 24 hours. Use a new key for a new attempt after a final CCC conflict. A missing key provides no HTTP idempotency guarantee. See ADR-0022.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 200
+        pattern: '^[!-~]{1,200}$'
     RfqId:
       name: rfq_id
       in: path
@@ -214,7 +232,7 @@ components:
         format: uuid
   responses:
     Conflict:
-      description: Conflito de negócio ou Command Context Consistency
+      description: Conflito de negócio, Command Context Consistency ou idempotência HTTP; consulte code/message
       content:
         application/json:
           schema:

@@ -824,6 +824,7 @@ struct ConflictOnceStore {
     inner: Arc<PostgresStore>,
     supplier_id: Uuid,
     injected: Arc<std::sync::atomic::AtomicBool>,
+    synthetic_conflict: bool,
 }
 
 impl factstr::EventStore for ConflictOnceStore {
@@ -851,6 +852,14 @@ impl factstr::EventStore for ConflictOnceStore {
             .injected
             .swap(true, std::sync::atomic::Ordering::SeqCst)
         {
+            if self.synthetic_conflict {
+                return Err(factstr::EventStoreError::ConditionalAppendConflict {
+                    expected: expected_context_version,
+                    actual: expected_context_version
+                        .map(|version| version.saturating_add(1))
+                        .or(Some(1)),
+                });
+            }
             let harmless_eligibility_reaffirmation = SupplierEligibilityChangedFact {
                 supplier_id: self.supplier_id,
                 status: SupplierStatus::Eligible,
@@ -948,18 +957,21 @@ async fn quote_id_and_submitted_at_are_stable_across_ccc_retry() {
         inner: Arc::clone(&app.store),
         supplier_id,
         injected: Arc::clone(&injected),
+        synthetic_conflict: false,
     };
     let request: SubmitSupplierQuoteRequest =
         serde_json::from_value(valid_request(SUPPLIER_ELIGIBLE_ID)).unwrap();
 
-    let quote = tokio::task::spawn_blocking(move || {
-        supplier_rfq_rpu_rust::capabilities::submit_supplier_quote::process_with_providers(
-            &store, rfq_id, request, &clock, &ids,
-        )
-    })
-    .await
-    .unwrap()
-    .expect("the same logical submission should succeed after a harmless CCC conflict");
+    let commands = supplier_rfq_rpu_rust::app::CommandRpus::new(
+        Arc::new(store),
+        Arc::new(clock),
+        Arc::new(ids),
+    );
+    let quote =
+        tokio::task::spawn_blocking(move || commands.submit_supplier_quote(rfq_id, request))
+            .await
+            .unwrap()
+            .expect("the same logical submission should succeed after a harmless CCC conflict");
 
     assert!(
         injected.load(std::sync::atomic::Ordering::SeqCst),
@@ -969,4 +981,150 @@ async fn quote_id_and_submitted_at_are_stable_across_ccc_retry() {
     assert_eq!(quote.submitted_at, fixed_time);
     assert_eq!(clock_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
     assert_eq!(id_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn close_rfq_timestamp_is_stable_across_ccc_retry() {
+    let app = spawn_app().await;
+    let rfq_id = Uuid::parse_str(RFQ_ID).unwrap();
+    let fixed_time = chrono::DateTime::parse_from_rfc3339("2026-10-27T12:34:56Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let clock_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let clock = CountingFixedClock {
+        instant: fixed_time,
+        calls: Arc::clone(&clock_calls),
+    };
+    let ids = CountingFixedId {
+        id: Uuid::from_u128(0xbbbbbbbb_cccc_4ddd_8eee_ffffffffffff),
+        calls: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+    };
+    let injected = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let store = ConflictOnceStore {
+        inner: Arc::clone(&app.store),
+        supplier_id: Uuid::parse_str(SUPPLIER_ELIGIBLE_ID).unwrap(),
+        injected: Arc::clone(&injected),
+        synthetic_conflict: true,
+    };
+    let commands = supplier_rfq_rpu_rust::app::CommandRpus::new(
+        Arc::new(store),
+        Arc::new(clock),
+        Arc::new(ids),
+    );
+
+    let closed = tokio::task::spawn_blocking(move || {
+        commands
+            .close_rfq(supplier_rfq_rpu_rust::capabilities::close_rfq::CloseRfqRequest { rfq_id })
+    })
+    .await
+    .unwrap()
+    .expect("close should succeed after one synthetic CCC conflict");
+
+    assert!(injected.load(std::sync::atomic::Ordering::SeqCst));
+    assert_eq!(closed.rfq_id, rfq_id);
+    assert_eq!(closed.closed_at, fixed_time);
+    assert_eq!(clock_calls.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
+async fn http_idempotency_replays_the_original_success_response() {
+    let app = spawn_app().await;
+    let client = Client::new();
+    let rfq_id = Uuid::new_v4();
+    let item_id = Uuid::new_v4();
+    let key = format!("open-rfq-{rfq_id}");
+    let body = json!({
+        "id": rfq_id,
+        "reference": format!("RFQ-IDEMPOTENCY-{rfq_id}"),
+        "currency": "BRL",
+        "items": [{
+            "id": item_id,
+            "sku": "SKU-IDEMPOTENCY",
+            "description": "Idempotency integration test",
+            "required_quantity": 1
+        }]
+    });
+    let url = format!("{}/api/rfqs", app.base_url);
+
+    let first = client
+        .post(&url)
+        .header("Idempotency-Key", &key)
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+    let first_body = first.bytes().await.unwrap();
+
+    let second = client
+        .post(&url)
+        .header("Idempotency-Key", &key)
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::CREATED);
+    assert_eq!(
+        second.headers().get("idempotency-replayed").unwrap(),
+        "true"
+    );
+    assert_eq!(second.bytes().await.unwrap(), first_body);
+
+    let query = EventQuery::all().with_filters([EventFilter::for_event_types([RFQ_OPENED_V1])
+        .with_payload_predicates([json!({ "rfq_id": rfq_id })])]);
+    let result = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || store.as_ref().query(&query)
+    })
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        result.event_records.len(),
+        1,
+        "the repeated HTTP request must not append a second RFQ fact"
+    );
+}
+
+#[tokio::test]
+async fn http_idempotency_rejects_same_key_with_different_request() {
+    let app = spawn_app().await;
+    let client = Client::new();
+    let rfq_id = Uuid::new_v4();
+    let item_id = Uuid::new_v4();
+    let key = format!("open-rfq-mismatch-{rfq_id}");
+    let body = json!({
+        "id": rfq_id,
+        "reference": format!("RFQ-IDEMPOTENCY-MISMATCH-{rfq_id}"),
+        "currency": "BRL",
+        "items": [{
+            "id": item_id,
+            "sku": "SKU-IDEMPOTENCY-MISMATCH",
+            "description": "Idempotency mismatch test",
+            "required_quantity": 1
+        }]
+    });
+    let url = format!("{}/api/rfqs", app.base_url);
+    let first = client
+        .post(&url)
+        .header("Idempotency-Key", &key)
+        .json(&body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+    let _ = first.bytes().await.unwrap();
+
+    let mut changed_body = body;
+    changed_body["currency"] = json!("USD");
+    let second = client
+        .post(&url)
+        .header("Idempotency-Key", &key)
+        .json(&changed_body)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::CONFLICT);
+    let error: Value = second.json().await.unwrap();
+    assert_eq!(error["code"], "idempotency_key_reused");
 }

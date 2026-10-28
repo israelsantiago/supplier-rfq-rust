@@ -97,23 +97,9 @@ pub fn commit_prepared(
     .map(|()| quote)
 }
 
-pub fn process(
-    store: &impl EventStore,
-    rfq_id: Uuid,
-    request: SubmitSupplierQuoteRequest,
-) -> Result<SupplierQuoteSubmittedFact, PrepareError> {
-    process_with_providers(
-        store,
-        rfq_id,
-        request,
-        &SystemClockProvider,
-        &UuidV4Provider,
-    )
-}
-
 /// Executa a RPU com Providers explícitos. O ID e submitted_at são capturados uma
 /// única vez e permanecem estáveis durante as tentativas internas de CCC.
-pub fn process_with_providers(
+pub(crate) fn process_with_providers(
     store: &impl EventStore,
     rfq_id: Uuid,
     request: SubmitSupplierQuoteRequest,

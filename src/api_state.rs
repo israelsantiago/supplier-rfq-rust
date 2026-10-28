@@ -1,10 +1,11 @@
-//! Runtime dependencies for HTTP delivery. FACTSTR remains authoritative; the RFQ summary is a derived read model.
+//! Runtime dependencies for HTTP delivery. FACTSTR is authoritative; the summary is a read model.
 
 use std::sync::Arc;
 
 use factstr_postgres::PostgresStore;
 
 use crate::{
+    app::CommandRpus,
     projections::rfq_summary_projection::RfqSummaryProjection,
     providers::{ClockProvider, IdProvider, SystemClockProvider, UuidV4Provider},
 };
@@ -13,12 +14,12 @@ use crate::{
 pub struct ApiState {
     pub event_store: Arc<PostgresStore>,
     pub rfq_summary_projection: Arc<RfqSummaryProjection>,
-    pub clock_provider: Arc<dyn ClockProvider>,
-    pub id_provider: Arc<dyn IdProvider>,
+    /// Public delivery state contains the command facade, not raw Providers.
+    pub commands: Arc<CommandRpus<PostgresStore>>,
 }
 
 impl ApiState {
-    /// Compatibility constructor using the production providers.
+    /// Compatibility constructor using production Providers.
     pub fn new(store: PostgresStore, rfq_summary_projection: RfqSummaryProjection) -> Self {
         Self::from_shared_event_store_with_providers(
             Arc::new(store),
@@ -28,7 +29,7 @@ impl ApiState {
         )
     }
 
-    /// Compatibility constructor using the production providers.
+    /// Compatibility constructor using production Providers.
     pub fn from_shared_event_store(
         store: Arc<PostgresStore>,
         rfq_summary_projection: Arc<RfqSummaryProjection>,
@@ -41,18 +42,22 @@ impl ApiState {
         )
     }
 
-    /// Composition seam: injects runtime providers without exposing them to HTTP requests.
+    /// Composition root: Providers are injected once and hidden from delivery handlers.
     pub fn from_shared_event_store_with_providers(
         store: Arc<PostgresStore>,
         rfq_summary_projection: Arc<RfqSummaryProjection>,
         clock_provider: Arc<dyn ClockProvider>,
         id_provider: Arc<dyn IdProvider>,
     ) -> Self {
+        let commands = Arc::new(CommandRpus::new(
+            Arc::clone(&store),
+            clock_provider,
+            id_provider,
+        ));
         Self {
             event_store: store,
             rfq_summary_projection,
-            clock_provider,
-            id_provider,
+            commands,
         }
     }
 }

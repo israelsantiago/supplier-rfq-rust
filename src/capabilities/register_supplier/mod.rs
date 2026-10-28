@@ -7,6 +7,5 @@ mod generate_consequences;
 mod load_context;
 mod process_request;
 
-pub use process_request::{
-    RegisterSupplierError, RegisterSupplierRequest, process, process_with_providers,
-};
+pub(crate) use process_request::process_with_providers;
+pub use process_request::{RegisterSupplierError, RegisterSupplierRequest};

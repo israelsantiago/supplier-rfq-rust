@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use super::{CommitError, SubmitSupplierQuoteRequest, commit_prepared, prepare};
 use crate::{
-    capabilities::set_supplier_eligibility::{self, SetSupplierEligibilityRequest},
+    capabilities::set_supplier_eligibility::SetSupplierEligibilityRequest,
     events::{
         RFQ_OPENED_V1, RfqItemFact, RfqOpenedFact, SUPPLIER_ELIGIBILITY_CHANGED_V1,
         SUPPLIER_QUOTE_SUBMITTED_V1, SUPPLIER_REGISTERED_V1, SupplierEligibilityChangedFact,
@@ -273,9 +273,13 @@ async fn ccc_supplier_eligibility_change_invalidates_a_prepared_quote() {
     let prepared_version = prepared.context.current_context_version;
 
     let store_for_change = Arc::clone(&store_2);
+    let commands = crate::app::CommandRpus::new(
+        store_for_change,
+        Arc::new(crate::providers::SystemClockProvider),
+        Arc::new(crate::providers::UuidV4Provider),
+    );
     tokio::task::spawn_blocking(move || {
-        set_supplier_eligibility::process(
-            store_for_change.as_ref(),
+        commands.set_supplier_eligibility(
             supplier_id,
             SetSupplierEligibilityRequest {
                 status: SupplierStatus::Blocked,

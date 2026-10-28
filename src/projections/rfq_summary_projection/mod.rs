@@ -145,6 +145,11 @@ impl RfqSummaryProjection {
         })
     }
 
+    /// Shared SQL pool for HTTP infrastructure tables in the same PostgreSQL database.
+    pub(crate) fn database_pool(&self) -> PgPool {
+        self.read_pool.clone()
+    }
+
     pub async fn get(&self, rfq_id: Uuid) -> Result<Option<RfqSummary>, sqlx::Error> {
         sqlx::query_as::<_, RfqSummary>(
             r#"SELECT rfq_id, reference, currency, status, opened_at, closed_at,

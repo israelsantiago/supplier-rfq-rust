@@ -3,7 +3,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::events::RfqClosedFact;
-use crate::providers::{ClockProvider, SystemClockProvider};
+use crate::providers::ClockProvider;
 
 use super::{append_consequences, build_context, generate_consequences, load_context};
 
@@ -30,15 +30,8 @@ pub enum CloseRfqError {
     Store(String),
 }
 
-pub fn process(
-    store: &impl EventStore,
-    request: CloseRfqRequest,
-) -> Result<RfqClosedFact, CloseRfqError> {
-    process_with_providers(store, request, &SystemClockProvider)
-}
-
 /// Executa o fechamento com o relógio explicitamente injetado na shell.
-pub fn process_with_providers(
+pub(crate) fn process_with_providers(
     store: &impl EventStore,
     request: CloseRfqRequest,
     clock: &dyn ClockProvider,
