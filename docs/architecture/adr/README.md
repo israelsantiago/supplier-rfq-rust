@@ -35,6 +35,9 @@ Cada ADR individual registra contexto, decisão e consequências. `Accepted` sig
 | [ADR-0025](./0025-rpu-command-facade.md) | Fachada pública de comandos e encapsulamento de Providers | Accepted |
 | [ADR-0026](./0026-application-state-provider.md) | Application State Provider como porta de estado autoritativo | Accepted |
 | [ADR-0027](./0027-http-idempotency-failure-testing.md) | Testes de falha e concorrência da idempotência HTTP | Accepted |
+| [ADR-0028](./0028-http-error-redaction-request-correlation.md) | Redação de erros internos HTTP e correlação por request ID | Accepted |
+| [ADR-0029](./0029-mainline-documentation-and-ci.md) | Documentação da main e guardrail de CI | Accepted |
+| [ADR-0030](./0030-rfq-summary-reader-port.md) | Porta RfqSummaryReader para as RPUs de consulta | Accepted |
 
 ## Políticas não negociáveis nesta refatoração
 

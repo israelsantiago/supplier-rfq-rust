@@ -1,6 +1,6 @@
 # Supplier RFQ — Domain Capabilities / RPU / CCC + Event Sourcing + FACTSTR
 
-Implementação de referência em Rust de um pequeno fluxo de **Supply Chain / Request for Quotation (RFQ)**. Esta branch adiciona Event Sourcing com [FACTSTR](https://github.com/ricofritzsche/factstr) à implementação original relacional, preservada na branch `main` para estudo e comparação.
+Implementação de referência em Rust de um pequeno fluxo de **Supply Chain / Request for Quotation (RFQ)**. A implementação atual na branch `main` usa Event Sourcing com [FACTSTR](https://github.com/ricofritzsche/factstr) como registro autoritativo. A variante relacional é uma referência histórica, não uma branch remota ativa mantida em paralelo.
 
 > **Escopo educacional:** não é uma solução de procurement pronta para produção. A lista de pendências operacionais está em [Preparação para operação real](#pendências-para-operação-real). A projeção persistida é específica para resumos de RFQs, não é uma solução genérica de analytics e ainda não foi validada por benchmarks de alto volume.
 
@@ -16,7 +16,7 @@ Este repositório continua sendo uma referência educacional. Os itens abaixo pe
 |---|---|---|
 | [ ] | Segurança | Autenticação, autorização por capability/fornecedor, gestão de segredos, rate limiting e limites de payload. Testes negativos de acesso indevido. |
 | [~] | Idempotência HTTP | `Idempotency-Key`, fingerprint, replay e bloqueio conservador implementados; ainda exige reconciliação operacional, observabilidade e testes de recuperação antes de produção. |
-| [~] | Application State Provider | Porta tipada e adaptador FACTSTR implementados nesta mudança; exigir suíte de contrato/CCC verde e revisão do diff antes do merge. |
+| [x] | Application State Provider | Porta tipada e adaptador FACTSTR presentes na `main`; manter testes de contrato/CCC como gate de regressão. |
 | [ ] | Contratos de API | Evoluir OpenAPI para cobrir todos os schemas de resposta, erros, códigos HTTP e política de versionamento; validar compatibilidade automática. |
 | [ ] | Erros e dados sensíveis | Respostas 5xx genéricas e estáveis; detalhes técnicos apenas nos logs; correlação de requisição sem vazar dados sensíveis. |
 | [ ] | Observabilidade | Métricas para latência/erros de comandos, CCC conflicts, atraso da projeção, falhas de handler, cursor e startup; alertas e dashboards. |
@@ -79,7 +79,7 @@ O diagrama descreve o princípio de composição. Na implementação, cada Domai
 - **Domain Capability:** uma coisa que o domínio pode fazer, um Command ou Query.
 - **Request Processing Unit (RPU):** unidade que implementa o caminho completo do pedido até a resposta para uma capability.
 - **Functional Core / Imperative Shell:** decisão pura sobre uma entrada e um contexto explícito; a shell faz consultas ao Event Store, serialização e I/O.
-- **Application State:** fatos autorizados que representam o estado do domínio. Nesta branch, o registro autoritativo é o log append-only administrado por FACTSTR.
+- **Application State:** fatos autorizados que representam o estado do domínio. Na implementação atual, o registro autoritativo é o log append-only administrado por FACTSTR.
 - **Command Context Consistency (CCC):** a decisão só pode ser registrada se o contexto de fatos em que ela se baseou continuar na versão esperada. É aplicado com `EventStore::append_if`.
 - **FACTSTR:** contrato de Event Store para fatos append-only, consultas de contexto, append condicional e streams.
 
@@ -92,6 +92,14 @@ Referências: [Architecture Knowledge Base — conceitos](https://architecture.r
 O ledger HTTP usa um pool limitado dedicado, estado `in_progress`/`completed`/`unknown` e controles de inicialização/checksum próprios. A migration original em `migrations/` permanece preservada para compatibilidade com bancos que já a registraram no migrator SQLx; a cópia em `migrations_idempotency/` é idempotente e tem histórico/checksum próprio. A separação de pool não cria transação distribuída entre FACTSTR e ledger.
 
 Leia [`ADR-0026`](docs/architecture/adr/0026-application-state-provider.md), [`ADR-0027`](docs/architecture/adr/0027-http-idempotency-failure-testing.md), [`guia de testes ASP`](docs/testing/application-state-provider.md), [`testes de idempotência`](docs/testing/http-idempotency-testing.md) e o [`runbook`](docs/operations/http-idempotency.md). Antes de commit/push, execute `bash scripts/run-all.sh` ou as etapas listadas em `docs/PLANO-E-CRITERIOS-DE-ACEITE.md`; commit/push exige `PUSH_TO_GITHUB=YES` explícito.
+
+## Hardening arquitetural — prioridades 1 a 3
+
+- [ADR-0028](docs/architecture/adr/0028-http-error-redaction-request-correlation.md): respostas 500 genéricas, diagnóstico em tracing e `X-Request-Id`.
+- [ADR-0029](docs/architecture/adr/0029-mainline-documentation-and-ci.md): `main` como única branch de trabalho ativa e verificação automática de documentação.
+- [ADR-0030](docs/architecture/adr/0030-rfq-summary-reader-port.md): porta `RfqSummaryReader` para desacoplar as RPUs de consulta do adaptador SQLx.
+
+Essas melhorias preservam regras de negócio, tipos/versionamento de fatos, semântica CCC, status/códigos HTTP existentes e respostas JSON de sucesso. A idempotência continua opt-in por `Idempotency-Key`; as pendências operacionais de segurança e recuperação permanecem abertas.
 
 ## Domain Capabilities implementadas
 
@@ -111,7 +119,7 @@ Os nomes dos fatos têm sufixo `.v1` para tornar explícita a versão do contrat
 
 ## Estratégia de Application State e Event Sourcing
 
-Esta branch não mantém tabelas de negócio `rfqs`, `rfq_items`, `suppliers` ou `supplier_quotes`. As operações autoritativas são fatos no Event Store do FACTSTR. O próprio FACTSTR gerencia suas tabelas internas; a aplicação não deve escrevê-las diretamente.
+A implementação atual não mantém tabelas de negócio `rfqs`, `rfq_items`, `suppliers` ou `supplier_quotes`. As operações autoritativas são fatos no Event Store do FACTSTR. O próprio FACTSTR gerencia suas tabelas internas; a aplicação não deve escrevê-las diretamente.
 
 Fatos centrais:
 
@@ -121,7 +129,7 @@ Fatos centrais:
 - `supplier_quote_submitted.v1`: registra a cotação aceita, linhas, preços em centavos, total, prazo e validade.
 - `rfq_closed.v1`: registra o fechamento da RFQ.
 
-`ListSupplierQuotes` continua mostrando a consulta direta ao log para manter explícita a semântica Event Sourcing. Para consultas de resumo, esta branch também implementa a projeção persistida `rfq_summary_projection`, atualizada pelo stream durável `rfq-summary-projection-v1` do FACTSTR. A projeção é um read model derivado, não uma segunda fonte de verdade.
+`ListSupplierQuotes` continua mostrando a consulta direta ao log para manter explícita a semântica Event Sourcing. Para consultas de resumo, o projeto também implementa a projeção persistida `rfq_summary_projection`, atualizada pelo stream durável `rfq-summary-projection-v1` do FACTSTR. A projeção é um read model derivado, não uma segunda fonte de verdade.
 
 ### Projeção de leitura `rfq_summary_projection`
 
@@ -342,12 +350,11 @@ Como a projeção é eventualmente consistente, um resumo pode não estar dispon
 
 Contrato OpenAPI: [`docs/openapi.yaml`](docs/openapi.yaml). A decisão arquitetural, escopos CCC e limites do backend estão em [`docs/architecture-event-sourcing-factstr.md`](docs/architecture-event-sourcing-factstr.md).
 
-## Comparar com a implementação relacional
+## Comparar com a implementação relacional histórica
 
-- `main`: implementação relacional original, com tabelas de Application State, locks/constraints e testes concorrentes da API.
-- `event-sourcing-factstr`: esta variante; FACTSTR é a fonte de verdade, e CCC ocorre via `append_if` de uma query de fatos. Registro de fornecedor e definição de elegibilidade são capabilities separadas.
+A branch remota ativa `main` contém a implementação baseada em FACTSTR descrita neste README. A variante relacional não é mantida como uma branch remota paralela. Quando os commits históricos correspondentes estiverem disponíveis no clone ou em um bundle de backup, use seus SHAs explícitos para comparar a estrutura, as garantias de concorrência e os testes; não dependa do nome de uma branch removida.
 
-Compare as implementações com `git diff main...event-sourcing-factstr` ou alterne de branch. São duas estratégias para o mesmo recorte de domínio, não uma migração que remove a implementação original.
+Esta comparação é histórica e não altera o modelo de domínio atual nem implica que a aplicação esteja pronta para produção.
 
 ## Limites conhecidos e trade-offs
 
@@ -355,7 +362,7 @@ Compare as implementações com `git diff main...event-sourcing-factstr` ou alte
 - O Event Store tem sequência global. O isolamento lógico do CCC depende de filtros/predicados corretos; filtros largos demais geram conflitos desnecessários, e filtros estreitos demais podem permitir decisões inválidas. A identidade do fornecedor é um fato separado e sua referência natural não pode ser renomeada neste exemplo; caso o domínio precise de renomeação, represente-a com uma capability/fato específico e defina a semântica de unicidade para o histórico.
 - **Trade-off da implementação PostgreSQL atual do FACTSTR:** a versão `factstr-postgres 0.5.2` serializa appends obtendo `LOCK TABLE events, append_batches IN EXCLUSIVE MODE` e, em seguida, revalida o contexto filtrado. Portanto, o `append_if` oferece a garantia CCC correta, mas append throughput pode ser limitado pela serialização global do backend; o filtro de contexto evita conflitos semânticos entre comandos independentes, mas não elimina esse gargalo físico. Ver [implementação `append_if_with_pool` e `lock_events_tables`](https://github.com/ricofritzsche/factstr/blob/main/factstr-postgres/src/postgres_store.rs). Reavalie esse comportamento conforme a versão usada e meça throughput/latência antes de assumir alta concorrência.
 - Todos os contratos de evento são JSON versionado por nome. Evoluções futuras precisam de uma política de compatibilidade e replay.
-- Não há idempotency key para repetições de rede. A regra “uma cotação por RFQ/fornecedor” é protegida pela query de contexto e `append_if`, não por uma tabela unique da aplicação.
+- A idempotência HTTP é opcional: sem `Idempotency-Key`, não há garantia de deduplicação de uma repetição de rede. A regra “uma cotação por RFQ/fornecedor” é protegida pela query de contexto e `append_if`, não por uma tabela unique da aplicação.
 - O resumo da RFQ é uma projeção eventualmente consistente; as capacidades de comando continuam lendo o Event Store. A implementação não deve ser tratada como arquitetura de alta escala sem benchmarks end-to-end e medição do atraso dos consumidores.
 
 

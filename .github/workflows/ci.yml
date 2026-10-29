@@ -2,9 +2,9 @@ name: Rust CI
 
 on:
   push:
-    branches: [main, event-sourcing-factstr]
+    branches: [main]
   pull_request:
-    branches: [main, event-sourcing-factstr]
+    branches: [main]
   workflow_dispatch:
 
 jobs:
@@ -49,6 +49,13 @@ jobs:
           node-version: 22
       - name: Validate all Mermaid diagrams embedded in Markdown
         run: sh scripts/verify-mermaid-diagrams.sh
+
+  documentation-current-state:
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+      - name: Verify README, ADR index and active branch policy
+        run: bash scripts/verify-documentation-current-state.sh
 
   mutation-testing:
     if: github.event_name == 'workflow_dispatch'

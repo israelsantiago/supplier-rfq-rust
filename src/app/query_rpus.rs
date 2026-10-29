@@ -10,20 +10,23 @@ use crate::{
             self, ListSupplierQuotesError, ListSupplierQuotesRequest, QuoteView,
         },
     },
-    projections::rfq_summary_projection::{RfqSummary, RfqSummaryPage, RfqSummaryProjection},
+    projections::rfq_summary_reader::{RfqSummary, RfqSummaryPage, RfqSummaryReader},
 };
 
 pub struct QueryRpus {
     state: Arc<dyn ApplicationStateProvider>,
-    projection: Arc<RfqSummaryProjection>,
+    summary_reader: Arc<dyn RfqSummaryReader>,
 }
 
 impl QueryRpus {
     pub fn new(
         state: Arc<dyn ApplicationStateProvider>,
-        projection: Arc<RfqSummaryProjection>,
+        summary_reader: Arc<dyn RfqSummaryReader>,
     ) -> Self {
-        Self { state, projection }
+        Self {
+            state,
+            summary_reader,
+        }
     }
 
     pub fn list_supplier_quotes(
@@ -36,12 +39,12 @@ impl QueryRpus {
         &self,
         request: GetRfqSummaryRequest,
     ) -> Result<RfqSummary, GetRfqSummaryError> {
-        get_rfq_summary::process(self.projection.as_ref(), request).await
+        get_rfq_summary::process(self.summary_reader.as_ref(), request).await
     }
     pub async fn list_rfq_summaries(
         &self,
         request: ListRfqSummariesRequest,
     ) -> Result<RfqSummaryPage, ListRfqSummariesError> {
-        list_rfq_summaries::process(self.projection.as_ref(), request).await
+        list_rfq_summaries::process(self.summary_reader.as_ref(), request).await
     }
 }

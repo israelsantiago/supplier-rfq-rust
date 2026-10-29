@@ -44,8 +44,15 @@ fn error_response(status: StatusCode, code: &'static str, message: impl Into<Str
         .into_response()
 }
 
-fn internal_error(message: impl Into<String>) -> Response {
-    error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", message)
+fn internal_error(error: impl std::fmt::Display) -> Response {
+    // Preserve o diagnóstico nos logs, nunca no corpo HTTP enviado ao cliente.
+    // O evento fica correlacionado ao span `http_request` criado pelo middleware.
+    tracing::error!(error = %error, "request failed because of an internal error");
+    error_response(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "internal_error",
+        "An internal error occurred. Use X-Request-Id when contacting support.",
+    )
 }
 
 pub async fn health() -> impl IntoResponse {
@@ -292,5 +299,32 @@ pub async fn list_supplier_quotes(
         Ok(Ok(None)) => error_response(StatusCode::NOT_FOUND, "rfq_not_found", "RFQ was not found"),
         Ok(Err(error)) => internal_error(error.to_string()),
         Err(error) => internal_error(error.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod internal_error_redaction_tests {
+    use super::internal_error;
+    use axum::{body::to_bytes, http::StatusCode};
+
+    #[tokio::test]
+    async fn internal_error_redacts_database_and_secret_details_from_http_body() {
+        let response =
+            internal_error("postgres://user:secret@db/private_schema: password rejected");
+        assert_eq!(
+            response.status().as_u16(),
+            StatusCode::INTERNAL_SERVER_ERROR.as_u16()
+        );
+
+        let body = to_bytes(response.into_body(), 8 * 1024)
+            .await
+            .expect("error response body should be readable");
+        let body = String::from_utf8(body.to_vec()).expect("JSON body should be UTF-8");
+
+        assert!(body.contains("internal_error"));
+        assert!(body.contains("X-Request-Id"));
+        assert!(!body.contains("postgres://"));
+        assert!(!body.contains("secret"));
+        assert!(!body.contains("private_schema"));
     }
 }

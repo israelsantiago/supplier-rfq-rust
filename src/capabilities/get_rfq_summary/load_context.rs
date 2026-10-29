@@ -1,11 +1,11 @@
 use uuid::Uuid;
 
-use crate::projections::rfq_summary_projection::{RfqSummary, RfqSummaryProjection};
+use crate::projections::rfq_summary_reader::{RfqSummary, RfqSummaryReadError, RfqSummaryReader};
 
 /// Shell de leitura: não interpreta a ausência do resumo como erro de negócio.
 pub(super) async fn load_context(
-    projection: &RfqSummaryProjection,
+    reader: &dyn RfqSummaryReader,
     rfq_id: Uuid,
-) -> Result<Option<RfqSummary>, sqlx::Error> {
-    projection.get(rfq_id).await
+) -> Result<Option<RfqSummary>, RfqSummaryReadError> {
+    reader.get(rfq_id).await
 }

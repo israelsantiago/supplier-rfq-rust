@@ -1,6 +1,6 @@
 # Guia de design: Domain Capabilities, RPU, Functional Core, CCC e FACTSTR
 
-> Este documento descreve a intenção arquitetural da branch `event-sourcing-factstr`. É um guia de implementação e revisão, não uma declaração de prontidão para produção.
+> Este documento descreve a implementação arquitetural atual da branch `main`. É um guia de implementação e revisão, não uma declaração de prontidão para produção.
 
 ## 1. A unidade arquitetural é a capability
 
