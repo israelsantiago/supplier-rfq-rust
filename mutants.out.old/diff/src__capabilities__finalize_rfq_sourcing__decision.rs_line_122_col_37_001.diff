@@ -1,0 +1,21 @@
+--- src/capabilities/finalize_rfq_sourcing/decision.rs
++++ replace > with < in decide
+@@ -114,17 +114,17 @@
+     match context.supplier_status {
+         None => return Err(SourcingRejection::SupplierEligibilityNotSet),
+         Some(SupplierStatus::Blocked) => return Err(SourcingRejection::SupplierNotEligible),
+         Some(SupplierStatus::Eligible) => {}
+     }
+     if context.supplier_quote_count == 0 {
+         return Err(SourcingRejection::QuoteNotFound);
+     }
+-    if context.supplier_quote_count > 1 {
++    if context.supplier_quote_count < /* ~ changed by cargo-mutants ~ */ 1 {
+         return Err(SourcingRejection::DuplicateSupplierQuote);
+     }
+     let quote = context
+         .selected_quote
+         .as_ref()
+         .ok_or(SourcingRejection::QuoteNotFound)?;
+ 
+     if quote.rfq_id != request.rfq_id

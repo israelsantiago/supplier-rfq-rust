@@ -4,8 +4,11 @@ use std::sync::Arc;
 use factstr_postgres::PostgresStore;
 
 use crate::{
-    app::{CommandRpus, QueryRpus},
-    application_state::{ApplicationStateProvider, factstr::FactstrApplicationStateProvider},
+    app::{CommandRpus, QueryRpus, atomic_sourcing_flow::AtomicSourcingFlow},
+    application_state::{
+        ApplicationStateProvider, atomic_sourcing_factstr::FactstrAtomicSourcingStateProvider,
+        factstr::FactstrApplicationStateProvider,
+    },
     http::idempotency::HttpIdempotencyStore,
     projections::rfq_summary_projection::RfqSummaryProjection,
     providers::{ClockProvider, IdProvider, SystemClockProvider, UuidV4Provider},
@@ -15,6 +18,9 @@ use crate::{
 pub struct ApiState {
     pub commands: Arc<CommandRpus>,
     pub queries: Arc<QueryRpus>,
+    /// Present in the production composition root; absent only when tests inject
+    /// an abstract ApplicationStateProvider without a concrete FACTSTR store.
+    pub atomic_sourcing: Option<Arc<AtomicSourcingFlow>>,
     pub http_idempotency_store: HttpIdempotencyStore,
 }
 
@@ -49,16 +55,23 @@ impl ApiState {
         idempotency_store: HttpIdempotencyStore,
     ) -> Self {
         let application_state: Arc<dyn ApplicationStateProvider> =
-            Arc::new(FactstrApplicationStateProvider::new(store));
+            Arc::new(FactstrApplicationStateProvider::new(Arc::clone(&store)));
         let commands = Arc::new(CommandRpus::new(
             Arc::clone(&application_state),
+            Arc::clone(&clock_provider),
+            Arc::clone(&id_provider),
+        ));
+        let queries = Arc::new(QueryRpus::new(application_state, projection));
+        let atomic_sourcing_state = Arc::new(FactstrAtomicSourcingStateProvider::new(store));
+        let atomic_sourcing = Arc::new(AtomicSourcingFlow::new(
+            atomic_sourcing_state,
             clock_provider,
             id_provider,
         ));
-        let queries = Arc::new(QueryRpus::new(application_state, projection));
         Self {
             commands,
             queries,
+            atomic_sourcing: Some(atomic_sourcing),
             http_idempotency_store: idempotency_store,
         }
     }
@@ -80,6 +93,7 @@ impl ApiState {
         Self {
             commands,
             queries,
+            atomic_sourcing: None,
             http_idempotency_store: idempotency_store,
         }
     }

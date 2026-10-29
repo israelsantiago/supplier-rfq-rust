@@ -107,3 +107,7 @@ A Imperative Shell obtém tempo e IDs por `ClockProvider` e `IdProvider`. O Func
 A semântica adotada é horário estável de submissão por execução lógica. Se um requisito fiscal/comercial exigir validação de validade no instante da aceitação, separar `submitted_at` de `decision_at`/`accepted_at`, mudar a decisão explicitamente e adicionar testes para a nova regra; essa alternativa não deve ser inferida incidentalmente do retry.
 
 Decisões relacionadas: [catálogo de ADRs](architecture/adr/README.md), especialmente ADR-0010 e ADR-0011.
+
+## Fluxo adicional: finalização atômica de sourcing
+
+O fluxo normal mantém as RPUs de comando independentes e seus commits individuais. O novo `FinalizeRfqSourcing` é uma capability separada que não chama essas shells: usa uma query CCC composta e um único `append_if` para registrar fechamento, adjudicação, pedido e intenção de despacho numa única batch. A lista de cotações revista pelo comprador é protegida também por `expected_quote_set_version`; um token obsoleto causa rejeição sem retry silencioso. Ver [ADR-0031](architecture/adr/0031-atomic-rfq-sourcing-finalization.md) e [diagramas / cenários de concorrência](flows/atomic-rfq-sourcing.md).

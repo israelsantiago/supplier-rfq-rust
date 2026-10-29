@@ -189,6 +189,38 @@ paths:
                               format: int64
         '404':
           description: RFQ não encontrada
+  /api/rfqs/{rfq_id}/finalize-sourcing:
+    post:
+      summary: FinalizeRfqSourcing — fecha RFQ, adjudica cotação, cria PO e grava intenção de despacho num único batch FACTSTR
+      operationId: finalizeRfqSourcing
+      parameters:
+        - $ref: '#/components/parameters/RfqId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinalizeRfqSourcingRequest'
+      responses:
+        '200':
+          description: Os quatro fatos do sourcing foram confirmados atomicamente no FACTSTR. O despacho externo ainda não foi confirmado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FinalizeRfqSourcingResponse'
+        '404':
+          description: RFQ, fornecedor ou cotação não encontrados.
+        '409':
+          description: Seleção obsoleta, conflito CCC, RFQ já fechada/finalizada ou fornecedor inelegível.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '503':
+          description: Composição de aplicação sem o fluxo atômico configurado.
   /api/rfqs/{rfq_id}/close:
     post:
       summary: CloseRfq — registra o fechamento por append condicional
@@ -297,6 +329,81 @@ components:
           type: integer
         offset:
           type: integer
+    FinalizeRfqSourcingRequest:
+      type: object
+      additionalProperties: false
+      required: [supplier_id, quote_id, expected_quote_set_version]
+      properties:
+        supplier_id:
+          type: string
+          format: uuid
+        quote_id:
+          type: string
+          format: uuid
+        expected_quote_set_version:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Maior sequence_number entre as cotações que o comprador realmente reviu; não é a versão CCC da query completa.
+    FinalizeRfqSourcingResponse:
+      type: object
+      required: [closed, awarded, purchase_order, dispatch_requested]
+      properties:
+        closed:
+          $ref: '#/components/schemas/RfqClosedFact'
+        awarded:
+          $ref: '#/components/schemas/RfqAwardedFact'
+        purchase_order:
+          $ref: '#/components/schemas/PurchaseOrderCreatedFact'
+        dispatch_requested:
+          $ref: '#/components/schemas/PurchaseOrderDispatchRequestedFact'
+    RfqClosedFact:
+      type: object
+      additionalProperties: false
+      required: [rfq_id, closed_at]
+      properties:
+        rfq_id: { type: string, format: uuid }
+        closed_at: { type: string, format: date-time }
+    RfqAwardedFact:
+      type: object
+      additionalProperties: false
+      required: [award_id, rfq_id, quote_id, supplier_id, awarded_at, currency, total_amount_cents, delivery_days, valid_until]
+      properties:
+        award_id: { type: string, format: uuid }
+        rfq_id: { type: string, format: uuid }
+        quote_id: { type: string, format: uuid }
+        supplier_id: { type: string, format: uuid }
+        awarded_at: { type: string, format: date-time }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        total_amount_cents: { type: integer, format: int64 }
+        delivery_days: { type: integer, minimum: 1 }
+        valid_until: { type: string, format: date }
+    PurchaseOrderCreatedFact:
+      type: object
+      additionalProperties: false
+      required: [purchase_order_id, rfq_id, supplier_id, source_quote_id, currency, total_amount_cents, delivery_days, created_at, items]
+      properties:
+        purchase_order_id: { type: string, format: uuid }
+        rfq_id: { type: string, format: uuid }
+        supplier_id: { type: string, format: uuid }
+        source_quote_id: { type: string, format: uuid }
+        currency: { type: string, minLength: 3, maxLength: 3 }
+        total_amount_cents: { type: integer, format: int64 }
+        delivery_days: { type: integer, minimum: 1 }
+        created_at: { type: string, format: date-time }
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/QuotedItemFact'
+    PurchaseOrderDispatchRequestedFact:
+      type: object
+      additionalProperties: false
+      required: [dispatch_id, purchase_order_id, rfq_id, requested_at]
+      properties:
+        dispatch_id: { type: string, format: uuid }
+        purchase_order_id: { type: string, format: uuid }
+        rfq_id: { type: string, format: uuid }
+        requested_at: { type: string, format: date-time }
     Error:
       type: object
       required: [code, message]

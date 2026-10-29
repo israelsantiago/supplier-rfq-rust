@@ -1,0 +1,21 @@
+--- src/capabilities/register_supplier/build_context.rs
++++ replace == with != in RegisterSupplierContext::contains_reference
+@@ -31,17 +31,17 @@
+         self.identities
+             .iter()
+             .any(|identity| identity.supplier_id == id)
+     }
+ 
+     pub(super) fn contains_reference(&self, reference: &str) -> bool {
+         self.identities
+             .iter()
+-            .any(|identity| identity.reference == reference)
++            .any(|identity| identity.reference != /* ~ changed by cargo-mutants ~ */ reference)
+     }
+ }
+ 
+ #[cfg(test)]
+ mod functional_core_tests {
+     use super::*;
+     use chrono::Utc;
+ 

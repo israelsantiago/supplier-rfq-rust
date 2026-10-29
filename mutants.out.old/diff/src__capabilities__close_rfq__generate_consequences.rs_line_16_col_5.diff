@@ -1,0 +1,31 @@
+--- src/capabilities/close_rfq/generate_consequences.rs
++++ replace generate_consequences -> Result<RfqClosedFact, CloseRfqError> with Ok(Default::default())
+@@ -8,27 +8,17 @@
+ };
+ 
+ /// Decisão pura: verifica o ciclo de vida e constrói o fato com horário fornecido pelo shell.
+ pub(super) fn generate_consequences(
+     request: CloseRfqRequest,
+     context: &RfqLifecycleContext,
+     closed_at: DateTime<Utc>,
+ ) -> Result<RfqClosedFact, CloseRfqError> {
+-    if !context.opened {
+-        return Err(CloseRfqRejection::RfqNotFound.into());
+-    }
+-    if context.closed {
+-        return Err(CloseRfqRejection::RfqAlreadyClosed.into());
+-    }
+-
+-    Ok(RfqClosedFact {
+-        rfq_id: request.rfq_id,
+-        closed_at,
+-    })
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+ 
+     #[test]
+     fn an_open_rfq_produces_a_close_fact() {

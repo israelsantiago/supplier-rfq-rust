@@ -1,0 +1,101 @@
+--- src/capabilities/finalize_rfq_sourcing/decision.rs
++++ replace decide -> Result<SourcingDecision, SourcingRejection> with Ok(Default::default())
+@@ -92,97 +92,17 @@
+ pub fn decide(
+     request: &FinalizeRfqSourcingRequest,
+     context: &SourcingContext,
+     now: DateTime<Utc>,
+     award_id: Uuid,
+     purchase_order_id: Uuid,
+     dispatch_id: Uuid,
+ ) -> Result<SourcingDecision, SourcingRejection> {
+-    let rfq = context.rfq.as_ref().ok_or(SourcingRejection::RfqNotFound)?;
+-
+-    if context.finalized {
+-        return Err(SourcingRejection::AlreadyFinalized);
+-    }
+-    if context.closed {
+-        return Err(SourcingRejection::RfqAlreadyClosed);
+-    }
+-    if context.latest_quote_sequence_number != Some(request.expected_quote_set_version) {
+-        return Err(SourcingRejection::QuoteSetChanged);
+-    }
+-    if !context.supplier_registered {
+-        return Err(SourcingRejection::SupplierNotRegistered);
+-    }
+-    match context.supplier_status {
+-        None => return Err(SourcingRejection::SupplierEligibilityNotSet),
+-        Some(SupplierStatus::Blocked) => return Err(SourcingRejection::SupplierNotEligible),
+-        Some(SupplierStatus::Eligible) => {}
+-    }
+-    if context.supplier_quote_count == 0 {
+-        return Err(SourcingRejection::QuoteNotFound);
+-    }
+-    if context.supplier_quote_count > 1 {
+-        return Err(SourcingRejection::DuplicateSupplierQuote);
+-    }
+-    let quote = context
+-        .selected_quote
+-        .as_ref()
+-        .ok_or(SourcingRejection::QuoteNotFound)?;
+-
+-    if quote.rfq_id != request.rfq_id
+-        || quote.supplier_id != request.supplier_id
+-        || quote.quote_id != request.quote_id
+-    {
+-        return Err(SourcingRejection::QuoteNotFound);
+-    }
+-    if quote.valid_until < now.date_naive() {
+-        return Err(SourcingRejection::QuoteExpired);
+-    }
+-    if quote.currency != rfq.currency {
+-        return Err(SourcingRejection::CurrencyMismatch);
+-    }
+-    if quote.delivery_days <= 0 {
+-        return Err(SourcingRejection::InvalidDeliveryDays);
+-    }
+-    validate_quote_items(rfq, quote)?;
+-
+-    Ok(SourcingDecision {
+-        closed: RfqClosedFact {
+-            rfq_id: request.rfq_id,
+-            closed_at: now,
+-        },
+-        awarded: RfqAwardedFact {
+-            award_id,
+-            rfq_id: request.rfq_id,
+-            quote_id: quote.quote_id,
+-            supplier_id: quote.supplier_id,
+-            awarded_at: now,
+-            currency: quote.currency.clone(),
+-            total_amount_cents: quote.total_amount_cents,
+-            delivery_days: quote.delivery_days,
+-            valid_until: quote.valid_until,
+-        },
+-        purchase_order: PurchaseOrderCreatedFact {
+-            purchase_order_id,
+-            rfq_id: request.rfq_id,
+-            supplier_id: quote.supplier_id,
+-            source_quote_id: quote.quote_id,
+-            currency: quote.currency.clone(),
+-            total_amount_cents: quote.total_amount_cents,
+-            delivery_days: quote.delivery_days,
+-            created_at: now,
+-            items: quote.items.clone(),
+-        },
+-        dispatch_requested: PurchaseOrderDispatchRequestedFact {
+-            dispatch_id,
+-            purchase_order_id,
+-            rfq_id: request.rfq_id,
+-            requested_at: now,
+-        },
+-    })
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn validate_quote_items(
+     rfq: &RfqOpenedFact,
+     quote: &SupplierQuoteSubmittedFact,
+ ) -> Result<(), SourcingRejection> {
+     if rfq.items.is_empty() {
+         return Err(SourcingRejection::EmptyRfq);

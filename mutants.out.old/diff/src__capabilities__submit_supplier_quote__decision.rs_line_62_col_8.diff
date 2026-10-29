@@ -1,0 +1,21 @@
+--- src/capabilities/submit_supplier_quote/decision.rs
++++ delete ! in decide
+@@ -54,17 +54,17 @@
+ ) -> Result<SupplierQuoteSubmittedFact, SubmissionRejection> {
+     let rfq = context
+         .rfq
+         .as_ref()
+         .ok_or(SubmissionRejection::RfqNotFound)?;
+     if context.closed {
+         return Err(SubmissionRejection::RfqClosed);
+     }
+-    if !context.supplier_registered {
++    if  /* ~ changed by cargo-mutants ~ */context.supplier_registered {
+         return Err(SubmissionRejection::SupplierNotRegistered);
+     }
+     match context.supplier_status {
+         None => return Err(SubmissionRejection::SupplierEligibilityNotSet),
+         Some(SupplierStatus::Blocked) => return Err(SubmissionRejection::SupplierNotEligible),
+         Some(SupplierStatus::Eligible) => {}
+     }
+     if context.already_submitted {

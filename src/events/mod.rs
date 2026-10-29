@@ -10,6 +10,9 @@ pub const RFQ_CLOSED_V1: &str = "rfq_closed.v1";
 pub const SUPPLIER_REGISTERED_V1: &str = "supplier_registered.v1";
 pub const SUPPLIER_ELIGIBILITY_CHANGED_V1: &str = "supplier_eligibility_changed.v1";
 pub const SUPPLIER_QUOTE_SUBMITTED_V1: &str = "supplier_quote_submitted.v1";
+pub const RFQ_AWARDED_V1: &str = "rfq_awarded.v1";
+pub const PURCHASE_ORDER_CREATED_V1: &str = "purchase_order_created.v1";
+pub const PURCHASE_ORDER_DISPATCH_REQUESTED_V1: &str = "purchase_order_dispatch_requested.v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -78,4 +81,46 @@ pub struct SupplierQuoteSubmittedFact {
     pub valid_until: NaiveDate,
     pub submitted_at: DateTime<Utc>,
     pub items: Vec<QuotedItemFact>,
+}
+
+/// Buyer-approved award; immutable audit fact for the selected quote.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RfqAwardedFact {
+    pub award_id: Uuid,
+    pub rfq_id: Uuid,
+    pub quote_id: Uuid,
+    pub supplier_id: Uuid,
+    pub awarded_at: DateTime<Utc>,
+    pub currency: String,
+    pub total_amount_cents: i64,
+    pub delivery_days: i32,
+    pub valid_until: NaiveDate,
+}
+
+/// Purchase-order intent recorded with the award in the same atomic event batch.
+/// This is a domain record, not proof that an external ERP accepted the order.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PurchaseOrderCreatedFact {
+    pub purchase_order_id: Uuid,
+    pub rfq_id: Uuid,
+    pub supplier_id: Uuid,
+    pub source_quote_id: Uuid,
+    pub currency: String,
+    pub total_amount_cents: i64,
+    pub delivery_days: i32,
+    pub created_at: DateTime<Utc>,
+    pub items: Vec<QuotedItemFact>,
+}
+
+/// Durable integration intent. A downstream dispatcher publishes it after the commit;
+/// retries/deduplication are required because the external system is outside FACTSTR's tx.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PurchaseOrderDispatchRequestedFact {
+    pub dispatch_id: Uuid,
+    pub purchase_order_id: Uuid,
+    pub rfq_id: Uuid,
+    pub requested_at: DateTime<Utc>,
 }

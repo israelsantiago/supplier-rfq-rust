@@ -1,0 +1,29 @@
+--- src/capabilities/register_supplier/build_context.rs
++++ replace build_context -> RegisterSupplierContext with Default::default()
+@@ -10,25 +10,17 @@
+ 
+ #[derive(Debug, Clone, Default)]
+ pub(super) struct RegisterSupplierContext {
+     identities: Vec<SupplierIdentity>,
+ }
+ 
+ /// Construção pura do contexto mínimo necessário à regra de unicidade.
+ pub(super) fn build_context(facts: Vec<SupplierRegisteredFact>) -> RegisterSupplierContext {
+-    RegisterSupplierContext {
+-        identities: facts
+-            .into_iter()
+-            .map(|fact| SupplierIdentity {
+-                supplier_id: fact.supplier_id,
+-                reference: fact.reference,
+-            })
+-            .collect(),
+-    }
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ impl RegisterSupplierContext {
+     pub(super) fn contains_id(&self, id: Uuid) -> bool {
+         self.identities
+             .iter()
+             .any(|identity| identity.supplier_id == id)
+     }

@@ -19,10 +19,8 @@ use supplier_rfq_rpu_rust::{
     projections::rfq_summary_projection::RfqSummaryProjection,
     providers::UuidV4Provider,
 };
-use testcontainers_modules::{
-    postgres::Postgres,
-    testcontainers::{ContainerAsync, ImageExt, runners::AsyncRunner},
-};
+#[path = "common/postgres.rs"]
+mod test_postgres;
 use tokio::{net::TcpListener, sync::Barrier as TokioBarrier, task::JoinHandle};
 use uuid::Uuid;
 
@@ -38,8 +36,8 @@ struct TestApp {
     store: Arc<PostgresStore>,
     _projection: Arc<RfqSummaryProjection>,
     server_task: JoinHandle<()>,
-    // Keep PostgreSQL alive until the server and all FACTSTR handles are dropped.
-    _container: ContainerAsync<Postgres>,
+    // Identifica o banco exclusivo deste teste; o container é compartilhado pelo processo.
+    _test_database: test_postgres::TestDatabase,
 }
 
 impl Drop for TestApp {
@@ -49,24 +47,8 @@ impl Drop for TestApp {
 }
 
 async fn spawn_app() -> TestApp {
-    let container = Postgres::default()
-        .with_db_name("supplier_rfq")
-        .with_user("rfq_user")
-        .with_password("rfq_password")
-        .with_tag("16-alpine")
-        .start()
-        .await
-        .expect("PostgreSQL Testcontainer must start; Docker must be available");
-
-    let host = container
-        .get_host()
-        .await
-        .expect("container host must be available");
-    let port = container
-        .get_host_port_ipv4(5432)
-        .await
-        .expect("mapped PostgreSQL port must be available");
-    let database_url = format!("postgres://rfq_user:rfq_password@{host}:{port}/supplier_rfq");
+    let test_database = test_postgres::create_isolated_database().await;
+    let database_url = test_database.database_url.clone();
     let url_for_connect = database_url.clone();
     let store = Arc::new(
         tokio::task::spawn_blocking(move || PostgresStore::connect(&url_for_connect))
@@ -107,7 +89,7 @@ async fn spawn_app() -> TestApp {
         store,
         _projection: projection,
         server_task,
-        _container: container,
+        _test_database: test_database,
     }
 }
 
@@ -1608,4 +1590,124 @@ async fn http_idempotency_rejects_same_key_with_different_request() {
     assert_eq!(second.status(), StatusCode::CONFLICT);
     let error: Value = second.json().await.unwrap();
     assert_eq!(error["code"], "idempotency_key_reused");
+}
+
+// Additive API acceptance test; existing tests remain unchanged.
+#[tokio::test]
+async fn finalize_rfq_sourcing_endpoint_returns_the_atomic_business_result() {
+    let app = spawn_app().await;
+    let client = Client::new();
+    let quote_body = json!({
+        "supplier_id": SUPPLIER_ELIGIBLE_ID,
+        "currency": "BRL",
+        "delivery_days": 5,
+        "valid_until": "2099-12-31",
+        "items": [
+            {"rfq_item_id": ITEM_A_ID, "quantity": 10, "unit_price_cents": 100},
+            {"rfq_item_id": ITEM_B_ID, "quantity": 5, "unit_price_cents": 200}
+        ]
+    });
+    let submitted = client
+        .post(format!("{}/api/rfqs/{RFQ_ID}/quotes", app.base_url))
+        .json(&quote_body)
+        .send()
+        .await
+        .expect("quote submission request should complete");
+    assert_eq!(submitted.status(), StatusCode::CREATED);
+
+    let quote_list: Value = client
+        .get(format!("{}/api/rfqs/{RFQ_ID}/quotes", app.base_url))
+        .send()
+        .await
+        .expect("quote list request should complete")
+        .error_for_status()
+        .expect("quote list should return 200")
+        .json()
+        .await
+        .expect("quote list response should be JSON");
+    let quotes = quote_list["quotes"]
+        .as_array()
+        .expect("quotes array is required");
+    let selected_quote = quotes
+        .iter()
+        .find(|quote| quote["supplier_id"] == SUPPLIER_ELIGIBLE_ID)
+        .expect("submitted quote must appear in the quote view");
+    let selected_quote_id = selected_quote["quote_id"]
+        .as_str()
+        .expect("quote_id must be a string")
+        .to_owned();
+    let quote_set_version = quotes
+        .iter()
+        .filter_map(|quote| quote["sequence_number"].as_u64())
+        .max()
+        .expect("at least one quote must have a sequence number");
+
+    let response = client
+        .post(format!(
+            "{}/api/rfqs/{RFQ_ID}/finalize-sourcing",
+            app.base_url
+        ))
+        .json(&json!({
+            "supplier_id": SUPPLIER_ELIGIBLE_ID,
+            "quote_id": selected_quote_id,
+            "expected_quote_set_version": quote_set_version
+        }))
+        .send()
+        .await
+        .expect("sourcing finalization request should complete");
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: Value = response
+        .json()
+        .await
+        .expect("finalization response should be JSON");
+    assert_eq!(body["closed"]["rfq_id"], RFQ_ID);
+    assert_eq!(body["awarded"]["quote_id"], selected_quote_id);
+    assert_eq!(body["purchase_order"]["source_quote_id"], selected_quote_id);
+    assert_eq!(
+        body["dispatch_requested"]["purchase_order_id"],
+        body["purchase_order"]["purchase_order_id"]
+    );
+
+    let count = tokio::task::spawn_blocking({
+        let store = Arc::clone(&app.store);
+        move || {
+            let query = EventQuery::all().with_filters([
+                EventFilter::for_event_types(["rfq_closed.v1"])
+                    .with_payload_predicates([json!({"rfq_id": RFQ_ID})]),
+                EventFilter::for_event_types(["rfq_awarded.v1"])
+                    .with_payload_predicates([json!({"rfq_id": RFQ_ID})]),
+                EventFilter::for_event_types(["purchase_order_created.v1"])
+                    .with_payload_predicates([json!({"rfq_id": RFQ_ID})]),
+                EventFilter::for_event_types(["purchase_order_dispatch_requested.v1"])
+                    .with_payload_predicates([json!({"rfq_id": RFQ_ID})]),
+            ]);
+            store
+                .as_ref()
+                .query(&query)
+                .expect("atomic sourcing facts should be queryable")
+                .event_records
+                .len()
+        }
+    })
+    .await
+    .expect("event count task should complete");
+    assert_eq!(
+        count, 4,
+        "all four facts must appear together for one successful finalization"
+    );
+
+    // The existing quote RPU is not reused by the composite flow. Its unchanged CCC
+    // context still observes the atomically appended rfq_closed.v1 when called afterward.
+    let quote_after_close = client
+        .post(format!("{}/api/rfqs/{RFQ_ID}/quotes", app.base_url))
+        .json(&quote_body)
+        .send()
+        .await
+        .expect("quote request after close should complete");
+    assert_eq!(quote_after_close.status(), StatusCode::CONFLICT);
+    let error: Value = quote_after_close
+        .json()
+        .await
+        .expect("conflict response should be JSON");
+    assert_eq!(error["code"], "rfq_closed");
 }

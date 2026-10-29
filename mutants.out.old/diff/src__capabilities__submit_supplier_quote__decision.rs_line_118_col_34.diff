@@ -1,0 +1,21 @@
+--- src/capabilities/submit_supplier_quote/decision.rs
++++ replace <= with > in decide_for_rfq
+@@ -110,17 +110,17 @@
+             .all(|item_id| required_by_id.contains_key(item_id))
+     {
+         return Err(SubmissionRejection::ItemSetMismatch);
+     }
+ 
+     let mut total_amount_cents = 0_i64;
+     let mut quoted_items = Vec::with_capacity(request.items.len());
+     for item in &request.items {
+-        if item.unit_price_cents <= 0 {
++        if item.unit_price_cents > /* ~ changed by cargo-mutants ~ */ 0 {
+             return Err(SubmissionRejection::InvalidUnitPrice);
+         }
+         // A validação do conjunto de IDs acima prova que esta chave existe.
+         let required_quantity = required_by_id[&item.rfq_item_id];
+         if item.quantity != required_quantity {
+             return Err(SubmissionRejection::QuantityMismatch);
+         }
+         if item.quantity <= 0 {

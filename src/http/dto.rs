@@ -151,6 +151,16 @@ impl From<SubmitSupplierQuoteBody> for SubmitSupplierQuoteRequest {
 }
 
 /// DTO de query string, parte do contrato HTTP.
+/// HTTP input for the explicit buyer decision to finalize sourcing.
+/// `expected_quote_set_version` is the maximum quote `sequence_number` shown to the buyer.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FinalizeRfqSourcingBody {
+    pub supplier_id: Uuid,
+    pub quote_id: Uuid,
+    pub expected_quote_set_version: u64,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct RfqSummaryListQuery {
     pub status: Option<String>,

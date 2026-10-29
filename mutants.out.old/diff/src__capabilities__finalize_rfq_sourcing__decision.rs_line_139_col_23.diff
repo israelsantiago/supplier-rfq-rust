@@ -1,0 +1,21 @@
+--- src/capabilities/finalize_rfq_sourcing/decision.rs
++++ replace != with == in decide
+@@ -131,17 +131,17 @@
+         || quote.supplier_id != request.supplier_id
+         || quote.quote_id != request.quote_id
+     {
+         return Err(SourcingRejection::QuoteNotFound);
+     }
+     if quote.valid_until < now.date_naive() {
+         return Err(SourcingRejection::QuoteExpired);
+     }
+-    if quote.currency != rfq.currency {
++    if quote.currency == /* ~ changed by cargo-mutants ~ */ rfq.currency {
+         return Err(SourcingRejection::CurrencyMismatch);
+     }
+     if quote.delivery_days <= 0 {
+         return Err(SourcingRejection::InvalidDeliveryDays);
+     }
+     validate_quote_items(rfq, quote)?;
+ 
+     Ok(SourcingDecision {

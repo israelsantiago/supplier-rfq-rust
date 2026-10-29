@@ -10,7 +10,7 @@ pub(super) enum SubmissionContextFact {
     SupplierQuoteSubmitted,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct RfqSubmissionContext {
     pub rfq: Option<RfqOpenedFact>,
     pub closed: bool,
@@ -21,13 +21,7 @@ pub struct RfqSubmissionContext {
 
 /// Core puro: reduz os fatos tipados ao contexto explícito usado pela decisão.
 pub(super) fn build_context(facts: &[SubmissionContextFact]) -> RfqSubmissionContext {
-    let mut context = RfqSubmissionContext {
-        rfq: None,
-        closed: false,
-        supplier_registered: false,
-        supplier_status: None,
-        already_submitted: false,
-    };
+    let mut context = RfqSubmissionContext::default();
 
     for fact in facts {
         match fact {
@@ -64,6 +58,16 @@ mod functional_core_tests {
                 required_quantity: 1,
             }],
         }
+    }
+
+    #[test]
+    fn default_context_represents_no_observed_facts() {
+        let context = RfqSubmissionContext::default();
+        assert!(context.rfq.is_none());
+        assert!(!context.closed);
+        assert!(!context.supplier_registered);
+        assert!(context.supplier_status.is_none());
+        assert!(!context.already_submitted);
     }
 
     #[test]

@@ -1,0 +1,21 @@
+--- src/capabilities/finalize_rfq_sourcing/decision.rs
++++ replace != with == in decide
+@@ -100,17 +100,17 @@
+     let rfq = context.rfq.as_ref().ok_or(SourcingRejection::RfqNotFound)?;
+ 
+     if context.finalized {
+         return Err(SourcingRejection::AlreadyFinalized);
+     }
+     if context.closed {
+         return Err(SourcingRejection::RfqAlreadyClosed);
+     }
+-    if context.latest_quote_sequence_number != Some(request.expected_quote_set_version) {
++    if context.latest_quote_sequence_number == /* ~ changed by cargo-mutants ~ */ Some(request.expected_quote_set_version) {
+         return Err(SourcingRejection::QuoteSetChanged);
+     }
+     if !context.supplier_registered {
+         return Err(SourcingRejection::SupplierNotRegistered);
+     }
+     match context.supplier_status {
+         None => return Err(SourcingRejection::SupplierEligibilityNotSet),
+         Some(SupplierStatus::Blocked) => return Err(SourcingRejection::SupplierNotEligible),

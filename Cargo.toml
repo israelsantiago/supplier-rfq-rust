@@ -38,3 +38,8 @@ unsafe_code = "forbid"
 
 [lints.clippy]
 all = "warn"
+
+[[test]]
+name = "acceptance_atomic_sourcing"
+path = "tests/acceptance_atomic_sourcing.rs"
+required-features = ["test-support"]

@@ -47,6 +47,10 @@ pub fn router(state: ApiState) -> Router {
         .route("/api/suppliers", post(handlers::register_supplier))
         .route("/api/rfqs/{rfq_id}/close", post(handlers::close_rfq))
         .route(
+            "/api/rfqs/{rfq_id}/finalize-sourcing",
+            post(handlers::finalize_rfq_sourcing),
+        )
+        .route(
             "/api/rfqs/{rfq_id}/quotes",
             post(handlers::submit_supplier_quote).get(handlers::list_supplier_quotes),
         )

@@ -329,6 +329,31 @@ mod tests {
     }
 
     #[test]
+    fn accepts_quote_valid_until_today() {
+        let (mut request, context) = fixture();
+        let now = fixed_now();
+        request.valid_until = now.date_naive();
+
+        let accepted = decide(&request, &context, Uuid::from_u128(3), now)
+            .expect("valid_until is inclusive for the decision calendar date");
+        assert_eq!(accepted.valid_until, now.date_naive());
+        assert_eq!(accepted.submitted_at, now);
+    }
+
+    #[test]
+    fn accepts_quote_valid_until_tomorrow() {
+        let (mut request, context) = fixture();
+        let now = fixed_now();
+        let tomorrow = now.date_naive().succ_opt().expect("date has a successor");
+        request.valid_until = tomorrow;
+
+        let accepted = decide(&request, &context, Uuid::from_u128(3), now)
+            .expect("a future validity date must be accepted");
+        assert_eq!(accepted.valid_until, tomorrow);
+        assert_eq!(accepted.submitted_at, now);
+    }
+
+    #[test]
     fn rejects_validity_before_today() {
         let (mut request, context) = fixture();
         request.valid_until = NaiveDate::from_ymd_opt(2026, 10, 22).unwrap();

@@ -1,0 +1,21 @@
+--- src/capabilities/submit_supplier_quote/decision.rs
++++ replace <= with > in decide_for_rfq
+@@ -118,17 +118,17 @@
+         if item.unit_price_cents <= 0 {
+             return Err(SubmissionRejection::InvalidUnitPrice);
+         }
+         // A validação do conjunto de IDs acima prova que esta chave existe.
+         let required_quantity = required_by_id[&item.rfq_item_id];
+         if item.quantity != required_quantity {
+             return Err(SubmissionRejection::QuantityMismatch);
+         }
+-        if item.quantity <= 0 {
++        if item.quantity > /* ~ changed by cargo-mutants ~ */ 0 {
+             return Err(SubmissionRejection::QuantityMismatch);
+         }
+         let line_total_cents = item
+             .quantity
+             .checked_mul(item.unit_price_cents)
+             .ok_or(SubmissionRejection::AmountOverflow)?;
+         total_amount_cents = total_amount_cents
+             .checked_add(line_total_cents)

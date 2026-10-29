@@ -1,0 +1,27 @@
+--- src/capabilities/set_supplier_eligibility/build_context.rs
++++ replace build_context -> SupplierEligibilityContext with Default::default()
+@@ -10,23 +10,17 @@
+     pub(super) supplier_registered: bool,
+ }
+ 
+ /// Core puro: a atribuição só depende da existência do fornecedor.
+ pub(super) fn build_context(
+     facts: &[EligibilityContextFact],
+     supplier_id: Uuid,
+ ) -> SupplierEligibilityContext {
+-    let supplier_registered = facts
+-        .iter()
+-        .any(|fact| matches!(fact, EligibilityContextFact::Registered(id) if *id == supplier_id));
+-
+-    SupplierEligibilityContext {
+-        supplier_registered,
+-    }
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ mod functional_core_tests {
+     use super::*;
+ 
+     #[test]
+     fn registration_fact_for_requested_supplier_is_required() {

@@ -1,0 +1,21 @@
+--- src/capabilities/submit_supplier_quote/decision.rs
++++ delete ! in decide_for_rfq
+@@ -100,17 +100,17 @@
+     }
+ 
+     let required_by_id: HashMap<Uuid, i64> = rfq
+         .items
+         .iter()
+         .map(|item| (item.id, item.required_quantity))
+         .collect();
+     if request.items.len() != required_by_id.len()
+-        || !seen_ids
++        ||  /* ~ changed by cargo-mutants ~ */seen_ids
+             .iter()
+             .all(|item_id| required_by_id.contains_key(item_id))
+     {
+         return Err(SubmissionRejection::ItemSetMismatch);
+     }
+ 
+     let mut total_amount_cents = 0_i64;
+     let mut quoted_items = Vec::with_capacity(request.items.len());

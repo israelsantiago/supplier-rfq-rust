@@ -1,0 +1,30 @@
+--- src/capabilities/open_rfq/build_context.rs
++++ replace build_context -> Result<Vec<ExistingRfqIdentity>, OpenRfqError> with Ok(vec![])
+@@ -7,26 +7,17 @@
+     pub(super) rfq_id: uuid::Uuid,
+     pub(super) reference: String,
+ }
+ 
+ /// Converte fatos tipados no contexto mínimo de unicidade, sem dependência de storage.
+ pub(super) fn build_context(
+     records: &[StoredFact],
+ ) -> Result<Vec<ExistingRfqIdentity>, OpenRfqError> {
+-    Ok(records
+-        .iter()
+-        .filter_map(|record| match &record.fact {
+-            ApplicationFact::RfqOpened(fact) => Some(ExistingRfqIdentity {
+-                rfq_id: fact.rfq_id,
+-                reference: fact.reference.clone(),
+-            }),
+-            _ => None,
+-        })
+-        .collect())
++    Ok(vec![]) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ mod functional_core_tests {
+     use super::*;
+     use crate::{
+         application_state::ApplicationFact,
+         events::{RfqItemFact, RfqOpenedFact, SupplierEligibilityChangedFact, SupplierStatus},

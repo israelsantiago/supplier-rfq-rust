@@ -1,4 +1,5 @@
 pub mod close_rfq;
+pub mod finalize_rfq_sourcing;
 pub mod get_rfq_summary;
 pub mod list_rfq_summaries;
 pub mod list_supplier_quotes;

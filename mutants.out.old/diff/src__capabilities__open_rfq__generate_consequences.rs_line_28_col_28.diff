@@ -1,0 +1,21 @@
+--- src/capabilities/open_rfq/generate_consequences.rs
++++ replace || with && in prepare
+@@ -20,17 +20,17 @@
+     assigned_id: Uuid,
+ ) -> Result<PreparedOpenRfq, OpenRfqError> {
+     let reference = request.reference.trim().to_owned();
+     let currency = request.currency.trim().to_ascii_uppercase();
+ 
+     if reference.is_empty() {
+         return Err(OpenRfqError::InvalidInput("reference must not be blank"));
+     }
+-    if currency.len() != 3 || !currency.bytes().all(|byte| byte.is_ascii_uppercase()) {
++    if currency.len() != 3 && /* ~ changed by cargo-mutants ~ */ !currency.bytes().all(|byte| byte.is_ascii_uppercase()) {
+         return Err(OpenRfqError::InvalidInput(
+             "currency must be a three-letter ISO-style code",
+         ));
+     }
+     if request.items.is_empty() {
+         return Err(OpenRfqError::InvalidInput(
+             "an RFQ must contain at least one item",
+         ));

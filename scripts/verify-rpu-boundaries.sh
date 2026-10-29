@@ -206,4 +206,8 @@ fi
 echo
 bash scripts/verify-application-state-boundary.sh
 
+echo
+echo "== Isolamento Functional Core/Testcontainers =="
+bash scripts/verify-functional-core-test-isolation.sh
+
 echo "Verificações concluídas."

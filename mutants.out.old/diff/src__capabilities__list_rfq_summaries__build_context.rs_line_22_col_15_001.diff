@@ -1,0 +1,21 @@
+--- src/capabilities/list_rfq_summaries/build_context.rs
++++ replace < with > in build_context
+@@ -14,17 +14,17 @@
+ ) -> Result<NormalizedListRequest, ListRfqSummariesError> {
+     let limit = request.limit.unwrap_or(50);
+     let offset = request.offset.unwrap_or(0);
+ 
+     if !(1..=100).contains(&limit) {
+         return Err(ListRfqSummariesError::InvalidLimit);
+     }
+ 
+-    if offset < 0 {
++    if offset > /* ~ changed by cargo-mutants ~ */ 0 {
+         return Err(ListRfqSummariesError::InvalidOffset);
+     }
+ 
+     let status = match request.status.as_deref() {
+         None => None,
+         Some("open") => Some("open".to_owned()),
+         Some("closed") => Some("closed".to_owned()),
+         Some(_) => return Err(ListRfqSummariesError::InvalidStatus),

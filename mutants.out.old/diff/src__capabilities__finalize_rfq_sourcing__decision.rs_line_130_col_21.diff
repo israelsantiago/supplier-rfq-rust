@@ -1,0 +1,21 @@
+--- src/capabilities/finalize_rfq_sourcing/decision.rs
++++ replace != with == in decide
+@@ -122,17 +122,17 @@
+     if context.supplier_quote_count > 1 {
+         return Err(SourcingRejection::DuplicateSupplierQuote);
+     }
+     let quote = context
+         .selected_quote
+         .as_ref()
+         .ok_or(SourcingRejection::QuoteNotFound)?;
+ 
+-    if quote.rfq_id != request.rfq_id
++    if quote.rfq_id == /* ~ changed by cargo-mutants ~ */ request.rfq_id
+         || quote.supplier_id != request.supplier_id
+         || quote.quote_id != request.quote_id
+     {
+         return Err(SourcingRejection::QuoteNotFound);
+     }
+     if quote.valid_until < now.date_naive() {
+         return Err(SourcingRejection::QuoteExpired);
+     }

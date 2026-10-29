@@ -1,0 +1,23 @@
+--- src/capabilities/register_supplier/build_context.rs
++++ replace RegisterSupplierContext::contains_id -> bool with true
+@@ -23,19 +23,17 @@
+                 reference: fact.reference,
+             })
+             .collect(),
+     }
+ }
+ 
+ impl RegisterSupplierContext {
+     pub(super) fn contains_id(&self, id: Uuid) -> bool {
+-        self.identities
+-            .iter()
+-            .any(|identity| identity.supplier_id == id)
++        true /* ~ changed by cargo-mutants ~ */
+     }
+ 
+     pub(super) fn contains_reference(&self, reference: &str) -> bool {
+         self.identities
+             .iter()
+             .any(|identity| identity.reference == reference)
+     }
+ }

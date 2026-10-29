@@ -9,9 +9,9 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::dto::{
-    CloseRfqResponse, OpenRfqBody, OpenRfqResponse, RegisterSupplierBody, RegisterSupplierResponse,
-    SetSupplierEligibilityBody, SetSupplierEligibilityResponse, SubmitSupplierQuoteBody,
-    SubmitSupplierQuoteResponse, SupplierQuoteViewResponse,
+    CloseRfqResponse, FinalizeRfqSourcingBody, OpenRfqBody, OpenRfqResponse, RegisterSupplierBody,
+    RegisterSupplierResponse, SetSupplierEligibilityBody, SetSupplierEligibilityResponse,
+    SubmitSupplierQuoteBody, SubmitSupplierQuoteResponse, SupplierQuoteViewResponse,
 };
 
 use crate::{
@@ -226,6 +226,78 @@ pub async fn close_rfq(State(state): State<ApiState>, Path(rfq_id): Path<Uuid>) 
         Ok(Err(CloseRfqError::Store(message))) => internal_error(message),
         Err(error) => internal_error(error.to_string()),
     }
+}
+
+/// Finaliza o sourcing como um único comando de negócio e um único append_if FACTSTR.
+pub async fn finalize_rfq_sourcing(
+    State(state): State<ApiState>,
+    Path(rfq_id): Path<Uuid>,
+    Json(body): Json<FinalizeRfqSourcingBody>,
+) -> Response {
+    let Some(flow) = state.atomic_sourcing.clone() else {
+        return error_response(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "atomic_sourcing_unavailable",
+            "atomic sourcing is unavailable in this application composition",
+        );
+    };
+    let request = crate::capabilities::finalize_rfq_sourcing::FinalizeRfqSourcingRequest {
+        rfq_id,
+        supplier_id: body.supplier_id,
+        quote_id: body.quote_id,
+        expected_quote_set_version: body.expected_quote_set_version,
+    };
+    match tokio::task::spawn_blocking(move || flow.finalize_rfq_sourcing(request)).await {
+        Ok(Ok(decision)) => (
+            StatusCode::OK,
+            Json(json!({
+                "closed": decision.closed,
+                "awarded": decision.awarded,
+                "purchase_order": decision.purchase_order,
+                "dispatch_requested": decision.dispatch_requested,
+            })),
+        )
+            .into_response(),
+        Ok(Err(
+            crate::capabilities::finalize_rfq_sourcing::FinalizeRfqSourcingError::Rejected(
+                rejection,
+            ),
+        )) => sourcing_finalization_rejection(rejection),
+        Ok(Err(crate::capabilities::finalize_rfq_sourcing::FinalizeRfqSourcingError::Store(
+            message,
+        ))) => internal_error(message),
+        Err(error) => internal_error(error.to_string()),
+    }
+}
+
+fn sourcing_finalization_rejection(
+    rejection: crate::capabilities::finalize_rfq_sourcing::SourcingRejection,
+) -> Response {
+    use crate::capabilities::finalize_rfq_sourcing::SourcingRejection as R;
+    let (status, code) = match &rejection {
+        R::RfqNotFound => (StatusCode::NOT_FOUND, "rfq_not_found"),
+        R::SupplierNotRegistered => (StatusCode::NOT_FOUND, "supplier_not_registered"),
+        R::QuoteNotFound => (StatusCode::NOT_FOUND, "quote_not_found"),
+        R::RfqAlreadyClosed => (StatusCode::CONFLICT, "rfq_already_closed"),
+        R::AlreadyFinalized => (StatusCode::CONFLICT, "rfq_sourcing_already_finalized"),
+        R::SupplierEligibilityNotSet => (StatusCode::CONFLICT, "supplier_eligibility_not_set"),
+        R::SupplierNotEligible => (StatusCode::CONFLICT, "supplier_not_eligible"),
+        R::QuoteSetChanged => (StatusCode::CONFLICT, "quote_set_changed"),
+        R::DuplicateSupplierQuote => (StatusCode::CONFLICT, "duplicate_supplier_quote"),
+        R::QuoteExpired => (StatusCode::CONFLICT, "quote_expired"),
+        R::CommandContextChanged => (StatusCode::CONFLICT, "command_context_changed"),
+        R::CurrencyMismatch => (StatusCode::UNPROCESSABLE_ENTITY, "currency_mismatch"),
+        R::InvalidDeliveryDays => (StatusCode::UNPROCESSABLE_ENTITY, "invalid_delivery_days"),
+        R::EmptyRfq => (StatusCode::UNPROCESSABLE_ENTITY, "empty_rfq"),
+        R::EmptyQuote => (StatusCode::UNPROCESSABLE_ENTITY, "empty_quote"),
+        R::ItemSetMismatch => (StatusCode::UNPROCESSABLE_ENTITY, "item_set_mismatch"),
+        R::DuplicateQuotedItem => (StatusCode::UNPROCESSABLE_ENTITY, "duplicate_quoted_item"),
+        R::QuantityMismatch => (StatusCode::UNPROCESSABLE_ENTITY, "quantity_mismatch"),
+        R::InvalidUnitPrice => (StatusCode::UNPROCESSABLE_ENTITY, "invalid_unit_price"),
+        R::InvalidQuoteTotals => (StatusCode::UNPROCESSABLE_ENTITY, "invalid_quote_totals"),
+        R::AmountOverflow => (StatusCode::UNPROCESSABLE_ENTITY, "amount_overflow"),
+    };
+    error_response(status, code, rejection.to_string())
 }
 
 pub use super::dto::RfqSummaryListQuery;

@@ -1,0 +1,21 @@
+--- src/capabilities/finalize_rfq_sourcing/decision.rs
++++ replace <= with > in validate_quote_items
+@@ -215,17 +215,17 @@
+     }
+ 
+     let mut calculated_total = 0_i64;
+     for item in &quote.items {
+         let required_quantity = required_by_id[&item.rfq_item_id];
+         if item.quantity != required_quantity || item.quantity <= 0 {
+             return Err(SourcingRejection::QuantityMismatch);
+         }
+-        if item.unit_price_cents <= 0 {
++        if item.unit_price_cents > /* ~ changed by cargo-mutants ~ */ 0 {
+             return Err(SourcingRejection::InvalidUnitPrice);
+         }
+         let calculated_line_total = item
+             .quantity
+             .checked_mul(item.unit_price_cents)
+             .ok_or(SourcingRejection::AmountOverflow)?;
+         if item.line_total_cents != calculated_line_total {
+             return Err(SourcingRejection::InvalidQuoteTotals);

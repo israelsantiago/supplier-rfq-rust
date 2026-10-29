@@ -1,0 +1,41 @@
+--- src/capabilities/submit_supplier_quote/build_context.rs
++++ replace build_context -> RfqSubmissionContext with Default::default()
+@@ -16,37 +16,17 @@
+     pub closed: bool,
+     pub supplier_registered: bool,
+     pub supplier_status: Option<SupplierStatus>,
+     pub already_submitted: bool,
+ }
+ 
+ /// Core puro: reduz os fatos tipados ao contexto explícito usado pela decisão.
+ pub(super) fn build_context(facts: &[SubmissionContextFact]) -> RfqSubmissionContext {
+-    let mut context = RfqSubmissionContext {
+-        rfq: None,
+-        closed: false,
+-        supplier_registered: false,
+-        supplier_status: None,
+-        already_submitted: false,
+-    };
+-
+-    for fact in facts {
+-        match fact {
+-            SubmissionContextFact::RfqOpened(rfq) => context.rfq = Some(rfq.clone()),
+-            SubmissionContextFact::RfqClosed => context.closed = true,
+-            SubmissionContextFact::SupplierRegistered => context.supplier_registered = true,
+-            SubmissionContextFact::SupplierEligibilityChanged(status) => {
+-                context.supplier_status = Some(*status);
+-            }
+-            SubmissionContextFact::SupplierQuoteSubmitted => context.already_submitted = true,
+-        }
+-    }
+-
+-    context
++    Default::default() /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ mod functional_core_tests {
+     use super::*;
+     use crate::events::RfqItemFact;
+     use chrono::{TimeZone, Utc};
+     use uuid::Uuid;

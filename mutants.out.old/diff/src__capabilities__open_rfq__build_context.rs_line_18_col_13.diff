@@ -1,0 +1,24 @@
+--- src/capabilities/open_rfq/build_context.rs
++++ delete match arm ApplicationFact::RfqOpened(fact) in build_context
+@@ -10,20 +10,17 @@
+ 
+ /// Converte fatos tipados no contexto mínimo de unicidade, sem dependência de storage.
+ pub(super) fn build_context(
+     records: &[StoredFact],
+ ) -> Result<Vec<ExistingRfqIdentity>, OpenRfqError> {
+     Ok(records
+         .iter()
+         .filter_map(|record| match &record.fact {
+-            ApplicationFact::RfqOpened(fact) => Some(ExistingRfqIdentity {
+-                rfq_id: fact.rfq_id,
+-                reference: fact.reference.clone(),
+-            }),
++             /* ~ changed by cargo-mutants ~ */
+             _ => None,
+         })
+         .collect())
+ }
+ 
+ #[cfg(test)]
+ mod functional_core_tests {
+     use super::*;

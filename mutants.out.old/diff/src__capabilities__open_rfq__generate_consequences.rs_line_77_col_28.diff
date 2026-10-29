@@ -1,0 +1,21 @@
+--- src/capabilities/open_rfq/generate_consequences.rs
++++ replace == with != in duplicate_rejection
+@@ -69,17 +69,17 @@
+ 
+ /// Rejection logic shared by the initial decision and CCC conflict classification.
+ pub(super) fn duplicate_rejection(
+     context: &[ExistingRfqIdentity],
+     rfq_id: Uuid,
+     reference: &str,
+ ) -> Option<OpenRfqError> {
+     for existing in context {
+-        if existing.rfq_id == rfq_id {
++        if existing.rfq_id != /* ~ changed by cargo-mutants ~ */ rfq_id {
+             return Some(OpenRfqError::AlreadyExists);
+         }
+         if existing.reference == reference {
+             return Some(OpenRfqError::ReferenceAlreadyExists);
+         }
+     }
+     None
+ }

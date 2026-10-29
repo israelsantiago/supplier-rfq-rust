@@ -1,0 +1,39 @@
+--- src/capabilities/submit_supplier_quote/decision.rs
++++ replace decide -> Result<SupplierQuoteSubmittedFact, SubmissionRejection> with Ok(Default::default())
+@@ -47,35 +47,17 @@
+ }
+ 
+ pub fn decide(
+     request: &SubmitSupplierQuoteRequest,
+     context: &RfqSubmissionContext,
+     quote_id: Uuid,
+     now: chrono::DateTime<Utc>,
+ ) -> Result<SupplierQuoteSubmittedFact, SubmissionRejection> {
+-    let rfq = context
+-        .rfq
+-        .as_ref()
+-        .ok_or(SubmissionRejection::RfqNotFound)?;
+-    if context.closed {
+-        return Err(SubmissionRejection::RfqClosed);
+-    }
+-    if !context.supplier_registered {
+-        return Err(SubmissionRejection::SupplierNotRegistered);
+-    }
+-    match context.supplier_status {
+-        None => return Err(SubmissionRejection::SupplierEligibilityNotSet),
+-        Some(SupplierStatus::Blocked) => return Err(SubmissionRejection::SupplierNotEligible),
+-        Some(SupplierStatus::Eligible) => {}
+-    }
+-    if context.already_submitted {
+-        return Err(SubmissionRejection::DuplicateSupplierQuote);
+-    }
+-    decide_for_rfq(request, rfq, quote_id, now)
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ fn decide_for_rfq(
+     request: &SubmitSupplierQuoteRequest,
+     rfq: &RfqOpenedFact,
+     quote_id: Uuid,
+     now: chrono::DateTime<Utc>,
+ ) -> Result<SupplierQuoteSubmittedFact, SubmissionRejection> {

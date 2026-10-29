@@ -1,0 +1,35 @@
+--- src/capabilities/list_supplier_quotes/build_context.rs
++++ replace build_context -> Result<Option<Vec<QuoteView>>, ListSupplierQuotesError> with Ok(Some(vec![Default::default()]))
+@@ -1,31 +1,17 @@
+ use crate::application_state::{ApplicationFact, StoredFact};
+ 
+ use super::process_request::{ListSupplierQuotesError, QuoteView};
+ 
+ /// Projeta fatos de domínio tipados para a resposta da query, sem IO ou storage.
+ pub(super) fn build_context(
+     records: Vec<StoredFact>,
+ ) -> Result<Option<Vec<QuoteView>>, ListSupplierQuotesError> {
+-    let mut rfq_exists = false;
+-    let mut quotes = Vec::new();
+-
+-    for record in records {
+-        match record.fact {
+-            ApplicationFact::RfqOpened(_) => rfq_exists = true,
+-            ApplicationFact::SupplierQuoteSubmitted(quote) => quotes.push(QuoteView {
+-                sequence_number: record.sequence_number,
+-                quote,
+-            }),
+-            _ => {}
+-        }
+-    }
+-
+-    Ok(rfq_exists.then_some(quotes))
++    Ok(Some(vec![Default::default()])) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ mod functional_core_tests {
+     use super::*;
+     use crate::{
+         application_state::{ApplicationFact, StoredFact},
+         events::{

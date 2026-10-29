@@ -8,12 +8,25 @@ pub(super) struct NormalizedListRequest {
     pub offset: i64,
 }
 
+const DEFAULT_LIST_LIMIT: i64 = 50;
+const DEFAULT_LIST_OFFSET: i64 = 0;
+
+impl Default for NormalizedListRequest {
+    fn default() -> Self {
+        Self {
+            status: None,
+            limit: DEFAULT_LIST_LIMIT,
+            offset: DEFAULT_LIST_OFFSET,
+        }
+    }
+}
+
 /// Decisão pura de validação/normalização dos parâmetros recebidos.
 pub(super) fn build_context(
     request: ListRfqSummariesRequest,
 ) -> Result<NormalizedListRequest, ListRfqSummariesError> {
-    let limit = request.limit.unwrap_or(50);
-    let offset = request.offset.unwrap_or(0);
+    let limit = request.limit.unwrap_or(DEFAULT_LIST_LIMIT);
+    let offset = request.offset.unwrap_or(DEFAULT_LIST_OFFSET);
 
     if !(1..=100).contains(&limit) {
         return Err(ListRfqSummariesError::InvalidLimit);
@@ -41,6 +54,28 @@ pub(super) fn build_context(
 mod tests {
     use super::*;
     use proptest::prelude::*;
+
+    #[test]
+    fn default_implementation_uses_valid_query_bounds() {
+        let normalized = NormalizedListRequest::default();
+        assert_eq!(normalized.status, None);
+        assert_eq!(normalized.limit, 50);
+        assert_eq!(normalized.offset, 0);
+        assert!((1..=100).contains(&normalized.limit));
+        assert!(normalized.offset >= 0);
+    }
+
+    #[test]
+    fn explicit_query_parameters_are_not_replaced_by_defaults() {
+        assert_eq!(
+            build_context(request(Some("closed"), Some(7), Some(9))).unwrap(),
+            NormalizedListRequest {
+                status: Some("closed".to_owned()),
+                limit: 7,
+                offset: 9,
+            }
+        );
+    }
 
     fn request(
         status: Option<&str>,

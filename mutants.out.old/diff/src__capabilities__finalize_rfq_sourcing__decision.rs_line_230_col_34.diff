@@ -1,0 +1,21 @@
+--- src/capabilities/finalize_rfq_sourcing/decision.rs
++++ replace != with == in validate_quote_items
+@@ -222,17 +222,17 @@
+         }
+         if item.unit_price_cents <= 0 {
+             return Err(SourcingRejection::InvalidUnitPrice);
+         }
+         let calculated_line_total = item
+             .quantity
+             .checked_mul(item.unit_price_cents)
+             .ok_or(SourcingRejection::AmountOverflow)?;
+-        if item.line_total_cents != calculated_line_total {
++        if item.line_total_cents == /* ~ changed by cargo-mutants ~ */ calculated_line_total {
+             return Err(SourcingRejection::InvalidQuoteTotals);
+         }
+         calculated_total = calculated_total
+             .checked_add(calculated_line_total)
+             .ok_or(SourcingRejection::AmountOverflow)?;
+     }
+     if calculated_total != quote.total_amount_cents {
+         return Err(SourcingRejection::InvalidQuoteTotals);

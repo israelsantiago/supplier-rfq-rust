@@ -1,0 +1,21 @@
+--- src/capabilities/finalize_rfq_sourcing/decision.rs
++++ replace != with == in validate_quote_items
+@@ -229,17 +229,17 @@
+             .ok_or(SourcingRejection::AmountOverflow)?;
+         if item.line_total_cents != calculated_line_total {
+             return Err(SourcingRejection::InvalidQuoteTotals);
+         }
+         calculated_total = calculated_total
+             .checked_add(calculated_line_total)
+             .ok_or(SourcingRejection::AmountOverflow)?;
+     }
+-    if calculated_total != quote.total_amount_cents {
++    if calculated_total == /* ~ changed by cargo-mutants ~ */ quote.total_amount_cents {
+         return Err(SourcingRejection::InvalidQuoteTotals);
+     }
+     Ok(())
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;

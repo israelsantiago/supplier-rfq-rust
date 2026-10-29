@@ -8,7 +8,7 @@ A meta de 100% é aplicada a este escopo explícito do Functional Core — não 
 
 ## Local
 
-O runner tenta preparar automaticamente Rust nightly, `llvm-tools-preview` e `cargo-llvm-cov` quando faltarem. Ele exige conexão de rede para baixar as ferramentas e Docker acessível porque os testes do repositório usam Testcontainers. Esses pré-requisitos são verificados antes de executar a medição.
+O runner tenta preparar automaticamente Rust nightly, `llvm-tools-preview` e `cargo-llvm-cov` quando faltarem. Ele exige conexão de rede para baixar as ferramentas e os três testes de integração PostgreSQL da library são excluídos explicitamente deste runner; a suíte completa continua exigindo Docker. Esses pré-requisitos são verificados antes de executar a medição.
 
 ```bash
 bash scripts/coverage-functional-core.sh
@@ -23,3 +23,8 @@ A saída JSON e o HTML são criados em `target/functional-core-branch-coverage.j
 ## Fronteiras fora do Functional Core
 
 A meta de 100% aplica-se apenas aos arquivos listados em `scripts/check-functional-core-branch-coverage.py`. Ela não mede `ApplicationStateProvider`, seu adaptador FACTSTR, as fachadas, o middleware HTTP, migrations ou estados operacionais. Esses componentes usam teste de contrato, integração PostgreSQL, concorrência e injeção de falha; veja [`application-state-provider.md`](application-state-provider.md) e [`http-idempotency-testing.md`](http-idempotency-testing.md).
+
+
+## Isolamento de Testcontainers
+
+O runner mede o alvo `--lib`, exclui nominalmente nove testes que inicializam PostgreSQL e usa um `DOCKER_HOST` apontando para um socket deliberadamente inexistente. Os testes excluídos permanecem na suíte completa. A decisão pura `src/capabilities/finalize_rfq_sourcing/decision.rs` integra a lista de arquivos coberta pelo checker, sem reduzir a meta de cobertura existente.

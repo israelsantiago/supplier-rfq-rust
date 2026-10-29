@@ -1,0 +1,21 @@
+--- src/capabilities/open_rfq/generate_consequences.rs
++++ delete ! in prepare
+@@ -49,17 +49,17 @@
+                 "item SKU and description must not be blank",
+             ));
+         }
+         if item.required_quantity <= 0 {
+             return Err(OpenRfqError::InvalidInput(
+                 "required item quantity must be positive",
+             ));
+         }
+-        if !skus.insert(item.sku.trim().to_ascii_uppercase()) {
++        if  /* ~ changed by cargo-mutants ~ */skus.insert(item.sku.trim().to_ascii_uppercase()) {
+             return Err(OpenRfqError::InvalidInput("RFQ item SKUs must be unique"));
+         }
+     }
+ 
+     Ok(PreparedOpenRfq {
+         rfq_id: assigned_id,
+         reference,
+         currency,

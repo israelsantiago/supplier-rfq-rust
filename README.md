@@ -8,6 +8,8 @@ Implementação de referência em Rust de um pequeno fluxo de **Supply Chain / R
 
 Leia [`docs/design-approach.md`](docs/design-approach.md) para a explicação dos conceitos, diagramas Mermaid dos fluxos RPU/CCC/projeção e checklist para evoluir capabilities. A decisão técnica específica desta variante está em [`docs/architecture-event-sourcing-factstr.md`](docs/architecture-event-sourcing-factstr.md).
 
+Para o novo caso de negócio com atomicidade entre várias consequências, consulte [`docs/flows/atomic-rfq-sourcing.md`](docs/flows/atomic-rfq-sourcing.md) e [ADR-0031](docs/architecture/adr/0031-atomic-rfq-sourcing-finalization.md). A capability `FinalizeRfqSourcing` é aditiva: as RPUs legadas mantêm os commits individuais e não são chamadas por ela.
+
 ## Pendências para operação real
 
 Este repositório continua sendo uma referência educacional. Os itens abaixo permanecem explicitamente **pendentes** e precisam de critérios de aceite antes de qualquer uso real.

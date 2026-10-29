@@ -1,0 +1,21 @@
+--- src/capabilities/finalize_rfq_sourcing/decision.rs
++++ delete ! in validate_quote_items
+@@ -202,17 +202,17 @@
+ 
+     let mut seen = HashSet::with_capacity(quote.items.len());
+     for item in &quote.items {
+         if !seen.insert(item.rfq_item_id) {
+             return Err(SourcingRejection::DuplicateQuotedItem);
+         }
+     }
+     if quote.items.len() != required_by_id.len()
+-        || !seen
++        ||  /* ~ changed by cargo-mutants ~ */seen
+             .iter()
+             .all(|item_id| required_by_id.contains_key(item_id))
+     {
+         return Err(SourcingRejection::ItemSetMismatch);
+     }
+ 
+     let mut calculated_total = 0_i64;
+     for item in &quote.items {

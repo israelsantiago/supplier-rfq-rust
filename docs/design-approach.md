@@ -148,3 +148,7 @@ Veja o [catálogo de ADRs](architecture/adr/README.md), especialmente ADR-0010 e
 - [FACTSTR](https://github.com/ricofritzsche/factstr)
 - [FACTSTR Tool Rental Example — Rust](https://github.com/ricofritzsche/factstr-tool-rental-example/tree/main/rust)
 - [Functional Event Sourcing in Rust](https://github.com/ricofritzsche/fcis-event-sourcing-rust)
+
+## 8. Fluxo composto com atomicidade de negócio
+
+A coordenação por Reactor não cria, por si só, um commit indivisível entre RPUs que persistem individualmente. Para a finalização do sourcing, `FinalizeRfqSourcing` é uma capability nova e separada: lê um contexto CCC composto, calcula fechamento/adjudicação/pedido/intenção de despacho sem efeitos intermediários e grava os quatro fatos em uma única chamada `append_if`. As RPUs e shells existentes permanecem inalteradas. Ver [documentação completa e diagramas](flows/atomic-rfq-sourcing.md) e [ADR-0031](architecture/adr/0031-atomic-rfq-sourcing-finalization.md).

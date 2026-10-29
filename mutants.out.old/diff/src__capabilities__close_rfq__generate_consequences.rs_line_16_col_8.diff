@@ -1,0 +1,21 @@
+--- src/capabilities/close_rfq/generate_consequences.rs
++++ delete ! in generate_consequences
+@@ -8,17 +8,17 @@
+ };
+ 
+ /// Decisão pura: verifica o ciclo de vida e constrói o fato com horário fornecido pelo shell.
+ pub(super) fn generate_consequences(
+     request: CloseRfqRequest,
+     context: &RfqLifecycleContext,
+     closed_at: DateTime<Utc>,
+ ) -> Result<RfqClosedFact, CloseRfqError> {
+-    if !context.opened {
++    if  /* ~ changed by cargo-mutants ~ */context.opened {
+         return Err(CloseRfqRejection::RfqNotFound.into());
+     }
+     if context.closed {
+         return Err(CloseRfqRejection::RfqAlreadyClosed.into());
+     }
+ 
+     Ok(RfqClosedFact {
+         rfq_id: request.rfq_id,

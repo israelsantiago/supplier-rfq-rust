@@ -1,0 +1,21 @@
+--- src/capabilities/finalize_rfq_sourcing/decision.rs
++++ replace != with == in validate_quote_items
+@@ -191,17 +191,17 @@
+         return Err(SourcingRejection::EmptyQuote);
+     }
+ 
+     let required_by_id: HashMap<Uuid, i64> = rfq
+         .items
+         .iter()
+         .map(|item| (item.id, item.required_quantity))
+         .collect();
+-    if required_by_id.len() != rfq.items.len() {
++    if required_by_id.len() == /* ~ changed by cargo-mutants ~ */ rfq.items.len() {
+         return Err(SourcingRejection::ItemSetMismatch);
+     }
+ 
+     let mut seen = HashSet::with_capacity(quote.items.len());
+     for item in &quote.items {
+         if !seen.insert(item.rfq_item_id) {
+             return Err(SourcingRejection::DuplicateQuotedItem);
+         }

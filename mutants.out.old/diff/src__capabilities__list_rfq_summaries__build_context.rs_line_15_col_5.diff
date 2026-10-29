@@ -1,0 +1,43 @@
+--- src/capabilities/list_rfq_summaries/build_context.rs
++++ replace build_context -> Result<NormalizedListRequest, ListRfqSummariesError> with Ok(Default::default())
+@@ -7,39 +7,17 @@
+     pub limit: i64,
+     pub offset: i64,
+ }
+ 
+ /// Decisão pura de validação/normalização dos parâmetros recebidos.
+ pub(super) fn build_context(
+     request: ListRfqSummariesRequest,
+ ) -> Result<NormalizedListRequest, ListRfqSummariesError> {
+-    let limit = request.limit.unwrap_or(50);
+-    let offset = request.offset.unwrap_or(0);
+-
+-    if !(1..=100).contains(&limit) {
+-        return Err(ListRfqSummariesError::InvalidLimit);
+-    }
+-
+-    if offset < 0 {
+-        return Err(ListRfqSummariesError::InvalidOffset);
+-    }
+-
+-    let status = match request.status.as_deref() {
+-        None => None,
+-        Some("open") => Some("open".to_owned()),
+-        Some("closed") => Some("closed".to_owned()),
+-        Some(_) => return Err(ListRfqSummariesError::InvalidStatus),
+-    };
+-
+-    Ok(NormalizedListRequest {
+-        status,
+-        limit,
+-        offset,
+-    })
++    Ok(Default::default()) /* ~ changed by cargo-mutants ~ */
+ }
+ 
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+     use proptest::prelude::*;
+ 
+     fn request(

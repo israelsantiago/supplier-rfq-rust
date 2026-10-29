@@ -22,6 +22,7 @@ TARGETS = (
     "src/capabilities/close_rfq/generate_consequences.rs",
     "src/capabilities/submit_supplier_quote/build_context.rs",
     "src/capabilities/submit_supplier_quote/decision.rs",
+    "src/capabilities/finalize_rfq_sourcing/decision.rs",
     "src/capabilities/list_rfq_summaries/build_context.rs",
     "src/capabilities/list_supplier_quotes/build_context.rs",
 )

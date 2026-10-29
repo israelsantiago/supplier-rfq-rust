@@ -32,11 +32,17 @@ for number, filename in [
     ('0028', '0028-http-error-redaction-request-correlation.md'),
     ('0029', '0029-mainline-documentation-and-ci.md'),
     ('0030', '0030-rfq-summary-reader-port.md'),
+    ('0031', '0031-atomic-rfq-sourcing-finalization.md'),
 ]:
     path = Path('docs/architecture/adr') / filename
     if not path.is_file():
         raise SystemExit(f'ERRO: ADR-{number} não encontrado: {path}')
     if f'ADR-{number}' not in adr_index:
         raise SystemExit(f'ERRO: ADR-{number} não está indexado em docs/architecture/adr/README.md')
-print('OK: README, guia, CI e índice de ADRs refletem as prioridades 1–3.')
+flow = Path('docs/flows/atomic-rfq-sourcing.md')
+if not flow.is_file() or 'append_if' not in flow.read_text() or 'sequenceDiagram' not in flow.read_text() or 'flowchart' not in flow.read_text():
+    raise SystemExit('ERRO: documentação do fluxo atômico ausente/inválida.')
+if 'FinalizeRfqSourcing' not in readme or 'FinalizeRfqSourcing' not in adr_index:
+    raise SystemExit('ERRO: README/índice ADR não referenciam a nova capability.')
+print('OK: README, guias, ADRs, fluxo atômico e CI refletem o desenho vigente.')
 PY_CHECK

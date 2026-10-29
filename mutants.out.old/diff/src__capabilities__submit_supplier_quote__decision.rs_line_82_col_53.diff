@@ -1,0 +1,21 @@
+--- src/capabilities/submit_supplier_quote/decision.rs
++++ replace != with == in decide_for_rfq
+@@ -74,17 +74,17 @@
+ }
+ 
+ fn decide_for_rfq(
+     request: &SubmitSupplierQuoteRequest,
+     rfq: &RfqOpenedFact,
+     quote_id: Uuid,
+     now: chrono::DateTime<Utc>,
+ ) -> Result<SupplierQuoteSubmittedFact, SubmissionRejection> {
+-    if request.currency.trim().to_ascii_uppercase() != rfq.currency {
++    if request.currency.trim().to_ascii_uppercase() == /* ~ changed by cargo-mutants ~ */ rfq.currency {
+         return Err(SubmissionRejection::CurrencyMismatch);
+     }
+     if request.delivery_days <= 0 {
+         return Err(SubmissionRejection::InvalidDeliveryDays);
+     }
+     if request.valid_until < now.date_naive() {
+         return Err(SubmissionRejection::ValidityInPast);
+     }

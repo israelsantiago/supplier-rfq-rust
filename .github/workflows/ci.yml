@@ -23,6 +23,8 @@ jobs:
           sudo apt-get install --yes ripgrep
       - name: Validate RPU boundaries and Rust tests
         run: bash scripts/verify-rpu-boundaries.sh
+      - name: Verify Testcontainers isolation strategy
+        run: bash scripts/verify-testcontainers-isolation.sh
 
   functional-core-branch-coverage:
     runs-on: ubuntu-26.04
