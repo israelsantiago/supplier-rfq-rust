@@ -14,4 +14,4 @@ O CI possui um job separado para validar o OpenAPI. Se o lint revelar divergênc
 
 ## Escopo OpenAPI da idempotência
 
-`Idempotency-Key` deve aparecer em exatamente cinco operações de comando: `openRfq`, `registerSupplier`, `setSupplierEligibility`, `submitSupplierQuote` e `closeRfq`. Não deve aparecer em `GET /api/rfqs/{rfq_id}/quotes`. `scripts/verify-idempotency-openapi.py` verifica esse contrato antes do lint Redocly.
+`Idempotency-Key` deve aparecer em exatamente seis operações de comando: `openRfq`, `registerSupplier`, `setSupplierEligibility`, `submitSupplierQuote`, `closeRfq` e `finalizeRfqSourcing` (`POST /api/rfqs/{rfq_id}/finalize-sourcing`). Não deve aparecer em `GET /api/rfqs/{rfq_id}/quotes`. `scripts/verify-idempotency-openapi.py` verifica esse contrato antes do lint Redocly.

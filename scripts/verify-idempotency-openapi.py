@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Guard that Idempotency-Key appears only on the five supported command operations."""
+"""Guard that Idempotency-Key appears only on the six supported command operations."""
 from __future__ import annotations
 import re
 from pathlib import Path
@@ -14,6 +14,7 @@ expected = {
     "setSupplierEligibility": ("/api/suppliers/{supplier_id}/eligibility", "put"),
     "submitSupplierQuote": ("/api/rfqs/{rfq_id}/quotes", "post"),
     "closeRfq": ("/api/rfqs/{rfq_id}/close", "post"),
+    "finalizeRfqSourcing": ("/api/rfqs/{rfq_id}/finalize-sourcing", "post"),
 }
 operations: dict[str, tuple[str, str, str]] = {}
 route: str | None = None
@@ -48,4 +49,4 @@ if actual != expected:
     )
 if "Idempotency-Key" not in source or "in: header" not in source:
     raise SystemExit("ERRO: definição do parâmetro de header Idempotency-Key ausente.")
-print("OK: Idempotency-Key aparece exatamente nos cinco comandos, nunca em GET/query.")
+print("OK: Idempotency-Key aparece exatamente nos seis comandos, nunca em GET/query.")

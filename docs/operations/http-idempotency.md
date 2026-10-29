@@ -2,7 +2,7 @@
 
 ## Contrato para clientes
 
-Nos comandos `POST /api/rfqs`, `POST /api/suppliers`, `PUT /api/suppliers/{supplier_id}/eligibility`, `POST /api/rfqs/{rfq_id}/quotes` e `POST /api/rfqs/{rfq_id}/close`, enviar `Idempotency-Key` com um identificador único por operação lógica. Em timeout/retry, reutilizar a mesma chave **e o mesmo payload/path/query**.
+Nos comandos `POST /api/rfqs`, `POST /api/suppliers`, `PUT /api/suppliers/{supplier_id}/eligibility`, `POST /api/rfqs/{rfq_id}/quotes`, `POST /api/rfqs/{rfq_id}/close` e `POST /api/rfqs/{rfq_id}/finalize-sourcing`, enviar `Idempotency-Key` com um identificador único por operação lógica. Em timeout/retry, reutilizar a mesma chave **e o mesmo payload/path/query**.
 
 - Resposta original abaixo de 500: a mesma chamada é repetida com o status e o corpo originais; replay inclui `Idempotency-Replayed: true`.
 - Mesma chave e request diferente: `409 idempotency_key_reused`.

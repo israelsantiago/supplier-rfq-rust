@@ -29,7 +29,7 @@ Complementar os testes com PostgreSQL/Testcontainers e testes HTTP de aceitaçã
 
 O ledger recebe pool limitado independente do pool da projeção. A migration original em `migrations/` permanece byte a byte para preservar o histórico SQLx existente. Uma cópia idempotente em `migrations_idempotency/` é usada pelo inicializador do ledger, que guarda versão e checksum em `http_idempotency_migrations` sob advisory lock. O código falha em caso de divergência de checksum. Ambos os pools podem conectar ao mesmo banco PostgreSQL sem compartilhar conexões.
 
-Um guardrail estático compara os parâmetros `Idempotency-Key` em `docs/openapi.yaml` com os cinco endpoints de comando; o header não deve aparecer em `GET /api/rfqs/{rfq_id}/quotes`, pois o middleware não aplica idempotência a consultas.
+Um guardrail estático compara os parâmetros `Idempotency-Key` em `docs/openapi.yaml` com os seis endpoints de comando, incluindo `POST /api/rfqs/{rfq_id}/finalize-sourcing`; o header não deve aparecer em `GET /api/rfqs/{rfq_id}/quotes`, pois o middleware não aplica idempotência a consultas.
 
 ## Consequências
 
