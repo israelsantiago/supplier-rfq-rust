@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  schedule:
+    # Segunda-feira, às 03:00 no horário de Brasília (UTC-3).
+    - cron: '0 6 * * 1'
 
 jobs:
   test:
@@ -62,7 +65,7 @@ jobs:
         run: bash scripts/verify-documentation-current-state.sh
 
   mutation-testing:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
