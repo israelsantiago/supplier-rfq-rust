@@ -4,6 +4,11 @@ set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
+command -v rg >/dev/null 2>&1 || {
+  echo "ERRO: dependência obrigatória 'rg' (ripgrep) ausente; não é seguro continuar." >&2
+  exit 127
+}
+
 CAPABILITIES_DIR="src/capabilities"
 HANDLERS="src/http/handlers.rs"
 
@@ -179,6 +184,9 @@ for feature in "${FEATURES[@]}"; do
   [[ -f "$CAPABILITIES_DIR/$feature/mod.rs" ]] || fail "feature '$feature' precisa ter seu próprio mod.rs"
   [[ -f "$CAPABILITIES_DIR/$feature/process_request.rs" ]] || fail "feature '$feature' precisa ter process_request.rs"
 done
+
+grep -Fq 'impl RfqSummaryReader for RfqSummaryProjection' src/projections/rfq_summary_projection/mod.rs \
+  || fail "RfqSummaryProjection precisa implementar RfqSummaryReader; valide o adaptador antes de compilar"
 
 echo "OK: os oito RPUs possuem pasta de feature e process_request.rs."
 

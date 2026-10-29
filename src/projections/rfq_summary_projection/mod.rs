@@ -14,7 +14,6 @@ use factstr::{
     StreamHandlerError,
 };
 use factstr_postgres::PostgresStore;
-use serde::Serialize;
 use sqlx::{FromRow, PgPool, postgres::PgPoolOptions};
 use thiserror::Error;
 use uuid::Uuid;
@@ -24,28 +23,44 @@ use crate::events::{RFQ_CLOSED_V1, RFQ_OPENED_V1, SUPPLIER_QUOTE_SUBMITTED_V1};
 const DURABLE_STREAM_ID: &str = "rfq-summary-projection-v1";
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!();
 
-#[derive(Debug, Clone, Serialize, FromRow)]
-pub struct RfqSummary {
-    pub rfq_id: Uuid,
-    pub reference: String,
-    pub currency: String,
-    pub status: String,
-    pub opened_at: DateTime<Utc>,
-    pub closed_at: Option<DateTime<Utc>>,
-    pub item_count: i32,
-    pub quote_count: i64,
-    pub lowest_quote_amount_cents: Option<i64>,
-    pub lowest_quote_supplier_id: Option<Uuid>,
-    pub last_event_sequence: i64,
-    pub projected_at: DateTime<Utc>,
+pub use crate::projections::rfq_summary_reader::{RfqSummary, RfqSummaryPage};
+use crate::projections::rfq_summary_reader::{
+    RfqSummaryReadError, RfqSummaryReadFuture, RfqSummaryReader,
+};
+
+#[derive(Debug, Clone, FromRow)]
+struct RfqSummaryRow {
+    rfq_id: Uuid,
+    reference: String,
+    currency: String,
+    status: String,
+    opened_at: DateTime<Utc>,
+    closed_at: Option<DateTime<Utc>>,
+    item_count: i32,
+    quote_count: i64,
+    lowest_quote_amount_cents: Option<i64>,
+    lowest_quote_supplier_id: Option<Uuid>,
+    last_event_sequence: i64,
+    projected_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct RfqSummaryPage {
-    pub items: Vec<RfqSummary>,
-    pub total: i64,
-    pub limit: i64,
-    pub offset: i64,
+impl From<RfqSummaryRow> for RfqSummary {
+    fn from(row: RfqSummaryRow) -> Self {
+        Self {
+            rfq_id: row.rfq_id,
+            reference: row.reference,
+            currency: row.currency,
+            status: row.status,
+            opened_at: row.opened_at,
+            closed_at: row.closed_at,
+            item_count: row.item_count,
+            quote_count: row.quote_count,
+            lowest_quote_amount_cents: row.lowest_quote_amount_cents,
+            lowest_quote_supplier_id: row.lowest_quote_supplier_id,
+            last_event_sequence: row.last_event_sequence,
+            projected_at: row.projected_at,
+        }
+    }
 }
 
 #[derive(Debug, Error)]
@@ -146,7 +161,7 @@ impl RfqSummaryProjection {
     }
 
     pub async fn get(&self, rfq_id: Uuid) -> Result<Option<RfqSummary>, sqlx::Error> {
-        sqlx::query_as::<_, RfqSummary>(
+        sqlx::query_as::<_, RfqSummaryRow>(
             r#"SELECT rfq_id, reference, currency, status, opened_at, closed_at,
                       item_count, quote_count, lowest_quote_amount_cents,
                       lowest_quote_supplier_id, last_event_sequence, projected_at
@@ -156,6 +171,7 @@ impl RfqSummaryProjection {
         .bind(rfq_id)
         .fetch_optional(&self.read_pool)
         .await
+        .map(|row| row.map(Into::into))
     }
 
     pub async fn list(
@@ -177,7 +193,7 @@ impl RfqSummaryProjection {
         .fetch_one(&mut *transaction)
         .await?;
 
-        let items = sqlx::query_as::<_, RfqSummary>(
+        let items = sqlx::query_as::<_, RfqSummaryRow>(
             r#"SELECT rfq_id, reference, currency, status, opened_at, closed_at,
                       item_count, quote_count, lowest_quote_amount_cents,
                       lowest_quote_supplier_id, last_event_sequence, projected_at
@@ -190,7 +206,10 @@ impl RfqSummaryProjection {
         .bind(limit)
         .bind(offset)
         .fetch_all(&mut *transaction)
-        .await?;
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect::<Vec<RfqSummary>>();
         transaction.commit().await?;
 
         Ok(RfqSummaryPage {
@@ -198,6 +217,30 @@ impl RfqSummaryProjection {
             total,
             limit,
             offset,
+        })
+    }
+}
+
+/// Adaptador PostgreSQL/SQLx para a porta de leitura da aplicação.
+impl RfqSummaryReader for RfqSummaryProjection {
+    fn get(&self, rfq_id: Uuid) -> RfqSummaryReadFuture<'_, Option<RfqSummary>> {
+        Box::pin(async move {
+            RfqSummaryProjection::get(self, rfq_id)
+                .await
+                .map_err(|error| RfqSummaryReadError::new(error.to_string()))
+        })
+    }
+
+    fn list<'a>(
+        &'a self,
+        status: Option<&'a str>,
+        limit: i64,
+        offset: i64,
+    ) -> RfqSummaryReadFuture<'a, RfqSummaryPage> {
+        Box::pin(async move {
+            RfqSummaryProjection::list(self, status, limit, offset)
+                .await
+                .map_err(|error| RfqSummaryReadError::new(error.to_string()))
         })
     }
 }
@@ -318,7 +361,7 @@ mod tests {
             .await
             .expect("replayed projection batch must succeed idempotently");
 
-        let summary = sqlx::query_as::<_, RfqSummary>(
+        let summary = sqlx::query_as::<_, RfqSummaryRow>(
             "SELECT rfq_id, reference, currency, status, opened_at, closed_at, item_count, quote_count, lowest_quote_amount_cents, lowest_quote_supplier_id, last_event_sequence, projected_at FROM rfq_summary_projection WHERE rfq_id = $1",
         )
         .bind(rfq_id)
