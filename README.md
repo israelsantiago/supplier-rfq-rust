@@ -31,6 +31,10 @@ Este repositório continua sendo uma referência educacional. Os itens abaixo pe
 
 Não marque um item como concluído somente porque a aplicação compila. Cada pendência deve ter uma decisão registrada, testes adequados e evidência operacional verificável.
 
+### Proposta arquitetural AMRI (ADR-0034 — Proposed)
+
+Está em preparação uma extensão opt-in para interações atômicas com três ou mais capabilities independentes. A [ADR-0034](docs/architecture/adr/0034-atomic-multi-rpu-interaction.md) e a [especificação AMRI](docs/architecture/amri/README.md) descrevem o protocolo proposto e seu plano de testes. **Não há implementação AMRI na `main`**; `FinalizeRfqSourcing` continua sendo a solução implementada de uma única capability com commit atômico.
+
 ## Stack
 
 - [Rust stable](https://www.rust-lang.org/tools/install)

@@ -59,3 +59,25 @@ A semântica usada nesta matriz está implementada em [`factstr-postgres/src/que
 | Resposta acima de 4 MiB bloqueia replay incerto | `oversized_response_marks_key_unknown_and_blocks_retry` | `cargo test --lib oversized_response_marks_key_unknown_and_blocks_retry -- --nocapture` | Teste de middleware com router sintético e PostgreSQL, não falha real de streaming em produção. |
 
 A cobertura 100% de Functional Core não mede automaticamente o ASP, fachadas, middleware, migrations ou cenários operacionais.
+
+## AMRI — propriedades propostas, ainda sem implementação
+
+**Importante:** a tabela abaixo é um plano de evidência, não uma afirmação de que os testes ou os módulos já existem. Os nomes são contratos-alvo a confirmar durante as etapas de implementação da ADR-0034. Até que o código exista e os comandos sejam executados, o estado é `Proposed / Not implemented`.
+
+| Propriedade pretendida | Evidência automatizada-alvo | Camada / infraestrutura |
+|---|---|---|
+| Preparação não persiste | Testes de contrato por participante que verificam zero fatos depois de prepare, rejeição e erro | Participante + Fake State; aceitação com Testcontainers |
+| Um snapshot cobre a união de requisitos | `planner_builds_one_canonical_composite_context` e `reactor_reads_snapshot_once_for_all_participants` | AMRI Core; Fake State |
+| Não combinar tokens independentes | `composite_context_rejects_independent_snapshot_tokens` | AMRI Core; testes puros |
+| Mesmo Functional Core nos dois modos | Testes de paridade entre execução autônoma e preparação com entradas equivalentes | Functional Core de cada capability |
+| Grafo de participantes determinístico | Testes para ciclo, dependência ausente, participante duplicado e ordem estável | AMRI Core; testes puros/propriedade |
+| Composição rejeita fatos incompatíveis | Matriz de políticas para RFQ, adjudicação e pedido | Composition Policies; testes puros/propriedade |
+| Um único commit condicional | `amri_commits_all_participant_facts_and_marker_in_one_append_if` | FACTSTR/PostgreSQL Testcontainers |
+| Conflito não persiste lote parcial | `amri_stale_composite_context_commits_zero_facts` | FACTSTR/PostgreSQL Testcontainers |
+| Corrida entre interações | `amri_two_interactions_same_snapshot_commit_at_most_one_batch` | Stores independentes + Testcontainers |
+| RPU autônoma concorrente respeita CCC | Testes de corrida entre `SubmitSupplierQuote`/`CloseRfq` e interação AMRI | Testcontainers |
+| Idempotência e recuperação | Testes same-ID/same-fingerprint, same-ID/different-fingerprint e resposta perdida após commit | FACTSTR marker + fault injection |
+| Core sem acoplamento | Build/test do Core sem RFQ, FACTSTR, PostgreSQL, SQLx e Axum | Cargo feature/dependency checks |
+| Reutilização em outro domínio | Mesmo Core aplicado ao exemplo de reserva de recursos | Segundo domínio |
+
+A matriz só deve promover uma propriedade para evidência implementada após apontar para o teste real, comando executável, resultado e limite da prova. Mutation testing AMRI deve permanecer restrito ao Core e às políticas puras; Testcontainers não pode ser acionado pelo runner de mutação do Functional Core.

@@ -41,6 +41,7 @@ Cada ADR individual registra contexto, decisão e consequências. `Accepted` sig
 | [ADR-0031](./0031-atomic-rfq-sourcing-finalization.md) | Finalização atômica de sourcing (`FinalizeRfqSourcing`) por uma capability e um lote CCC | Accepted; implementado na main |
 | [ADR-0032](./0032-quote-validity-date-semantics.md) | Validade de cotação inclusiva por data de decisão | Accepted |
 | [ADR-0033](./0033-application-state-provider-specialized-ports.md) | Portas especializadas de Application State para capabilities com contratos de contexto/gravação distintos | Accepted |
+| [ADR-0034](./0034-atomic-multi-rpu-interaction.md) | Atomic Multi-RPU Interaction (AMRI): preparação, composição e commit condicional de capacidades independentes | Proposed |
 
 ## Políticas não negociáveis nesta refatoração
 

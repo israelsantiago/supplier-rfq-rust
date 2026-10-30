@@ -157,6 +157,14 @@ Um Reactor faria sentido, por exemplo, numa interação futura que chamasse `Fin
 
 A coordenação por Reactor não cria, por si só, um commit indivisível entre RPUs que persistem individualmente. Para a finalização do sourcing, `FinalizeRfqSourcing` é uma capability nova e separada: lê um contexto CCC composto, calcula fechamento/adjudicação/pedido/intenção de despacho sem efeitos intermediários e grava os quatro fatos em uma única chamada `append_if`. As RPUs legadas permanecem independentes e inalteradas. Ver [documentação completa e diagramas](flows/atomic-rfq-sourcing.md) e [ADR-0031](architecture/adr/0031-atomic-rfq-sourcing-finalization.md).
 
+### 8.3 Proposta AMRI — interação atômica multi-RPU (não implementada)
+
+A [ADR-0034 — Atomic Multi-RPU Interaction](architecture/adr/0034-atomic-multi-rpu-interaction.md) propõe um protocolo opt-in para uma interação que precisa preparar resultados de pelo menos três capabilities independentes, validar sua composição e confirmar todos os fatos numa única fronteira condicional. A proposta preserva o contrato autônomo das RPUs: cada capability pode expor um adaptador de participação preparada que reutiliza o mesmo Functional Core, mas não persiste durante a preparação.
+
+AMRI não é uma descrição do código atual nem uma redefinição do Reactor canônico de Rico. O Reactor AMRI coordenaria participantes, Providers e políticas e solicitaria o commit por uma porta estreita; o adaptador de estado executaria a validação de consistência e a gravação atômica. Essa é uma extensão explícita a ser avaliada e testada, não uma atribuição já aceita pelo modelo oficial.
+
+O núcleo reutilizável deverá permanecer independente de Supply Chain, FACTSTR, PostgreSQL, SQLx e Axum. Contexto composto, tokens opacos, preparação, resultados, validação estrutural e plano de commit são candidatos a primitivas comuns; fatos, codecs, projeções e políticas comerciais permanecem no domínio da aplicação. Consulte a [especificação AMRI](architecture/amri/README.md) e o [cenário RFQ proposto](flows/atomic-rfq-sourcing-amri.md). O `FinalizeRfqSourcing` existente continua sendo a baseline implementada de uma única capability com várias consequências atômicas.
+
 ## 9. Referências primárias
 
 - [Architecture Knowledge Base — conceitos](https://architecture.ricofritzsche.me/concepts/)
