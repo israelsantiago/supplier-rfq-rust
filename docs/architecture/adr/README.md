@@ -38,8 +38,9 @@ Cada ADR individual registra contexto, decisão e consequências. `Accepted` sig
 | [ADR-0028](./0028-http-error-redaction-request-correlation.md) | Redação de erros internos HTTP e correlação por request ID | Accepted |
 | [ADR-0029](./0029-mainline-documentation-and-ci.md) | Documentação da main e guardrail de CI | Accepted |
 | [ADR-0030](./0030-rfq-summary-reader-port.md) | Porta RfqSummaryReader para as RPUs de consulta | Accepted |
-| [ADR-0031](./0031-atomic-rfq-sourcing-finalization.md) | Finalização atômica de sourcing (`FinalizeRfqSourcing`) por uma capability e um lote CCC | Accepted for implementation |
+| [ADR-0031](./0031-atomic-rfq-sourcing-finalization.md) | Finalização atômica de sourcing (`FinalizeRfqSourcing`) por uma capability e um lote CCC | Accepted; implementado na main |
 | [ADR-0032](./0032-quote-validity-date-semantics.md) | Validade de cotação inclusiva por data de decisão | Accepted |
+| [ADR-0033](./0033-application-state-provider-specialized-ports.md) | Portas especializadas de Application State para capabilities com contratos de contexto/gravação distintos | Accepted |
 
 ## Políticas não negociáveis nesta refatoração
 

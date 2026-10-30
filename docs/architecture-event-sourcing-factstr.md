@@ -18,6 +18,7 @@ This is a reference implementation for one RFQ lifecycle, not a production procu
 | `SetSupplierEligibility` | Assign supplier eligibility | Supplier registration for supplier ID; prior eligibility history is intentionally excluded | `supplier_eligibility_changed.v1` |
 | `SubmitSupplierQuote` | Validate and submit one supplier's quote for an RFQ | RFQ opened/closed state, supplier registration and eligibility, and existing quote for the RFQ/supplier pair | `supplier_quote_submitted.v1` |
 | `CloseRfq` | Close an open RFQ | RFQ opened/closed state | `rfq_closed.v1` |
+| `FinalizeRfqSourcing` | Finalize a reviewed supplier/quote selection | RFQ lifecycle, all RFQ quotes, selected supplier registration/eligibility, prior award/order/dispatch facts | `rfq_closed.v1`, `rfq_awarded.v1`, `purchase_order_created.v1`, `purchase_order_dispatch_requested.v1` in one conditional batch |
 | `ListSupplierQuotes` | Read the quote view | Read only; no append | None |
 
 Each command RPU owns its request, context interpretation, decision, and conditional append. The `Functional Core` receives explicit values and returns either a rejection or a fact to be recorded. The `Imperative Shell` uses FACTSTR to read and append.
@@ -31,6 +32,9 @@ Fact type names are versioned (`*.v1`). Facts are immutable; corrections should 
 - `supplier_eligibility_changed.v1`: only the eligibility status change. The latest matching fact determines current eligibility.
 - `supplier_quote_submitted.v1`: accepted quote, line prices, line totals, overall total, delivery time and validity.
 - `rfq_closed.v1`: RFQ closure.
+- `rfq_awarded.v1`: the quote/supplier awarded by the buyer.
+- `purchase_order_created.v1`: purchase order recorded in the domain from the awarded quote.
+- `purchase_order_dispatch_requested.v1`: durable intent to dispatch the purchase order externally; it is not proof of ERP delivery or acceptance.
 
 Currency and money are validated without floating-point arithmetic. Money is stored as integer minor units (centavos).
 
@@ -53,6 +57,7 @@ FACTSTR has one global, monotonically increasing sequence. `current_context_vers
 - `SetSupplierEligibility`: the registration fact matching `supplier_id`. This example treats the operation as a state assignment, not a transition guarded by the previous status. Concurrent accepted assignments are ordered by committed fact order, and the last committed assignment defines the current status. If the domain requires transition preconditions, revise both the decision and its CCC context to include the current eligibility status. Supplier reference is immutable in this reference implementation; if the domain must allow reference changes, it needs an explicit capability/fact and defined historical uniqueness semantics.
 - `SubmitSupplierQuote`: facts matching one of: the RFQ's opening fact, closure fact, registration and eligibility history for the given supplier, or an existing quote for that RFQ/supplier pair. A quote for supplier A does not alter supplier B's quote context.
 - `CloseRfq`: the RFQ's opening/closure facts. A close fact invalidates a quote decision prepared against the open state.
+- `FinalizeRfqSourcing`: RFQ opening/closure, every quote for the RFQ, registration and eligibility history of the selected supplier, and prior award/order/dispatch facts for that RFQ. This is a deliberately broader context because the buyer's selection depends on the entire reviewed quote set and the command must prevent duplicate finalization. It performs one `append_if` with four consequences.
 
 Too-broad contexts create false conflicts; too-narrow contexts can allow invalid decisions. When adding business rules, update the RPU's context query and add a stale-context test.
 
@@ -74,11 +79,13 @@ Each delivered FACTSTR batch is applied in a PostgreSQL transaction. `last_event
 
 ### Functional Core tests
 
-Unit tests in `submit_supplier_quote/decision.rs` test calculations and rejection rules using explicitly constructed requests and contexts. They should not need PostgreSQL, HTTP or mocks.
+Unit tests in `submit_supplier_quote/decision.rs` and `finalize_rfq_sourcing/decision.rs` test calculations, fact construction and rejection rules using explicitly constructed requests and contexts. They should not need PostgreSQL, HTTP or mocks. The composite finalization decision verifies that one accepted command produces the four expected consequences.
 
 ### REST acceptance tests
 
 `tests/acceptance_api.rs` launches a disposable PostgreSQL 16 container, connects FACTSTR to that database, starts Axum on an ephemeral port and sends HTTP requests. It verifies facts via FACTSTR queries rather than reaching into FACTSTR's private tables.
+
+`tests/acceptance_atomic_sourcing.rs` exercises `FinalizeRfqSourcing` against PostgreSQL/FACTSTR: one successful four-fact batch, zero facts after a business rejection, stale buyer quote-set token, CCC conflicts after preparation (including eligibility and a new quote), and competing commits from the same prepared context. The pure decision tests remain in `src/capabilities/finalize_rfq_sourcing/decision.rs`.
 
 ### Concurrency and CCC
 
@@ -100,6 +107,10 @@ The current default branch `main` contains the FACTSTR-backed implementation des
 
 
 
+## Application State Provider ports
+
+The production composition has two specialized access contracts backed by the same authoritative FACTSTR/PostgreSQL store instance. `ApplicationStateProvider` is the general typed port used by the legacy command/query RPUs; `FactstrApplicationStateProvider` adapts its named `StateQuery` and `ApplicationFact` values. `FinalizeRfqSourcing` owns a separate `AtomicSourcingStateProvider` port because its composite sourcing context and its four-consequence append contract differ from the legacy per-command contract; `FactstrAtomicSourcingStateProvider` adapts that port to the same `PostgresStore`. These are not separate Application States or competing sources of truth. The separation keeps the new capability's contract explicit; it should not be collapsed into a generic abstraction solely to remove a small amount of mapping code. See [ADR-0026](architecture/adr/0026-application-state-provider.md) and [ADR-0033](architecture/adr/0033-application-state-provider-specialized-ports.md).
+
 ## Providers de tempo e identidade
 
 A Imperative Shell obtém tempo e IDs por `ClockProvider` e `IdProvider`. O Functional Core recebe somente valores concretos. Em `SubmitSupplierQuote`, `quote_id` e `submitted_at` são escolhidos antes do laço de retries CCC e reaproveitados em todas as tentativas internas.
@@ -110,4 +121,4 @@ Decisões relacionadas: [catálogo de ADRs](architecture/adr/README.md), especia
 
 ## Fluxo adicional: finalização atômica de sourcing
 
-O fluxo normal mantém as RPUs de comando independentes e seus commits individuais. O novo `FinalizeRfqSourcing` é uma capability separada que não chama essas shells: usa uma query CCC composta e um único `append_if` para registrar fechamento, adjudicação, pedido e intenção de despacho numa única batch. A lista de cotações revista pelo comprador é protegida também por `expected_quote_set_version`; um token obsoleto causa rejeição sem retry silencioso. Ver [ADR-0031](architecture/adr/0031-atomic-rfq-sourcing-finalization.md) e [diagramas / cenários de concorrência](flows/atomic-rfq-sourcing.md).
+`FinalizeRfqSourcing` é uma única Domain Capability/RPU, não um Reactor. A quantidade de fatos gerados não muda a quantidade de capabilities: uma decisão pura calcula quatro consequências, e uma única chamada `append_if` registra o lote. `AtomicSourcingFlow` é somente uma fachada de encaminhamento da composição atual, não um coordenador de várias RPUs; o nome pode ser removido numa limpeza futura. O fluxo normal mantém as RPUs legadas independentes e seus commits individuais. A query CCC composta protege a RFQ, o conjunto completo de cotações, o fornecedor selecionado e os fatos de finalização anteriores. `expected_quote_set_version` protege a decisão humana contra uma lista de cotações já obsoleta antes da query CCC; conflito durante o processamento não é repetido silenciosamente. Ver [ADR-0031](architecture/adr/0031-atomic-rfq-sourcing-finalization.md), [ADR-0033](architecture/adr/0033-application-state-provider-specialized-ports.md) e [diagramas / cenários de concorrência](flows/atomic-rfq-sourcing.md).

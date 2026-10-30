@@ -65,16 +65,23 @@ flowchart TD
     CloseRead --> CloseDecision["CloseRfq: Functional Core"]
     CloseDecision --> CloseAppend["CloseRfq: append_if"]
 
+    Delivery --> SourcingRead["FinalizeRfqSourcing: contexto CCC composto"]
+    SourcingRead --> SourcingDecision["FinalizeRfqSourcing: Functional Core"]
+    SourcingDecision --> SourcingAppend["FinalizeRfqSourcing: um append_if / quatro fatos"]
+
     Delivery --> Query["ListSupplierQuotes: Query"]
     OpenAppend --> Store[("FACTSTR / PostgreSQL")]
     RegisterAppend --> Store
     EligibilityAppend --> Store
     QuoteAppend --> Store
     CloseAppend --> Store
+    SourcingRead --> Store
+    Store --> SourcingDecision
+    SourcingAppend --> Store
     Query --> Store
 ```
 
-O diagrama descreve o princípio de composição. Na implementação, cada Domain Capability tem a sua própria RPU e a sua própria query de contexto; elas não compartilham uma decisão de negócio genérica.
+O diagrama descreve o princípio de composição. Na implementação, cada Domain Capability tem a sua própria RPU e a sua própria query de contexto; elas não compartilham uma decisão de negócio genérica. `FinalizeRfqSourcing` é uma única capability/RPU que calcula quatro consequências e as grava num único `append_if`. A classe `AtomicSourcingFlow`, presente hoje na composição da aplicação, é apenas uma fachada de encaminhamento para essa RPU; não coordena várias capabilities e **não é um Reactor**. A distinção e a possibilidade de remover essa fachada transitória estão registradas na ADR-0031.
 
 ## Nomenclatura (Rico Fritzsche)
 
@@ -89,11 +96,13 @@ Referências: [Architecture Knowledge Base — conceitos](https://architecture.r
 
 ## Application State Provider e confiabilidade HTTP
 
-`ApplicationStateProvider` é a porta da aplicação para ler fatos tipados e registrar consequências contra uma versão de contexto opaca. `FactstrApplicationStateProvider` concentra a conversão para `EventQuery`/`EventFilter`/`EventRecord`/`NewEvent` e os conflitos CCC. `CommandRpus`/`QueryRpus` consomem a porta; handlers não recebem o Store bruto. A projeção de resumos permanece um read model SQLx independente.
+`ApplicationStateProvider` é a porta da aplicação para ler fatos tipados e registrar consequências contra uma versão de contexto opaca. `FactstrApplicationStateProvider` concentra a conversão para `EventQuery`/`EventFilter`/`EventRecord`/`NewEvent` e os conflitos CCC. `CommandRpus`/`QueryRpus` consomem a porta; handlers não recebem o Store bruto. A projeção de resumos permanece um read model SQLx independente. `FinalizeRfqSourcing` usa a porta especializada `AtomicSourcingStateProvider`, implementada por `FactstrAtomicSourcingStateProvider`; ambos os adaptadores compartilham a mesma instância de `PostgresStore` na composição de produção. Isso não cria uma segunda fonte de verdade.
 
 O ledger HTTP usa um pool limitado dedicado, estado `in_progress`/`completed`/`unknown` e controles de inicialização/checksum próprios. A migration original em `migrations/` permanece preservada para compatibilidade com bancos que já a registraram no migrator SQLx; a cópia em `migrations_idempotency/` é idempotente e tem histórico/checksum próprio. A separação de pool não cria transação distribuída entre FACTSTR e ledger.
 
-Leia [`ADR-0026`](docs/architecture/adr/0026-application-state-provider.md), [`ADR-0027`](docs/architecture/adr/0027-http-idempotency-failure-testing.md), [`guia de testes ASP`](docs/testing/application-state-provider.md), [`testes de idempotência`](docs/testing/http-idempotency-testing.md) e o [`runbook`](docs/operations/http-idempotency.md). Antes de commit/push, execute `bash scripts/run-all.sh` ou as etapas listadas em `docs/PLANO-E-CRITERIOS-DE-ACEITE.md`; commit/push exige `PUSH_TO_GITHUB=YES` explícito.
+Leia [`ADR-0026`](docs/architecture/adr/0026-application-state-provider.md), [`ADR-0027`](docs/architecture/adr/0027-http-idempotency-failure-testing.md), [`ADR-0033`](docs/architecture/adr/0033-application-state-provider-specialized-ports.md), [`guia de testes ASP`](docs/testing/application-state-provider.md), [`testes de idempotência`](docs/testing/http-idempotency-testing.md) e o [`runbook`](docs/operations/http-idempotency.md).
+
+Para validar o checkout local, execute `bash scripts/verify-rpu-boundaries.sh`, `bash scripts/verify-openapi.sh`, `sh scripts/verify-mermaid-diagrams.sh` e `bash scripts/verify-documentation-current-state.sh`. O gate de branch coverage é executado por `bash scripts/coverage-functional-core.sh`; mutation testing, mais demorado, por `bash scripts/mutate-functional-core.sh` (também é executado manualmente ou por agenda no GitHub Actions). Os scripts validam; commit e push continuam sendo operações Git explícitas do mantenedor.
 
 ## Hardening arquitetural — prioridades 1 a 3
 
@@ -112,6 +121,7 @@ Essas melhorias preservam regras de negócio, tipos/versionamento de fatos, sem�
 | `SetSupplierEligibility` | Command | `PUT /api/suppliers/{supplier_id}/eligibility` | `supplier_eligibility_changed.v1` · `200` |
 | `SubmitSupplierQuote` | Command | `POST /api/rfqs/{rfq_id}/quotes` | `supplier_quote_submitted.v1` · `201` |
 | `CloseRfq` | Command | `POST /api/rfqs/{rfq_id}/close` | `rfq_closed.v1` · `200` |
+| `FinalizeRfqSourcing` | Command | `POST /api/rfqs/{rfq_id}/finalize-sourcing` | `rfq_closed.v1`, `rfq_awarded.v1`, `purchase_order_created.v1`, `purchase_order_dispatch_requested.v1` · `200` |
 | `ListSupplierQuotes` | Query | `GET /api/rfqs/{rfq_id}/quotes` | View derivada dos fatos · `200` |
 | `GetRfqSummary` | Query | `GET /api/rfqs/{rfq_id}/summary` | Read model `rfq_summary_projection` · `200` / `404` enquanto ausente |
 | `ListRfqSummaries` | Query | `GET /api/rfqs/summaries` | Read model filtrado e paginado · `200` / `400` para parâmetros inválidos |
@@ -130,6 +140,9 @@ Fatos centrais:
 - `supplier_eligibility_changed.v1`: registra somente a mudança de status de elegibilidade; o status corrente é o último fato dessa capability para o fornecedor.
 - `supplier_quote_submitted.v1`: registra a cotação aceita, linhas, preços em centavos, total, prazo e validade.
 - `rfq_closed.v1`: registra o fechamento da RFQ.
+- `rfq_awarded.v1`: registra a adjudicação da RFQ à cotação/fornecedor escolhido.
+- `purchase_order_created.v1`: registra a criação do pedido no domínio, derivado da cotação adjudicada.
+- `purchase_order_dispatch_requested.v1`: registra a intenção durável de despacho; não comprova que um ERP externo recebeu ou aceitou o pedido.
 
 `ListSupplierQuotes` continua mostrando a consulta direta ao log para manter explícita a semântica Event Sourcing. Para consultas de resumo, o projeto também implementa a projeção persistida `rfq_summary_projection`, atualizada pelo stream durável `rfq-summary-projection-v1` do FACTSTR. A projeção é um read model derivado, não uma segunda fonte de verdade.
 

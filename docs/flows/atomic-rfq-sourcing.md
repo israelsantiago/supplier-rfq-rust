@@ -1,9 +1,14 @@
 # Novo fluxo de negócio: finalização atômica do sourcing de uma RFQ
 
-**Status:** proposta de implementação aditiva, sem alteração das RPUs existentes.  
-**Capability:** `FinalizeRfqSourcing`.  
+**Status:** implementado na branch `main`; capability aditiva, com RPU e testes de Functional Core/aceitação PostgreSQL.
+
+**Capability:** `FinalizeRfqSourcing`.
 **Fonte autoritativa:** FACTSTR 0.5.2 / PostgreSQL.  
 **Regra de consistência:** um único `append_if` contendo o lote completo.
+
+## Classificação arquitetural
+
+`FinalizeRfqSourcing` é uma única Domain Capability/RPU. O fato de uma decisão gerar quatro fatos não a transforma em um Reactor: não há coordenação de múltiplas RPUs ou operações externas. A RPU mantém a decisão no Functional Core e a leitura/única gravação condicional na Imperative Shell. `AtomicSourcingFlow` é apenas uma fachada pass-through da composição atual e não implementa as responsabilidades de um Reactor; seu nome é ambíguo e sua remoção é uma limpeza futura, fora do escopo desta documentação. Consulte [ADR-0031](../architecture/adr/0031-atomic-rfq-sourcing-finalization.md) e [ADR-0033](../architecture/adr/0033-application-state-provider-specialized-ports.md).
 
 ## 1. Objetivo de negócio
 
@@ -131,7 +136,7 @@ A projeção existente de resumo de RFQ continuará ignorando tipos de fatos que
 
 Nesta implementação, as regras necessárias à finalização são avaliadas em um núcleo funcional novo, usando fatos já registrados como dados. A persistência apenas acontece no único `append_if`. A funcionalidade e os contratos das RPUs legadas não são alterados.
 
-## 8. API proposta
+## 8. Contrato HTTP implementado
 
 `POST /api/rfqs/{rfq_id}/finalize-sourcing` (idempotency middleware existente)
 

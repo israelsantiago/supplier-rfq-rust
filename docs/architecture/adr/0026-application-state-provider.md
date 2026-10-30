@@ -20,7 +20,9 @@ Introduzir `ApplicationStateProvider`, uma porta definida pela aplicação com:
 - um `ContextVersion` opaco para o consumidor, sem expor a representação numérica do FACTSTR;
 - `append_if` que recebe o contexto, a versão esperada e as consequências tipadas.
 
-`FactstrApplicationStateProvider` é o adaptador de infraestrutura e o único módulo de produção responsável por converter consultas/fatos para `EventQuery`, `EventFilter`, `EventRecord` e `NewEvent`, decodificar payloads e converter conflitos de append para `StateWriteError::ContextChanged`. Payloads inválidos ou tipos de fato desconhecidos falham de forma explícita; não viram contexto parcial silencioso.
+`FactstrApplicationStateProvider` implementa o contrato geral `ApplicationStateProvider` e traduz `StateQuery`/`ApplicationFact` para `EventQuery`, `EventFilter`, `EventRecord` e `NewEvent`, além de decodificar payloads e converter conflitos de append para `StateWriteError::ContextChanged`. Payloads inválidos ou tipos de fato desconhecidos falham de forma explícita; não viram contexto parcial silencioso.
+
+`FinalizeRfqSourcing` usa adicionalmente a porta especializada `AtomicSourcingStateProvider`, implementada por `FactstrAtomicSourcingStateProvider` em `src/application_state/atomic_sourcing_factstr.rs`. Essa porta expressa o contexto composto da seleção de sourcing e grava as quatro consequências numa única batch. Na composição de produção, os dois adaptadores recebem a mesma instância compartilhada de `PostgresStore`: são contratos especializados para necessidades diferentes, não fontes autoritativas diferentes. A decisão de mantê-los separados e evitar uma abstração genérica prematura está registrada na [ADR-0033](./0033-application-state-provider-specialized-ports.md).
 
 As fachadas `CommandRpus` e `QueryRpus` recebem `Arc<dyn ApplicationStateProvider>`. Handlers HTTP não recebem o `PostgresStore` autoritativo diretamente. A projeção de resumos continua sendo um read model SQLx separado: esta decisão não a transforma em fonte autoritativa nem obriga a encaixá-la na mesma porta.
 
@@ -49,6 +51,7 @@ As fachadas `CommandRpus` e `QueryRpus` recebem `Arc<dyn ApplicationStateProvide
 ## Referências
 
 - [Rico Fritzsche — Application State Provider](https://architecture.ricofritzsche.me/concepts/application-state-provider/)
+- [ADR-0033 — portas especializadas para capabilities compostas](./0033-application-state-provider-specialized-ports.md)
 - [Rico Fritzsche — Request Processing Units](https://architecture.ricofritzsche.me/concepts/request-processing-units/)
 - [Rico Fritzsche — Functional Core / Imperative Shell](https://architecture.ricofritzsche.me/concepts/functional-core-imperative-shell/)
 - [Rico Fritzsche — Command Context Consistency](https://architecture.ricofritzsche.me/concepts/command-context-consistency/)

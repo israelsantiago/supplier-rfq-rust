@@ -81,6 +81,7 @@ A query é uma parte da regra de negócio:
 | `SetSupplierEligibility` | Registro do fornecedor solicitado | O fornecedor precisa existir antes da atribuição de elegibilidade |
 | `SubmitSupplierQuote` | Abertura/fechamento da RFQ; registro/elegibilidade do fornecedor; cotação prévia do mesmo par RFQ-fornecedor | RFQ aberta, fornecedor elegível e no máximo uma cotação por fornecedor/RFQ |
 | `CloseRfq` | Abertura e fechamento da mesma RFQ | Somente RFQ existente e ainda aberta pode ser fechada |
+| `FinalizeRfqSourcing` | Abertura/fechamento da RFQ; todas as cotações da RFQ; cadastro e histórico de elegibilidade do fornecedor selecionado; adjudicações, pedidos e intenções de despacho anteriores | Seleção baseada no conjunto de cotações revisto, fornecedor elegível, RFQ aberta e ausência de finalização anterior; as quatro consequências são confirmadas em um único `append_if` |
 
 **Semântica de `SetSupplierEligibility`:** esta variante trata o comando como atribuição de estado (`set`), não como transição condicionada ao valor anterior. Por isso, o histórico de elegibilidade não faz parte da query de consistência dessa decisão. Duas atribuições concorrentes podem ambas ser registradas; o fato confirmado por último determina o status corrente. Essa escolha é intencional nesta implementação de referência e deve ser alterada junto com a regra e os testes se o domínio exigir transições com pré-condições sobre o status anterior.
 
@@ -127,7 +128,8 @@ Ao adicionar ou mudar uma regra, use esta revisão como checklist:
 ## 6. Decisões e limites conhecidos
 
 - O projeto é um exemplo de arquitetura, não um produto procurement pronto para produção.
-- Não são demonstradas ainda autenticação/autorização, idempotência HTTP, alto volume, anexos, impostos, aprovação, seleção multicritério ou observabilidade operacional completa.
+- A idempotência HTTP está implementada de forma opt-in por `Idempotency-Key`, com fingerprint, replay e bloqueio conservador de resultados incertos; ainda faltam reconciliação operacional, observabilidade e testes de recuperação em falhas reais.
+- Não são demonstradas ainda autenticação/autorização, alto volume, anexos, impostos, aprovação, seleção multicritério ou observabilidade operacional completa.
 - O backend PostgreSQL do FACTSTR deve ser avaliado por benchmarks de throughput e latência para a carga-alvo. Independência lógica de contextos não implica gravações fisicamente paralelas.
 - A estratégia de reconstrução de projeções precisa de um procedimento operacional versionado e seguro; não dependa de apagar manualmente tabelas internas do Event Store como procedimento normal.
 
@@ -135,20 +137,37 @@ Ao adicionar ou mudar uma regra, use esta revisão como checklist:
 
 `ClockProvider` e `IdProvider` encapsulam os efeitos de relógio e geração de IDs na Imperative Shell. As funções puras recebem instantes e IDs como valores; não recebem Providers. Os handlers de produção obtêm as dependências da composição da aplicação.
 
-Para `SubmitSupplierQuote`, o ID e o horário de submissão são capturados uma vez por execução lógica e reutilizados após conflito CCC. O horário de submissão é distinto de qualquer futuro instante de aceitação. Caso o domínio exija validade no instante da aceitação, a decisão deverá receber ambos os instantes com semântica explícita.
+Para `SubmitSupplierQuote`, o ID e o horário de submissão são capturados uma vez por execução lógica e reutilizados após conflito CCC; `CloseRfq` também captura seu instante antes do retry limitado. `FinalizeRfqSourcing` captura o instante de decisão e os três IDs das consequências uma única vez e não faz retry automático do conflito CCC, pois a escolha humana precisa ser revista. O horário de submissão continua distinto de qualquer futuro instante de aceitação. Caso o domínio exija validade no instante da aceitação, a decisão deverá receber ambos os instantes com semântica explícita.
 
 Veja o [catálogo de ADRs](architecture/adr/README.md), especialmente ADR-0010 e ADR-0011.
 
-## 8. Referências primárias
+## 8. User Interactions, Delivery Mechanisms e Reactors
+
+Uma **User Interaction** descreve o caminho externo do gatilho à resposta. O **Delivery Mechanism** traduz o protocolo externo para um request de RPU ou Reactor e traduz a resposta de volta. Um **Reactor** só é necessário quando uma interação coordena mais de uma capability/RPU, Providers ou operações externas. Ele controla a sequência e a passagem de resultados, mas não acessa Application State diretamente nem contém decisões de domínio. Consulte as [definições oficiais de Rico](https://architecture.ricofritzsche.me/concepts/reactors/) e de [User Interactions](https://architecture.ricofritzsche.me/concepts/user-interactions/).
+
+### 8.1 Por que `FinalizeRfqSourcing` não é um Reactor
+
+`FinalizeRfqSourcing` é uma única Domain Capability do tipo Command, implementada por uma RPU com Functional Core / Imperative Shell. Ela lê seu próprio contexto, decide se a seleção é válida e registra quatro fatos num único `append_if`. A quantidade de consequências de uma decisão não transforma uma capability em várias capabilities.
+
+`AtomicSourcingFlow` é, no código atual, uma fachada fina de composição (`src/app/atomic_sourcing_flow.rs`) que apenas encaminha o request para `FinalizeRfqSourcing::finalize`. Não coordena chamadas a RPUs diferentes, não combina Providers com operações de outras capabilities, não sequencia etapas independentes e não toma decisões de domínio. Portanto, apesar do nome `Flow`, **não é um Reactor segundo a definição de Rico**. O nome é ambíguo e pode induzir essa interpretação; sua remoção como camada pass-through é uma possível limpeza futura de composição, sem mudança de regra de negócio. Ela não faz parte desta etapa documental.
+
+Um Reactor faria sentido, por exemplo, numa interação futura que chamasse `FinalizeRfqSourcing`, enviasse o pedido a um ERP por meio de um Provider e depois coordenasse outra capability para registrar o identificador externo. A decisão de adjudicação continuaria pertencendo a `FinalizeRfqSourcing`; o Reactor coordenaria somente o processo externo.
+
+### 8.2 Finalização com atomicidade de negócio
+
+A coordenação por Reactor não cria, por si só, um commit indivisível entre RPUs que persistem individualmente. Para a finalização do sourcing, `FinalizeRfqSourcing` é uma capability nova e separada: lê um contexto CCC composto, calcula fechamento/adjudicação/pedido/intenção de despacho sem efeitos intermediários e grava os quatro fatos em uma única chamada `append_if`. As RPUs legadas permanecem independentes e inalteradas. Ver [documentação completa e diagramas](flows/atomic-rfq-sourcing.md) e [ADR-0031](architecture/adr/0031-atomic-rfq-sourcing-finalization.md).
+
+## 9. Referências primárias
 
 - [Architecture Knowledge Base — conceitos](https://architecture.ricofritzsche.me/concepts/)
+- [Domain Capability](https://architecture.ricofritzsche.me/concepts/domain-capability/)
 - [Request Processing Units](https://architecture.ricofritzsche.me/concepts/request-processing-units/)
+- [Reactors](https://architecture.ricofritzsche.me/concepts/reactors/)
+- [User Interactions](https://architecture.ricofritzsche.me/concepts/user-interactions/)
+- [Delivery Mechanisms](https://architecture.ricofritzsche.me/concepts/delivery-mechanisms/)
 - [Command Context Consistency](https://architecture.ricofritzsche.me/concepts/command-context-consistency/)
 - [Functional Core / Imperative Shell](https://architecture.ricofritzsche.me/concepts/functional-core-imperative-shell/)
+- [Application State Provider](https://architecture.ricofritzsche.me/concepts/application-state-provider/)
 - [FACTSTR](https://github.com/ricofritzsche/factstr)
 - [FACTSTR Tool Rental Example — Rust](https://github.com/ricofritzsche/factstr-tool-rental-example/tree/main/rust)
 - [Functional Event Sourcing in Rust](https://github.com/ricofritzsche/fcis-event-sourcing-rust)
-
-## 8. Fluxo composto com atomicidade de negócio
-
-A coordenação por Reactor não cria, por si só, um commit indivisível entre RPUs que persistem individualmente. Para a finalização do sourcing, `FinalizeRfqSourcing` é uma capability nova e separada: lê um contexto CCC composto, calcula fechamento/adjudicação/pedido/intenção de despacho sem efeitos intermediários e grava os quatro fatos em uma única chamada `append_if`. As RPUs e shells existentes permanecem inalteradas. Ver [documentação completa e diagramas](flows/atomic-rfq-sourcing.md) e [ADR-0031](architecture/adr/0031-atomic-rfq-sourcing-finalization.md).

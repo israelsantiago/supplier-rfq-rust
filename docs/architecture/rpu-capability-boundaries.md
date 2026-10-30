@@ -1,6 +1,6 @@
-# Supplier RFQ — limites arquiteturais RPU
+# Supplier RFQ — limites arquiteturais de capabilities e RPUs
 
-Este documento registra os limites arquiteturais verificados pelo projeto. Ele não substitui as especificações oficiais de Rico Fritzsche.
+Este documento registra os limites arquiteturais verificados entre Domain Capabilities, RPUs, Delivery Mechanisms e Application State. Ele não substitui as especificações oficiais de Rico Fritzsche.
 
 ## Estrutura das capabilities
 

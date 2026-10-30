@@ -1,8 +1,9 @@
 # ADR-0031: Finalização atômica do sourcing de RFQ via FACTSTR
 
-- **Status:** Accepted for implementation (additive flow; not yet merged into main)
+- **Status:** Accepted; implementado na branch `main`
 - **Data:** 2026-10-29
-- **Escopo:** novo fluxo de negócio; preserva os contratos e shells imperativos das RPUs existentes.
+- **Escopo:** capability de comando aditiva; preserva os contratos e shells imperativos das RPUs legadas.
+- **Implementação:** `src/capabilities/finalize_rfq_sourcing/` e adaptador `src/application_state/atomic_sourcing_factstr.rs`.
 
 ## Contexto
 
@@ -19,6 +20,12 @@ O novo caso exige que a finalização de uma RFQ feche o sourcing, registre a ad
 5. Não repetir automaticamente após conflito CCC: o comprador precisa rever o conjunto de cotações/estado antes de confirmar a escolha. O token de negócio `expected_quote_set_version` é derivado do maior `sequence_number` entre as cotações que foram efetivamente exibidas/revistas.
 6. Os fatos são `rfq_closed.v1`, `rfq_awarded.v1`, `purchase_order_created.v1` e `purchase_order_dispatch_requested.v1`.
 7. O último fato representa intenção durável, não prova de entrega ao ERP externo. Dispatcher/integração externa fica fora desta unidade transacional.
+
+## Classificação arquitetural: capability/RPU, não Reactor
+
+`FinalizeRfqSourcing` implementa uma única Domain Capability do tipo Command e seu próprio caminho RPU: carrega o contexto, aplica a decisão pura e confirma quatro consequências num único `append_if`. Quatro fatos produzidos por uma decisão não equivalem a quatro capabilities. Não há chamadas coordenadas a outras RPUs nem operações externas sequenciadas; por isso, esta implementação não é um Reactor.
+
+A composição atual contém `AtomicSourcingFlow`, uma fachada pass-through que apenas delega para `FinalizeRfqSourcing::finalize`. Ela não coordena interações no sentido definido por Rico. O nome `Flow` é potencialmente ambíguo; a remoção dessa camada fina ou sua renomeação é uma limpeza futura de composição, não uma mudança de domínio e não faz parte desta ADR de implementação. Se surgir um processo externo que combine esta RPU com envio a ERP e outras capabilities, a coordenação desse processo poderá ser um Reactor separado.
 
 ## Contexto CCC
 
@@ -53,9 +60,12 @@ A query precisa corresponder à semântica das EventQueries do FACTSTR 0.5.2. Al
 - A idempotência HTTP não compartilha atomicidade com o append FACTSTR; resposta ambígua após timeout exige política de reconciliação.
 - A query abrangente pode gerar conflitos para fatos que concorrem com o sourcing; deve ser medida e mantida tão estreita quanto as invariantes permitem.
 
-## Testes e gates
+## Evidência e gates
 
-Manter todos os testes existentes. Adicionar testes unitários para cada ramo do Functional Core e aceitação com Testcontainers/PostgreSQL para batch bem-sucedido, zero efeitos em rejeição, conflito de elegibilidade após leitura, quote set obsoleto, dupla preparação/commit e concorrência quote-vs-finalização. Adicionar o novo arquivo de decisão ao gate de 100% de branches. Executar fmt/check/Clippy/testes/OpenAPI/Mermaid/guards já definidos em ADR-0016 e no workflow de CI.
+- `src/capabilities/finalize_rfq_sourcing/decision.rs` contém os testes puros da decisão: sucesso com quatro consequências e rejeições para RFQ/fornecedor/elegibilidade/seleção/cotação/itens/valores/validade.
+- `tests/acceptance_atomic_sourcing.rs` exercita batch de quatro fatos, rejeição sem append, token de cotações obsoleto, conflito CCC após preparação por mudança de elegibilidade, nova cotação concorrente e segundo commit do mesmo snapshot preparado.
+- `scripts/check-functional-core-branch-coverage.py` e `scripts/mutate-functional-core.sh` incluem a decisão pura da capability. Os runners puros excluem nominalmente os testes que usam PostgreSQL; a suíte integral continua executando-os.
+- O workflow CI valida `verify-rpu-boundaries`, Testcontainers, branch coverage, OpenAPI, Mermaid e estado documental. Mutation testing é executado por `workflow_dispatch` ou agenda, não em todo push.
 
 ## Links
 

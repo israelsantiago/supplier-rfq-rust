@@ -13,6 +13,14 @@ O ASP é uma porta tecnológica, não um segundo núcleo de negócio. Ele expõe
 | Consultas CCC mantêm o escopo original | testes `ccc_*` e `eligibility_history_does_not_change_assignment_context_version` | Prova os cenários implementados, não todas as combinações futuras de filtros/fatos. |
 | Produção não importa FACTSTR nas capabilities | `scripts/verify-application-state-boundary.sh` | Guardrail estático; não substitui code review nem teste funcional. |
 
+## Porta especializada da finalização atômica
+
+`FinalizeRfqSourcing` usa `AtomicSourcingStateProvider`, com o adaptador `FactstrAtomicSourcingStateProvider`. Ele lê o contexto composto (RFQ, conjunto de cotações, fornecedor/elegibilidade e fatos de finalização) e confirma os quatro fatos numa única chamada condicional. O adaptador usa a mesma instância `PostgresStore` compartilhada pela composição de produção; não existe um segundo Application State. A interface permanece especializada porque seu contrato de leitura e gravação em batch difere do contrato geral usado pelas RPUs legadas.
+
+A evidência de integração está em `tests/acceptance_atomic_sourcing.rs`: sucesso do lote de quatro fatos, rejeição sem fatos, token de cotações obsoleto, mudança de elegibilidade após preparação, nova cotação concorrente e segundo commit do mesmo contexto preparado. A decisão pura é testada em `src/capabilities/finalize_rfq_sourcing/decision.rs`.
+
+Consulte também [ADR-0031](../architecture/adr/0031-atomic-rfq-sourcing-finalization.md) e [ADR-0033](../architecture/adr/0033-application-state-provider-specialized-ports.md).
+
 ## Execução
 
 ```bash
