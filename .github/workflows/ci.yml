@@ -25,6 +25,8 @@ jobs:
         run: bash scripts/verify-rpu-boundaries.sh
       - name: Verify Testcontainers isolation strategy
         run: bash scripts/verify-testcontainers-isolation.sh
+      - name: Verify AMRI Core dependency boundary
+        run: bash scripts/verify-amri-core-boundaries.sh
 
   functional-core-branch-coverage:
     runs-on: ubuntu-26.04
@@ -38,6 +40,8 @@ jobs:
           tool: cargo-llvm-cov
       - name: Require 100% Functional Core branch coverage
         run: bash scripts/coverage-functional-core.sh
+      - name: Require 100% AMRI Core branch coverage
+        run: bash scripts/coverage-amri-core.sh
 
   openapi-contract:
     runs-on: ubuntu-26.04
@@ -75,3 +79,5 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Run targeted Functional Core mutation tests
         run: bash scripts/mutate-functional-core.sh
+      - name: Run targeted AMRI Core mutation tests (pure library tests only)
+        run: bash scripts/mutate-amri-core.sh

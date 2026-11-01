@@ -1,3 +1,4 @@
+pub mod amri;
 pub mod api_state;
 pub mod app;
 pub mod application_state;

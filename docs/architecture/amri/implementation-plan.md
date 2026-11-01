@@ -41,15 +41,27 @@ Every stage is a separate reviewable delivery. A stage cannot be declared comple
 
 ## Stage 2 — Minimal AMRI Core
 
-**Goal:** Implement domain/store-independent protocol primitives only.
+**Status:** COMPLETED — 2026-10-30 (domain/store-independent protocol primitives and pure evidence only).
 
-**Work:** Add only justified types for interaction identity, participant identity/definition, execution context, prepared outcomes, proposed facts, validation state, commit plan and typed errors. Start with static composition, not a plugin registry or generic workflow engine.
+**Goal:** Implement the smallest justified set of reusable protocol primitives without introducing application, storage, delivery or workflow orchestration dependencies.
 
-**Tests:** Unit tests for identity/fingerprint rules, immutable outcomes, duplicate facts, allowed participants, dependency graph, cycle/missing participant, deterministic ordering, empty/incomplete plan and error classification. Add `proptest` for ordering, deduplication and composition invariants. No HTTP, database or Testcontainers.
+**Work completed:** Added `src/amri` with typed interaction/definition/participant/fact identities, opaque 256-bit fingerprints, retry identity binding, captured execution metadata, participant definitions (including explicit opt-in for a participant to return no facts), deterministic stable topological ordering, prepared outcomes, typed proposed facts, structural validation and a sealed `ValidatedCommitPlan`. The application supplies canonical request/plan fingerprints; AMRI Core does not choose serialization or hashing rules. The module is compiled independently with `rustc` and has no third-party production imports.
 
-**Gates:** fmt, check, lib tests, Clippy, AMRI Core branch coverage and mutation testing restricted to pure Core code.
+**Explicitly out of scope:** No composite snapshot, consistency token, Context Planner, Provider, Atomic Interaction State Port, FACTSTR adapter, Reactor, HTTP endpoint, RFQ participant adapter, persistence, Testcontainers or database integration was added. Those concerns remain in Stages 3–7. The validated plan is not yet an authorization to persist.
 
-**Exit:** Core tests pass without storage, delivery or Supply Chain dependencies.
+**Tests/evidence recorded (2026-10-30):**
+
+- `bash scripts/verify-amri-core-boundaries.sh` — verifies the dependency boundary and standalone `rustc` compilation.
+- `cargo test --lib --no-default-features --locked amri:: -- --test-threads=1` — unit and `proptest` cases only; the AMRI Core test filter excludes integration tests.
+- `cargo check --lib --no-default-features --locked` and `cargo clippy --lib --no-default-features --locked -- -D warnings` — library checks without enabling application test-support features.
+- `bash scripts/coverage-amri-core.sh` — requires 100% production code regions and both outcomes of each reported branch in the six AMRI Core production modules.
+- `bash scripts/mutate-amri-core.sh` — `cargo-mutants` targets only the six pure production modules and executes only `amri::` library tests. The runner sets an invalid `DOCKER_HOST`; it does not run integration tests or Testcontainers.
+- `bash scripts/verify-rpu-boundaries.sh` — full repository Rust regression gate, including the existing application tests.
+- `bash scripts/verify-application-state-boundary.sh`, `bash scripts/verify-functional-core-test-isolation.sh`, `bash scripts/verify-openapi.sh`, `sh scripts/verify-mermaid-diagrams.sh` and `bash scripts/verify-documentation-current-state.sh` — existing repository architecture/documentation gates.
+
+**Completion boundary:** Stage 2 is complete only for the pure protocol Core. It does not accept every AMRI decision, establish storage consistency, prove atomic persistence, create a Reactor or implement AMRI in the RFQ flow. ADR-0034 remains `Proposed`; the Stage 3 composite-context/state-port spike must validate backend semantics before any storage guarantee is claimed.
+
+**Exit:** Core primitives compile independently; unit/property tests, 100% scoped branch/region coverage and targeted mutation testing pass without Docker/Testcontainers; the existing repository regression and architecture gates remain green. Stage 3 may begin with the snapshot/context contract and state-port spike.
 
 ## Stage 3 — Composite Context and Atomic State Port
 

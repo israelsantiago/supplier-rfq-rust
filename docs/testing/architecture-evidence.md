@@ -60,9 +60,9 @@ A semântica usada nesta matriz está implementada em [`factstr-postgres/src/que
 
 A cobertura 100% de Functional Core não mede automaticamente o ASP, fachadas, middleware, migrations ou cenários operacionais.
 
-## AMRI — propriedades propostas, ainda sem implementação
+## AMRI — propriedades propostas e estado das evidências
 
-**Importante:** a tabela abaixo é um plano de evidência, não uma afirmação de que os testes ou os módulos já existem. Os nomes são contratos-alvo a confirmar durante as etapas de implementação da ADR-0034. Até que o código exista e os comandos sejam executados, o estado é `Proposed / Not implemented`.
+**Importante:** esta matriz separa propriedades já demonstradas no Core puro (Etapa 2) de contratos ainda propostos para as etapas seguintes. Uma propriedade só é promovida quando há teste real, comando executável e limite da prova documentado.
 
 | Propriedade pretendida | Evidência automatizada-alvo | Camada / infraestrutura |
 |---|---|---|
@@ -70,14 +70,29 @@ A cobertura 100% de Functional Core não mede automaticamente o ASP, fachadas, m
 | Um snapshot cobre a união de requisitos | `planner_builds_one_canonical_composite_context` e `reactor_reads_snapshot_once_for_all_participants` | AMRI Core; Fake State |
 | Não combinar tokens independentes | `composite_context_rejects_independent_snapshot_tokens` | AMRI Core; testes puros |
 | Mesmo Functional Core nos dois modos | Testes de paridade entre execução autônoma e preparação com entradas equivalentes | Functional Core de cada capability |
-| Grafo de participantes determinístico | Testes para ciclo, dependência ausente, participante duplicado e ordem estável | AMRI Core; testes puros/propriedade |
+| Grafo de participantes determinístico | `interaction_definition_rejects_*`, `interaction_definition_rejects_cycles_and_uses_stable_topological_order`, `topological_sort_handles_multiple_prerequisites_and_stable_ready_queue`, `plan_order_is_independent_of_prepared_outcome_input_permutation` | AMRI Core; unit/property tests — implementado na Etapa 2 |
 | Composição rejeita fatos incompatíveis | Matriz de políticas para RFQ, adjudicação e pedido | Composition Policies; testes puros/propriedade |
 | Um único commit condicional | `amri_commits_all_participant_facts_and_marker_in_one_append_if` | FACTSTR/PostgreSQL Testcontainers |
 | Conflito não persiste lote parcial | `amri_stale_composite_context_commits_zero_facts` | FACTSTR/PostgreSQL Testcontainers |
 | Corrida entre interações | `amri_two_interactions_same_snapshot_commit_at_most_one_batch` | Stores independentes + Testcontainers |
 | RPU autônoma concorrente respeita CCC | Testes de corrida entre `SubmitSupplierQuote`/`CloseRfq` e interação AMRI | Testcontainers |
 | Idempotência e recuperação | Testes same-ID/same-fingerprint, same-ID/different-fingerprint e resposta perdida após commit | FACTSTR marker + fault injection |
-| Core sem acoplamento | Build/test do Core sem RFQ, FACTSTR, PostgreSQL, SQLx e Axum | Cargo feature/dependency checks |
+| Core sem acoplamento | `verify-amri-core-boundaries.sh` + compilação standalone por `rustc` | Sem import/dependência externa em produção; implementado na Etapa 2. A independência de adapters permanece futura. |
 | Reutilização em outro domínio | Mesmo Core aplicado ao exemplo de reserva de recursos | Segundo domínio |
 
 A matriz só deve promover uma propriedade para evidência implementada após apontar para o teste real, comando executável, resultado e limite da prova. Mutation testing AMRI deve permanecer restrito ao Core e às políticas puras; Testcontainers não pode ser acionado pelo runner de mutação do Functional Core.
+
+## AMRI Core — evidências da Etapa 2 (2026-10-30)
+
+| Propriedade | Evidência implementada | Escopo / limite |
+|---|---|---|
+| Identificadores e fingerprints opacos | `identifiers_reject_empty_whitespace_unicode_and_overlong_values`, `fingerprint_hex_round_trips_lower_and_upper_case`, `fingerprint_hex_rejects_wrong_length_and_invalid_characters` | Valida formato e binding; o Core não calcula digest nem define canonicalização. |
+| Reuso de InteractionId | `same_interaction_identity_requires_same_definition_version_and_request_fingerprint` | Detecta reaproveitamento com definição/versão/request diferentes; não persiste marcador. |
+| Grafo de participantes | `interaction_definition_rejects_*`, `interaction_definition_rejects_cycles_and_uses_stable_topological_order`, `topological_sort_handles_multiple_prerequisites_and_stable_ready_queue` | Validação estrutural e ordem topológica estável; sem Reactor/executor. |
+| Outcomes e fatos propostos | `valid_plan_orders_outcomes_and_facts_by_the_declared_dependency_graph`, `planned_fact_reference_exposes_owner_and_typed_payload`, `participant_without_empty_fact_opt_in_cannot_return_no_facts` | Dados tipados e não persistidos; outcome sem fatos exige permissão explícita no contrato do participante. |
+| Plano estrutural | `plan_rejects_definition_identity_and_version_mismatches`, `plan_rejects_unknown_duplicate_and_missing_participants`, `plan_rejects_disallowed_types_duplicate_fact_ids_and_empty_fact_batches` | Não executa Composition Policies de domínio nem valida consistência de storage. |
+| Determinismo | `plan_order_is_independent_of_prepared_outcome_input_permutation` (`proptest`) | Propriedade sobre ordenação; não prova concorrência ou atomicidade. |
+| Isolamento | `verify-amri-core-boundaries.py` + compilação standalone por `rustc` | Produção Core sem crates externas; testes usam apenas `proptest` e não iniciam Testcontainers. |
+| Coverage e mutation | `coverage-amri-core.sh` e `mutate-amri-core.sh` | Alvos limitados a `src/amri`; mutation executa apenas testes da library `amri::`. |
+
+A execução local deve ser registrada no log do ciclo. Uma linha de evidência não autoriza afirmar que snapshot, CCC, commit atômico, idempotência em FACTSTR ou integração AMRI/RFQ já estejam implementados.

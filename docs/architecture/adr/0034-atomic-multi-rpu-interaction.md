@@ -263,14 +263,12 @@ The Core may be organized by concept, not by a premature deep hierarchy:
 src/amri/
   mod.rs
   identity.rs
-  participant.rs
+  definition.rs
   execution.rs
-  context.rs
   outcome.rs
-  composition.rs
-  commit_plan.rs
+  plan.rs
   error.rs
-  reactor.rs
+  tests.rs  # cfg(test): unit/property tests only
 ```
 
 Application-specific adapters remain outside the generic Core:
@@ -296,7 +294,7 @@ src/application_state/
   factstr_atomic_interaction.rs
 ```
 
-This is a candidate layout only. The first code spike must demonstrate that the boundaries are useful before creating every module. Prefer feature-first slices and avoid generic registries, dynamic loading, macros or type-erasure frameworks until a demonstrated requirement needs them.
+Stage 2 implements only the pure protocol primitives listed above. This does not introduce participant adapters, composite snapshot/token handling, a commit port, a Reactor or persistence. The Stage 3–5 spikes must validate those boundaries before additional modules are created. Prefer feature-first slices and avoid generic registries, dynamic loading, macros or type-erasure frameworks until a demonstrated requirement needs them.
 
 Candidate contracts (illustrative only; do not copy directly into production without the Stage 1 design review):
 
