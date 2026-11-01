@@ -1,0 +1,5 @@
+[languages.python]
+interpreter = "/home/israelsantiago/.local/share/uv/python/cpython-3.14.2-linux-x86_64-gnu/bin/python3"
+
+[spelling]
+projectWords = ["identifica", "rfq"]
