@@ -1,6 +1,6 @@
 # ADR-0034: Atomic Multi-RPU Interaction (AMRI)
 
-- **Status:** Proposed — design baseline prepared; implementation not started
+- **Status:** Proposed — Stage 2 pure Core and Stage 3 composite-context/state-port boundary implemented; full AMRI protocol remains unaccepted
 - **Date:** 2026-10-30
 - **Scope:** Optional protocol for coordinating three or more independent Domain Capabilities in one atomic interaction
 - **Related ADRs:** ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0010, ADR-0011, ADR-0023, ADR-0026, ADR-0031, ADR-0033

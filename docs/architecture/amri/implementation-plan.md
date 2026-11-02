@@ -1,6 +1,6 @@
 # AMRI — incremental implementation and test plan
 
-**Status:** Stage 1 completed on 2026-10-30 as an architecture/design documentation baseline. No AMRI production implementation exists; Stages 2–9 remain pending.
+**Status:** Stages 1–3 completed as bounded, separately evidenced deliveries. Stage 2 provides the pure protocol Core; Stage 3 provides the application-owned composite-context and FACTSTR state-port proof. Stages 4–9 remain pending; ADR-0034 remains Proposed.
 
 Every stage is a separate reviewable delivery. A stage cannot be declared complete from compilation alone. Its code, tests, documentation, automated evidence and unresolved risks must be reviewed before the next stage begins.
 
@@ -65,13 +65,25 @@ Every stage is a separate reviewable delivery. A stage cannot be declared comple
 
 ## Stage 3 — Composite Context and Atomic State Port
 
+**Status:** COMPLETED — composite context planner, application-owned state port and FACTSTR 0.5.2 adapter contract verified on 2026-11-01.
+
 **Goal:** Prove one coherent snapshot and one token for the union of participant requirements.
 
-**Work:** Implement the application-owned context planner contract, opaque token, snapshot envelope and atomic state port. Build a fake adapter first, then the FACTSTR adapter. Validate query canonicalization and ensure read and write use the same logical query specification.
+**Work completed:** Added application-owned `ContextRequirement`/`CompositeContextSpecification` with deterministic JSON canonicalization, requirement union/de-duplication and a versioned SHA-256 specification fingerprint. Added `SnapshotEnvelope`, opaque adapter token, `AtomicInteractionStatePort`, a test-only fake adapter and a FACTSTR adapter under `src/application_state/atomic_interaction`. The Stage 2 `src/amri` Core remains unchanged and dependency-free. The FACTSTR token retains the exact EventQuery and `current_context_version` obtained by the one composite read; `append_if_unchanged` uses those exact values in one `append_if` call.
 
-**Tests:** Requirement union/de-duplication, one read invocation, token-plan binding, provider/store mismatch, expired/wrong token, OR/AND EventQuery semantics, relevant-change conflict, irrelevant-change behavior, independent-store race and no version-max composition. Testcontainers is introduced only at the adapter integration layer.
+**Semantic decisions evidenced:** FACTSTR filters are OR alternatives; event type and one object payload predicate within each filter are AND constraints; multiple payload predicates would be OR and are therefore not used to encode a multi-field conjunction. The context version is the full matching-context version, not the last returned sequence. FACTSTR tokens have no TTL; relevant context changes make them stale. `StoreIdentity` binds a token to a configured logical store identity and allows independent connections to the same store to race correctly.
 
-**Exit:** FACTSTR adapter proves stale-token rejection and all-or-none commit against the actual dependency version.
+**Tests/evidence recorded:**
+
+- `bash scripts/verify-amri-stage3-context.sh` — PASS: pure planner/fake tests, formatting, library check and Clippy; fake tests run with an invalid `DOCKER_HOST` and do not start Testcontainers.
+- `bash scripts/coverage-amri-stage3-context.sh` — PASS: 100% production regions and both outcomes of every branch in `context.rs` and `state_port.rs`.
+- Mutation testing — DEFERRED: the scoped runner is retained, but the consolidated campaign is reserved for completion of the entire AMRI implementation; no Stage 3 mutation pass is claimed.
+- `bash scripts/verify-amri-stage3-factstr.sh` — PASS: FACTSTR 0.5.2/PostgreSQL Testcontainers proof for query OR/AND semantics, irrelevant changes, stale token, all-or-none batch and independent-store race.
+- Existing full repository, Application State, Functional Core/Testcontainers isolation, OpenAPI, Mermaid, AMRI Core boundary and documentation gates — PASS.
+
+**Explicitly out of scope:** No Reactor, prepared RFQ participants, domain composition policy, interaction marker, idempotent recovery, HTTP endpoint or final multi-RPU RFQ atomic interaction was added. ADR-0034 remains Proposed.
+
+**Exit:** One canonical composite query/read produces one snapshot and one opaque token; the adapter reuses the exact query/version for one conditional append; relevant changes reject the full batch, irrelevant changes do not create false conflicts, and independent connections permit at most one competing append.
 
 ## Stage 4 — Three prepared Supply Chain participants
 

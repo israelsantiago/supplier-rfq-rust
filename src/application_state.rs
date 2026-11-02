@@ -9,6 +9,7 @@ use crate::events::{
 use thiserror::Error;
 use uuid::Uuid;
 
+pub mod atomic_interaction;
 pub mod atomic_sourcing_factstr;
 pub mod factstr;
 

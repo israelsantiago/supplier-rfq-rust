@@ -96,3 +96,19 @@ A matriz só deve promover uma propriedade para evidência implementada após ap
 | Coverage e mutation | `coverage-amri-core.sh` e `mutate-amri-core.sh` | Alvos limitados a `src/amri`; mutation executa apenas testes da library `amri::`. |
 
 A execução local deve ser registrada no log do ciclo. Uma linha de evidência não autoriza afirmar que snapshot, CCC, commit atômico, idempotência em FACTSTR ou integração AMRI/RFQ já estejam implementados.
+
+
+## AMRI — Stage 3 composite context and Atomic State Port (2026-11-01)
+
+| Property | Evidence implemented | Scope / limit |
+|---|---|---|
+| Canonical union of participant read requirements | `application_state::atomic_interaction::context` unit/property-targeted tests | Application layer; does not add query types to the AMRI Core |
+| FACTSTR EventQuery semantics and query shape | `factstr_adapter_proves_union_query_unchanged_token_and_atomic_conditional_batches` | FACTSTR 0.5.2/PostgreSQL; one filter per clause, one event type and one object payload selector per filter |
+| One coherent snapshot and one token | `read_composite` returns one `SnapshotEnvelope`; query and current context version are retained in the private FACTSTR token | No independently read versions or `max(version)` composition |
+| Token/store binding | Fake and FACTSTR adapter tests reject a token from a different logical store identity | Store identity is a stable configured logical-store key; FACTSTR token has no TTL |
+| Stale/relevant context change | `factstr_adapter_proves_union_query_unchanged_token_and_atomic_conditional_batches` | PostgreSQL/Testcontainers integration; matching append invalidates prior token |
+| Irrelevant context change | Same adapter integration test | Only proves changes outside the declared composite query do not advance that query's context version |
+| Conditional batch all-or-none | Same adapter integration test | One `append_if`; no interaction marker/recovery protocol yet |
+| Independent store race | Same adapter integration test using independent PostgresStore connections | At most one competing conditional append commits from the same snapshot |
+
+The Stage 3 fake and coverage runners are separate from the PostgreSQL integration runner and do not start Testcontainers. Mutation testing is deferred to one consolidated campaign after the entire AMRI implementation; the scoped runner is not an intermediate gate. The integration gate intentionally starts Testcontainers. The ADR remains Proposed; marker, recovery, Reactor and RFQ participant behavior are not claimed as implemented.

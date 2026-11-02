@@ -1,6 +1,6 @@
 # Atomic Multi-RPU Interaction (AMRI)
 
-**Status:** Proposed architecture; no AMRI production implementation exists yet.
+**Status:** Proposed architecture; the pure AMRI Core (Stage 2) and composite-context/atomic-state boundary (Stage 3) are implemented and evidenced. Reactor, prepared participants and the complete RFQ interaction remain future stages.
 
 **Decision record:** [ADR-0034](../adr/0034-atomic-multi-rpu-interaction.md)
 
@@ -14,6 +14,7 @@ It is not a replacement for ordinary RPUs, ordinary Reactors, FACTSTR, or a gene
 - [Protocol and proposed contracts](./protocol.md)
 - [Consistency, CCC, idempotency and failure model](./consistency-model.md)
 - [Incremental implementation and test plan](./implementation-plan.md)
+- [Stage 3 — Composite Context and Atomic State Port](./stage-3-composite-context-state-port.md)
 - [Applicability and generalization beyond Supply Chain](./applicability.md)
 - [RFQ Supply Chain reference interaction](../../flows/atomic-rfq-sourcing-amri.md)
 
