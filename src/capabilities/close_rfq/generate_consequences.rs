@@ -1,28 +1,23 @@
 use chrono::{DateTime, Utc};
 
+use crate::domain::rfq_lifecycle::{RfqLifecycleContext, RfqLifecycleRejection, decide_close_rfq};
 use crate::events::RfqClosedFact;
 
-use super::{
-    build_context::RfqLifecycleContext,
-    process_request::{CloseRfqError, CloseRfqRejection, CloseRfqRequest},
-};
+use super::process_request::{CloseRfqError, CloseRfqRejection, CloseRfqRequest};
 
-/// Decisão pura: verifica o ciclo de vida e constrói o fato com horário fornecido pelo shell.
+/// Adapter fino: delega a decisão pura compartilhada e preserva o contrato legado de erro.
 pub(super) fn generate_consequences(
     request: CloseRfqRequest,
     context: &RfqLifecycleContext,
     closed_at: DateTime<Utc>,
 ) -> Result<RfqClosedFact, CloseRfqError> {
-    if !context.opened {
-        return Err(CloseRfqRejection::RfqNotFound.into());
-    }
-    if context.closed {
-        return Err(CloseRfqRejection::RfqAlreadyClosed.into());
-    }
-
-    Ok(RfqClosedFact {
-        rfq_id: request.rfq_id,
-        closed_at,
+    decide_close_rfq(request.rfq_id, context, closed_at).map_err(|rejection| match rejection {
+        RfqLifecycleRejection::RfqNotFound => {
+            CloseRfqError::Rejected(CloseRfqRejection::RfqNotFound)
+        }
+        RfqLifecycleRejection::RfqAlreadyClosed => {
+            CloseRfqError::Rejected(CloseRfqRejection::RfqAlreadyClosed)
+        }
     })
 }
 
@@ -35,10 +30,7 @@ mod tests {
         let request = CloseRfqRequest {
             rfq_id: uuid::Uuid::from_u128(20),
         };
-        let context = RfqLifecycleContext {
-            opened: true,
-            closed: false,
-        };
+        let context = RfqLifecycleContext::new(true, false);
         let closed_at = Utc::now();
 
         let fact = generate_consequences(request, &context, closed_at)
@@ -53,16 +45,12 @@ mod tests {
             rfq_id: uuid::Uuid::from_u128(21),
         };
         assert!(matches!(
-            generate_consequences(request, &RfqLifecycleContext::default(), Utc::now()),
+            generate_consequences(request, &RfqLifecycleContext::new(false, false), Utc::now()),
             Err(CloseRfqError::Rejected(CloseRfqRejection::RfqNotFound))
         ));
 
-        let closed = RfqLifecycleContext {
-            opened: true,
-            closed: true,
-        };
         assert!(matches!(
-            generate_consequences(request, &closed, Utc::now()),
+            generate_consequences(request, &RfqLifecycleContext::new(true, true), Utc::now()),
             Err(CloseRfqError::Rejected(CloseRfqRejection::RfqAlreadyClosed))
         ));
     }

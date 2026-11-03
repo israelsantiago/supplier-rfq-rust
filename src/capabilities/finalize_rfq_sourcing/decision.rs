@@ -1,83 +1,21 @@
-//! Deterministic domain decision logic for finalizing RFQ sourcing.
-
-use std::collections::{HashMap, HashSet};
+//! Deterministic composition of shared RFQ lifecycle, award and purchase-order decisions.
+//!
+//! This remains the legacy single-capability baseline. It composes pure domain decisions;
+//! it does not call other capability shells and still returns the same four consequences.
 
 use chrono::{DateTime, Utc};
-use thiserror::Error;
 use uuid::Uuid;
 
+use super::FinalizeRfqSourcingRequest;
+use crate::domain::rfq_lifecycle::{RfqLifecycleContext, RfqLifecycleRejection, decide_close_rfq};
+use crate::domain::sourcing::{
+    AwardQuoteSelection, decide_award_supplier_quote, decide_create_purchase_order,
+};
 use crate::events::{
     PurchaseOrderCreatedFact, PurchaseOrderDispatchRequestedFact, RfqAwardedFact, RfqClosedFact,
-    RfqOpenedFact, SupplierQuoteSubmittedFact, SupplierStatus,
 };
 
-use super::FinalizeRfqSourcingRequest;
-
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
-pub enum SourcingRejection {
-    #[error("RFQ was not found")]
-    RfqNotFound,
-    #[error("RFQ is already closed")]
-    RfqAlreadyClosed,
-    #[error("RFQ sourcing has already been finalized")]
-    AlreadyFinalized,
-    #[error("supplier has not been registered")]
-    SupplierNotRegistered,
-    #[error("supplier eligibility has not been set")]
-    SupplierEligibilityNotSet,
-    #[error("supplier is not eligible for award")]
-    SupplierNotEligible,
-    #[error(
-        "the quote set changed after it was reviewed; reload quotes and confirm the selection again"
-    )]
-    QuoteSetChanged,
-    #[error("the selected quote was not found for this RFQ and supplier")]
-    QuoteNotFound,
-    #[error("more than one quote exists for the selected supplier and RFQ")]
-    DuplicateSupplierQuote,
-    #[error("the selected quote has expired")]
-    QuoteExpired,
-    #[error("quote currency does not match RFQ currency")]
-    CurrencyMismatch,
-    #[error("quote delivery_days must be positive")]
-    InvalidDeliveryDays,
-    #[error("RFQ must contain at least one item")]
-    EmptyRfq,
-    #[error("selected quote must contain every RFQ item exactly once")]
-    EmptyQuote,
-    #[error("quoted item IDs do not match the RFQ item set")]
-    ItemSetMismatch,
-    #[error("an RFQ item is duplicated in the selected quote")]
-    DuplicateQuotedItem,
-    #[error("quoted quantity does not match the RFQ requested quantity")]
-    QuantityMismatch,
-    #[error("unit price must be positive")]
-    InvalidUnitPrice,
-    #[error("quote totals are inconsistent with quote line amounts")]
-    InvalidQuoteTotals,
-    #[error("quote amount overflowed the supported integer range")]
-    AmountOverflow,
-    #[error(
-        "the command context changed before the atomic commit; reload and retry with a new idempotency key"
-    )]
-    CommandContextChanged,
-}
-
-/// Explicit values reconstructed from the single FACTSTR context query.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct SourcingContext {
-    pub rfq: Option<RfqOpenedFact>,
-    pub closed: bool,
-    pub supplier_registered: bool,
-    pub supplier_status: Option<SupplierStatus>,
-    /// Number of quote facts for this supplier/RFQ pair, including a quote whose ID
-    /// does not match the selected ID. The legacy quote RPU guarantees this is <= 1.
-    pub supplier_quote_count: usize,
-    pub selected_quote: Option<SupplierQuoteSubmittedFact>,
-    /// Highest FACTSTR sequence number among all quotes for this RFQ.
-    pub latest_quote_sequence_number: Option<u64>,
-    pub finalized: bool,
-}
+pub use crate::domain::sourcing::{SourcingContext, SourcingRejection};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SourcingDecision {
@@ -87,8 +25,8 @@ pub struct SourcingDecision {
     pub dispatch_requested: PurchaseOrderDispatchRequestedFact,
 }
 
-/// Pure decision: one explicit request + its full consistency context + stable values in,
-/// one all-or-nothing set of consequences out.
+/// Preserve the original public signature and rejection order while composing the shared
+/// Functional Core. Exactly one `decide` entry point remains in this module.
 pub fn decide(
     request: &FinalizeRfqSourcingRequest,
     context: &SourcingContext,
@@ -97,154 +35,43 @@ pub fn decide(
     purchase_order_id: Uuid,
     dispatch_id: Uuid,
 ) -> Result<SourcingDecision, SourcingRejection> {
-    let rfq = context.rfq.as_ref().ok_or(SourcingRejection::RfqNotFound)?;
+    let selection = AwardQuoteSelection::new(
+        request.rfq_id,
+        request.supplier_id,
+        request.quote_id,
+        request.expected_quote_set_version,
+    );
+    let awarded_quote = decide_award_supplier_quote(&selection, context, now, award_id)?;
 
-    if context.finalized {
-        return Err(SourcingRejection::AlreadyFinalized);
-    }
-    if context.closed {
-        return Err(SourcingRejection::RfqAlreadyClosed);
-    }
-    if context.latest_quote_sequence_number != Some(request.expected_quote_set_version) {
-        return Err(SourcingRejection::QuoteSetChanged);
-    }
-    if !context.supplier_registered {
-        return Err(SourcingRejection::SupplierNotRegistered);
-    }
-    match context.supplier_status {
-        None => return Err(SourcingRejection::SupplierEligibilityNotSet),
-        Some(SupplierStatus::Blocked) => return Err(SourcingRejection::SupplierNotEligible),
-        Some(SupplierStatus::Eligible) => {}
-    }
-    if context.supplier_quote_count == 0 {
-        return Err(SourcingRejection::QuoteNotFound);
-    }
-    if context.supplier_quote_count > 1 {
-        return Err(SourcingRejection::DuplicateSupplierQuote);
-    }
-    let quote = context
-        .selected_quote
-        .as_ref()
-        .ok_or(SourcingRejection::QuoteNotFound)?;
-
-    if quote.rfq_id != request.rfq_id
-        || quote.supplier_id != request.supplier_id
-        || quote.quote_id != request.quote_id
-    {
-        return Err(SourcingRejection::QuoteNotFound);
-    }
-    if quote.valid_until < now.date_naive() {
-        return Err(SourcingRejection::QuoteExpired);
-    }
-    if quote.currency != rfq.currency {
-        return Err(SourcingRejection::CurrencyMismatch);
-    }
-    if quote.delivery_days <= 0 {
-        return Err(SourcingRejection::InvalidDeliveryDays);
-    }
-    validate_quote_items(rfq, quote)?;
+    let lifecycle = RfqLifecycleContext::new(context.rfq.is_some(), context.closed);
+    let closed =
+        decide_close_rfq(request.rfq_id, &lifecycle, now).map_err(|rejection| match rejection {
+            RfqLifecycleRejection::RfqNotFound => SourcingRejection::RfqNotFound,
+            RfqLifecycleRejection::RfqAlreadyClosed => SourcingRejection::RfqAlreadyClosed,
+        })?;
+    let purchase_order = decide_create_purchase_order(&awarded_quote, purchase_order_id, now);
+    let dispatch_requested = PurchaseOrderDispatchRequestedFact {
+        dispatch_id,
+        purchase_order_id,
+        rfq_id: request.rfq_id,
+        requested_at: now,
+    };
 
     Ok(SourcingDecision {
-        closed: RfqClosedFact {
-            rfq_id: request.rfq_id,
-            closed_at: now,
-        },
-        awarded: RfqAwardedFact {
-            award_id,
-            rfq_id: request.rfq_id,
-            quote_id: quote.quote_id,
-            supplier_id: quote.supplier_id,
-            awarded_at: now,
-            currency: quote.currency.clone(),
-            total_amount_cents: quote.total_amount_cents,
-            delivery_days: quote.delivery_days,
-            valid_until: quote.valid_until,
-        },
-        purchase_order: PurchaseOrderCreatedFact {
-            purchase_order_id,
-            rfq_id: request.rfq_id,
-            supplier_id: quote.supplier_id,
-            source_quote_id: quote.quote_id,
-            currency: quote.currency.clone(),
-            total_amount_cents: quote.total_amount_cents,
-            delivery_days: quote.delivery_days,
-            created_at: now,
-            items: quote.items.clone(),
-        },
-        dispatch_requested: PurchaseOrderDispatchRequestedFact {
-            dispatch_id,
-            purchase_order_id,
-            rfq_id: request.rfq_id,
-            requested_at: now,
-        },
+        closed,
+        awarded: awarded_quote.award_fact().clone(),
+        purchase_order,
+        dispatch_requested,
     })
-}
-
-fn validate_quote_items(
-    rfq: &RfqOpenedFact,
-    quote: &SupplierQuoteSubmittedFact,
-) -> Result<(), SourcingRejection> {
-    if rfq.items.is_empty() {
-        return Err(SourcingRejection::EmptyRfq);
-    }
-    if quote.items.is_empty() {
-        return Err(SourcingRejection::EmptyQuote);
-    }
-
-    let required_by_id: HashMap<Uuid, i64> = rfq
-        .items
-        .iter()
-        .map(|item| (item.id, item.required_quantity))
-        .collect();
-    if required_by_id.len() != rfq.items.len() {
-        return Err(SourcingRejection::ItemSetMismatch);
-    }
-
-    let mut seen = HashSet::with_capacity(quote.items.len());
-    for item in &quote.items {
-        if !seen.insert(item.rfq_item_id) {
-            return Err(SourcingRejection::DuplicateQuotedItem);
-        }
-    }
-    if quote.items.len() != required_by_id.len()
-        || !seen
-            .iter()
-            .all(|item_id| required_by_id.contains_key(item_id))
-    {
-        return Err(SourcingRejection::ItemSetMismatch);
-    }
-
-    let mut calculated_total = 0_i64;
-    for item in &quote.items {
-        let required_quantity = required_by_id[&item.rfq_item_id];
-        if item.quantity != required_quantity || item.quantity <= 0 {
-            return Err(SourcingRejection::QuantityMismatch);
-        }
-        if item.unit_price_cents <= 0 {
-            return Err(SourcingRejection::InvalidUnitPrice);
-        }
-        let calculated_line_total = item
-            .quantity
-            .checked_mul(item.unit_price_cents)
-            .ok_or(SourcingRejection::AmountOverflow)?;
-        if item.line_total_cents != calculated_line_total {
-            return Err(SourcingRejection::InvalidQuoteTotals);
-        }
-        calculated_total = calculated_total
-            .checked_add(calculated_line_total)
-            .ok_or(SourcingRejection::AmountOverflow)?;
-    }
-    if calculated_total != quote.total_amount_cents {
-        return Err(SourcingRejection::InvalidQuoteTotals);
-    }
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::events::{QuotedItemFact, RfqItemFact};
-    use chrono::{NaiveDate, TimeZone};
+    use crate::events::{
+        QuotedItemFact, RfqItemFact, RfqOpenedFact, SupplierQuoteSubmittedFact, SupplierStatus,
+    };
+    use chrono::{NaiveDate, TimeZone, Utc};
 
     fn request() -> FinalizeRfqSourcingRequest {
         FinalizeRfqSourcingRequest {
@@ -659,6 +486,41 @@ mod tests {
         assert_eq!(
             decide_for(&ctx, &request()).unwrap_err(),
             SourcingRejection::AmountOverflow
+        );
+    }
+
+    #[test]
+    fn shared_award_and_purchase_order_decisions_match_the_composed_finalize_result() {
+        let ctx = context();
+        let command = request();
+        let decision_at = Utc.with_ymd_and_hms(2026, 10, 29, 12, 0, 0).unwrap();
+        let award_id = Uuid::from_u128(10);
+        let purchase_order_id = Uuid::from_u128(11);
+        let dispatch_id = Uuid::from_u128(12);
+
+        let composed = decide(
+            &command,
+            &ctx,
+            decision_at,
+            award_id,
+            purchase_order_id,
+            dispatch_id,
+        )
+        .unwrap();
+        let selection = AwardQuoteSelection::new(
+            command.rfq_id,
+            command.supplier_id,
+            command.quote_id,
+            command.expected_quote_set_version,
+        );
+        let awarded = decide_award_supplier_quote(&selection, &ctx, decision_at, award_id)
+            .expect("shared award decision must accept the same valid context");
+
+        assert_eq!(awarded.award_fact(), &composed.awarded);
+        assert_eq!(awarded.source_quote(), ctx.selected_quote.as_ref().unwrap());
+        assert_eq!(
+            decide_create_purchase_order(&awarded, purchase_order_id, decision_at),
+            composed.purchase_order,
         );
     }
 }
