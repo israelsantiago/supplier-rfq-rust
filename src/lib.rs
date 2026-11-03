@@ -1,4 +1,5 @@
 pub mod amri;
+pub mod amri_participants;
 pub mod api_state;
 pub mod app;
 pub mod application_state;
