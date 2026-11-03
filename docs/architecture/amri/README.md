@@ -35,3 +35,11 @@ The application owns typed capabilities, participant adapters, context projectio
 | Superseded | A later ADR explicitly replaces the decision |
 
 An ADR can be Accepted before every implementation stage is complete. Its implementation status must remain separate from its decision status.
+
+<!-- AMRI-CONTINUITY-LINK:START -->
+## Continuidade e handoff do projeto AMRI
+
+O pacote versionado de estado atual, arquitetura, decisões, plano completo por fase,
+acordos de engenharia, referências, evidências e retomada em novo chat está em
+[docs/architecture/amri/continuity/README.md](./continuity/README.md).
+<!-- AMRI-CONTINUITY-LINK:END -->

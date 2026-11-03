@@ -156,3 +156,17 @@ Every stage is a separate reviewable delivery. A stage cannot be declared comple
 7. Verify `git diff --check`, inspect the full diff and ensure no unrelated files changed.
 8. Do not commit/push automatically unless the maintainer explicitly requests it.
 9. Report exact commands, exit codes, test counts, CI run URLs and skipped jobs. Never infer a pass from an unexecuted command.
+
+<!-- AMRI-CONTINUITY-CHECKPOINT:START -->
+## Checkpoint de continuidade — 2026-11-03
+
+O status remoto, decisões consolidadas, acordos de engenharia, histórico e handoff para
+novo chat são mantidos em [continuity/README.md](./continuity/README.md). O status de fase
+mais recente está em [continuity/current-state.md](./continuity/current-state.md); a execução
+por fase e os gates estão em [continuity/stage-plan.md](./continuity/stage-plan.md).
+
+No checkpoint deste documento, Stage 4A está publicada no commit
+`203589e4d2c23338c8040e7802fabc77203fd6a9`. Stage 4B V1 ainda não foi aplicada: o dry-run
+foi abortado por validação rustfmt em temporários, sem alteração do repositório. Consulte o
+registro de sessão e o arquivo `stages/stage-04b-prepared-participants.md` antes de retomar.
+<!-- AMRI-CONTINUITY-CHECKPOINT:END -->
