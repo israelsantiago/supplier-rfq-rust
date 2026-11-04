@@ -26,18 +26,18 @@ Estamos continuando o projeto Rust `supplier-rfq-rust`, uma referência de Suppl
 - GitHub: `https://github.com/israelsantiago/supplier-rfq-rust`
 - Branch: `feat/amri-stage4-three-prepared-participants`
 - Diretório usual no Ubuntu: `/mnt/Dados/MeusDados/Downloads/supplier-rfq-rpu-rust`
-- Commit Stage 4A conhecido: `203589e4d2c23338c8040e7802fabc77203fd6a9`. O pacote de continuidade deve ser commitado/pushado depois, portanto este SHA não necessariamente será o HEAD atual. Consultar `git ls-remote` e atualizar current-state/stage-log com o SHA do commit documental.
+- Commit Stage 4A: `203589e4d2c23338c8040e7802fabc77203fd6a9`. Commit de código Stage 4B publicado: `5d278958855e41277bd00573d2cf419a50ee875d`. O checkpoint documental desta sessão será publicado em commit separado; consultar `git ls-remote` para confirmar o SHA final.
 
-**Situação conhecida:**
+**Situação conhecida no checkpoint de 2026-11-03:**
 
-- Stages 0–3 concluídas conforme `docs/architecture/amri/implementation-plan.md` e evidências nele descritas.
-- Stage 4A Shared Functional Core aplicada, verificada pelo mantenedor e publicada no commit `203589e4d2c23338c8040e7802fabc77203fd6a9`.
-- Stage 4B ainda não foi aplicada. A V1 do patcher falhou no dry-run porque o rustfmt não formatou previamente os temporários e tentou resolver módulos filhos (`amri.rs`, `rfq_sourcing.rs`) ausentes do diretório temporário. A execução reportou explicitamente que nenhum arquivo do repositório foi alterado.
-- Stage 4B V2 corrige o patcher sem usar opções instáveis de rustfmt: formata/verifica apenas `rfq_sourcing.rs` isoladamente, valida estruturalmente as adições triviais em `src/lib.rs` e `amri_participants/mod.rs`, preserva rustfmt config e exige `cargo fmt --all -- --check` após aplicação. Testes com mocks confirmam a ordem format-then-check.
-- Objetivo da Stage 4B: `CloseRfqParticipant`, `AwardSupplierQuoteParticipant`, `CreatePurchaseOrderParticipant`, nenhum write, sem Reactor/Providers/append_if/marker/recovery.
-- Grafo: Close e Award independentes; Create PO depende de Award.
-- `AwardedSupplierQuote` é o hand-off selado e preserva award fact + quote original/linhas.
-- Stage 4B prevê API pública experimental em `crate::amri_participants` e promoção de `crate::domain` para `pub`, devendo a superfície pública ser revisada explicitamente.
+- Stages 0–3 e Stage 4A possuem implementação/documentação conforme os commits e evidências descritos no plano.
+- Stage 4B foi publicada na branch `feat/amri-stage4-three-prepared-participants`, commit `5d278958855e41277bd00573d2cf419a50ee875d` (`feat(amri): add prepared RFQ sourcing participants (Stage 4B)`).
+- O código inclui `CloseRfqParticipant`, `AwardSupplierQuoteParticipant` e `CreatePurchaseOrderParticipant`. Close e Award são independentes; Create PO depende do hand-off selado `AwardedSupplierQuote`.
+- Os participantes preparam outputs/fatos em memória. Não implementam Reactor, Providers, policies, commit plan, `append_if`, marker, recovery ou retry.
+- O módulo `crate::amri_participants` é experimental e seletivo; `crate::domain` permanece `pub(crate)` conforme o contrato documentado.
+- ADR-0034 continua **Proposed**. A implementação Stage 4B não significa AMRI completo ou aceito.
+- A consulta GitHub para o commit `5d278...` não encontrou status de CI nem workflow runs. A validação local de Rust/Cargo/Clippy precisa ser confirmada pelos logs do mantenedor; não presumir PASS.
+- Próxima etapa planejada: Stage 5 — Reactor e Providers read-only, limitada a coordenação, snapshot único, dependências e abort. Stage 6 mantém composição; Stage 7 mantém o primeiro commit atômico.
 
 **Regras obrigatórias:**
 
@@ -52,7 +52,7 @@ Estamos continuando o projeto Rust `supplier-rfq-rust`, uma referência de Suppl
 9. Distinguir fatos de propostas e execução informada pelo mantenedor de evidência realmente vista.
 10. Não declarar AMRI completo/ADR-0034 Accepted até todos os gates Stage 7–9 e critérios finais serem comprovados.
 
-**Primeira tarefa da nova sessão:** confirmar o HEAD remoto depois do checkpoint documental. Executar/revisar os testes internos do patcher Stage 4B V2 e o dry-run V2 corrigido. Não aplicar até a revisão integral do diff. Se o pacote V2 não estiver disponível na nova conversa, reconstruí-lo a partir do estado descrito aqui e dos arquivos já presentes no ZIP anterior; não executar a V1 novamente.
+**Primeira tarefa da nova sessão:** confirmar branch/HEAD/working tree local e remoto; recuperar os logs reais da validação Stage 4B ou executar novamente os gates locais documentados. Depois, preparar a Stage 5 somente contra o código Stage 4B publicado. Não antecipar composition policies (Stage 6) nem commit/marker/recovery (Stage 7).
 
 ---
 
@@ -70,14 +70,10 @@ git -C "$REPO" ls-remote --heads origin "refs/heads/$BRANCH"
 
 Local e remoto devem coincidir e o working tree precisa estar limpo para iniciar novo patch.
 
-## Atualização de continuidade — instalador documental V2
+## Histórico — instalador documental V2 antes da publicação Stage 4B
 
-O `dry-run` documental V1 foi abortado por falso positivo ao comparar o append planejado com os documentos existentes `docs/architecture/amri/README.md` e `implementation-plan.md`. Nenhum arquivo foi alterado. Use exclusivamente `apply-amri-continuity-docs-v2.sh` e `publish-amri-continuity-docs-v2.sh` do pacote `amri-continuity-stage4b-v3.zip`. O instalador V2 preserva o texto preexistente, permite apenas os dois appends delimitados, é idempotente e recusa marker drift. Rode novamente os testes do instalador e `--dry-run`; não use os scripts V1.
+O instalador V2 e o pacote V3 referidos nesta seção pertencem ao fluxo histórico de continuidade anterior à publicação do código Stage 4B. Não são pré-requisitos operacionais atuais e seus comandos não devem ser executados novamente. O checkpoint atual é gerado pelo pacote V4.4.
 
-## Primeira ação depois do pacote de continuidade V2
+## Histórico — primeiras ações planejadas antes da publicação Stage 4B
 
-1. Usar `amri-continuity-stage4b-v3.zip` (não o V2 anterior) e rodar `test_amri_continuity_installer.py` e `test_stage4b_patcher_v2.py`.
-2. Rodar `apply-amri-continuity-docs-v2.sh "$REPO" --dry-run`; revisar o append exato em `docs/architecture/amri/README.md` e `implementation-plan.md` e os novos arquivos sob `docs/architecture/amri/continuity/`.
-3. Se passar, executar `--apply`; depois rodar `verify_amri_continuity_docs.py`, `verify-documentation-current-state.sh`, `verify-mermaid-diagrams.sh` e `git diff --check`.
-4. Publicar documentação com publisher V2: `--dry-run`, `--commit` e `--push` separados. Confirmar SHA remoto.
-5. Só então executar `test_stage4b_patcher_v2.py` e o dry-run real `apply-stage4b-prepared-participants-v2.sh`. Não aplicar Stage 4B até revisar todo o diff.
+As cinco ações listadas nesta seção foram substituídas pelo checkpoint publicado em `5d278958855e41277bd00573d2cf419a50ee875d`. Consultar `current-state.md` e `stage-plan.md` para a sequência vigente; não executar comandos dos pacotes V2/V3 antigos.

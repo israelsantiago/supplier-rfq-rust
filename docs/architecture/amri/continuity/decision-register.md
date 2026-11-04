@@ -56,14 +56,15 @@ Todos os itens abaixo continuam `Proposed` até que os gates específicos do ADR
 - A decisão legada `FinalizeRfqSourcing::decide` foi mantida com uma única assinatura pública, compondo funções puras compartilhadas e preservando os critérios/precedência históricos de rejeição.
 - `CloseRfq` autônomo continua usando sua shell e Application State Provider original; só a decisão pura foi compartilhada.
 
-### Stage 4B proposta
+### Stage 4B — Prepared Participants (implementada e publicada)
 
-- Participantes: `CloseRfqParticipant`, `AwardSupplierQuoteParticipant`, `CreatePurchaseOrderParticipant`.
-- Cada participante devolve `PreparedOutcome` + fato proposto tipado, sem persistência.
-- Close e Award são independentes; Create PO depende de Award.
-- `AwardedSupplierQuote` mantém juntos award fact + source quote validada e detalhes de item.
-- Definição declarativa de interação não equivale a executor/Reacto​​r; execução pertence à Stage 5.
-- A V1 decidiu expor API experimental pública via `pub mod amri_participants` e `pub mod domain`. Essa escolha deve ser revista como trade-off de semver/API no diff, não é requisito imutável do protocolo genérico.
+- Commit de implementação publicado: `5d278958855e41277bd00573d2cf419a50ee875d`.
+- Participantes: `CloseRfqParticipant`, `AwardSupplierQuoteParticipant` e `CreatePurchaseOrderParticipant`.
+- Cada participante reutiliza o Shared Functional Core e produz resultado/fato proposto sem persistência.
+- Close e Award são independentes; Create PO consome o hand-off selado `AwardedSupplierQuote`.
+- `InteractionDefinition` permanece metadado declarativo; não existe Reactor nesta etapa.
+- A API é experimental e seletiva em `crate::amri_participants`; `crate::domain` não é promovido integralmente para público.
+- Publicação não altera o estado da ADR-0034, que permanece Proposed, nem prova os gates locais de Rust. Consultar/registrar logs reais em `quality-and-evidence.md`.
 
 ### Metadata estável
 

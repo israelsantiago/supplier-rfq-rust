@@ -1,6 +1,6 @@
 # Stage 4B — Prepared Supply Chain Participants
 
-**Status:** proposta de implementação da subetapa 4B. A ADR-0034 permanece **Proposed**; isto não declara AMRI concluído ou aceito.
+**Status:** implementação Stage 4B publicada no commit `5d278958855e41277bd00573d2cf419a50ee875d`. A ADR-0034 permanece **Proposed**; isto não declara AMRI concluído ou aceito. A publicação confirma presença do código, não substitui evidências locais de Cargo/Clippy/testes.
 
 ## Objetivo e fronteira pública
 

@@ -1,6 +1,6 @@
 # Atomic Multi-RPU Interaction (AMRI)
 
-**Status:** Proposed architecture; the pure AMRI Core (Stage 2) and composite-context/atomic-state boundary (Stage 3) are implemented and evidenced. Reactor, prepared participants and the complete RFQ interaction remain future stages.
+**Status:** Proposed architecture. The pure AMRI Core (Stage 2), composite-context/atomic-state boundary (Stage 3), Shared Functional Core (Stage 4A) and three prepared RFQ participants (Stage 4B) have implementation code published. Stage 5 Reactor/Providers and later composition/commit/recovery stages remain future work. ADR-0034 remains Proposed; publication of Stage 4B code does not accept the complete AMRI protocol.
 
 **Decision record:** [ADR-0034](../adr/0034-atomic-multi-rpu-interaction.md)
 

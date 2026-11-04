@@ -11,7 +11,7 @@ O plano detalhado original permanece em [`../implementation-plan.md`](../impleme
 | 2 | Core AMRI puro | Implementada/verificada anteriormente |
 | 3 | Context planner + atomic state port | Implementada/verificada anteriormente |
 | 4A | Shared Functional Core | Implementada, verificada pelo mantenedor, publicada |
-| 4B | Prepared participants RFQ | Pendente; V1 dry-run bloqueado e sem alterações |
+| 4B | Prepared participants RFQ | Implementada e publicada (`5d278958855e41277bd00573d2cf419a50ee875d`); evidência local de gates ainda precisa ser registrada |
 | 5 | Reactor + Providers | Pendente |
 | 6 | Composition policies + commit plan | Pendente |
 | 7 | Atomic FACTSTR commit, marker e recovery | Pendente |

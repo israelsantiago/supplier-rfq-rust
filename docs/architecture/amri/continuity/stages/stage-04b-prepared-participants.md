@@ -1,18 +1,17 @@
 # Stage 4B — Prepared Participants RFQ
 
-**Estado em 2026-11-03:** Pendente; dry-run da implementação V1 abortou antes de alterar o repositório.\
-**Base publicada conhecida:** commit Stage 4A `203589e4d2c23338c8040e7802fabc77203fd6a9` (a base deve ser atualizada após o checkpoint documental).
+**Estado em 2026-11-03:** Implementada e publicada. Commit `5d278958855e41277bd00573d2cf419a50ee875d` (`feat(amri): add prepared RFQ sourcing participants (Stage 4B)`). A validação local deve ser registrada em `quality-and-evidence.md`; este checkpoint não afirma PASS de Cargo/Clippy.
 
 ## Objetivo
 
-Implementar três adapters estáticos, tipados e sem I/O que chamem as decisões Stage 4A e produzam `PreparedOutcome`/`ProposedFact` do AMRI Core.
+Demonstrar três adapters estáticos, tipados e sem I/O que chamam as decisões Stage 4A e produzem `PreparedOutcome`/`ProposedFact` do AMRI Core. Esta implementação está publicada no commit indicado no cabeçalho.
 
-## Arquivos de código propostos
+## Arquivos de implementação publicados
 
-- `src/lib.rs`: registrar `pub mod amri_participants;` e ampliar `domain` para público, se mantido o desenho de API pública experimental.
-- `src/amri_participants/mod.rs`: exportar `rfq_sourcing`.
-- `src/amri_participants/rfq_sourcing.rs`: três participantes, contratos de saída, metadata de InteractionDefinition e testes puros.
-- `docs/architecture/amri/stage4b-prepared-participants.md`: design note da subetapa.
+- `src/lib.rs`: registra o módulo experimental `amri_participants`; `crate::domain` permanece `pub(crate)`.
+- `src/amri_participants/mod.rs`: módulo de aplicação com reexports seletivos.
+- `src/amri_participants/rfq_sourcing.rs`: participantes, contratos de saída, metadata declarativa de `InteractionDefinition` e testes.
+- `docs/architecture/amri/stage4b-prepared-participants.md`: nota de design da subetapa.
 
 ## Participantes
 
@@ -39,13 +38,13 @@ Não adicionar dependência Close → Award. O fato de Close ser proposto não a
 - O Core genérico `src/amri` permanece sem dependência de Supply Chain.
 - A `InteractionDefinition` é somente metadata, não executor.
 
-## Public visibility — revisão obrigatória
+## Public visibility — decisão implementada
 
-A V1 escolheu exportar `pub mod amri_participants` e promover `pub(crate) mod domain` para `pub mod domain`, porque os tipos de domínio aparecem nas assinaturas públicas. Isso evita `private_interfaces` e `dead_code` mas amplia a API crate. Manter como API experimental e revisar a necessidade de expor a árvore completa `domain::sourcing` no diff. Não contornar com lint suppression.
+A implementação publicada expõe `crate::amri_participants` como módulo experimental e reexporta seletivamente os tipos de domínio necessários às assinaturas. `crate::domain` permanece `pub(crate)`; a árvore interna inteira não é promovida a API pública. Não contornar warnings com lint suppression nem ampliar a superfície pública sem uma decisão de API específica.
 
-## Correção do patcher V1
+## Histórico — correção do patcher V1/V2 antes da publicação Stage 4B
 
-O dry-run V1 falhou com diferenças de rustfmt e erros de resolução de módulos filhos em temporários. A V2 deve evitar opções instáveis do rustfmt. Ela formata e verifica apenas `rfq_sourcing.rs` como arquivo isolado (sem módulos filhos externos), preservando a configuração local do rustfmt quando existir. Os registros triviais de `src/lib.rs` e `amri_participants/mod.rs` são validados estruturalmente; após a aplicação, `cargo fmt --all -- --check` valida o módulo real completo. Nenhum arquivo do repo pode ser escrito se rustfmt falhar.
+Na preparação anterior à publicação, a primeira tentativa de patcher teve bloqueio de formatação/resolução de módulos; a revisão subsequente passou a formatar o arquivo do participante isoladamente e reservar `cargo fmt --all -- --check` para a árvore real. Este registro é histórico, não uma instrução operacional vigente. O código Stage 4B foi publicado em `5d278958855e41277bd00573d2cf419a50ee875d`.
 
 ## Testes puros mínimos
 
@@ -57,12 +56,10 @@ O dry-run V1 falhou com diferenças de rustfmt e erros de resolução de módulo
 6. IDs de participantes e fact types estáveis e unívocos.
 7. Confirmar que nenhum caminho de rejeição retorna facts preparados.
 
-## Gates de saída
+## Evidências de verificação ainda pendentes
 
-`cargo fmt --all -- --check`, `cargo check --all-targets --all-features --locked`, testes de library com filtros puros, `cargo clippy --all-targets --all-features --locked -- -D warnings`, boundary guards e `git diff --check`. Nenhum Testcontainers/mutation/integration run nesta subfase.
+Os gates abaixo são a referência para confirmar a implementação no checkout local. Não registrar PASS sem logs reais e contagem/exit code observados: `cargo fmt --all -- --check`, `cargo check --all-targets --all-features --locked`, testes de library com filtros puros, `cargo clippy --all-targets --all-features --locked -- -D warnings`, boundary guards e `git diff --check`. Não executar Testcontainers, PostgreSQL ou mutation testing como parte da subetapa pura.
 
-Depois: revisar diff/allowlist, backup, commit separado e push fast-forward; consultar commit remoto, registrar evidência e só então iniciar Stage 5.
-
-## Explicitamente fora de Stage 4B
+O commit Stage 4B já está publicado. Após recuperar/executar os gates locais, registrar os resultados em `quality-and-evidence.md`; não repetir aplicação, commit ou push da implementação Stage 4B. A próxima fase arquitetural é Stage 5, conforme `stage-05-reactor-and-providers.md`.## Explicitamente fora de Stage 4B
 
 Reactor, execução topológica, Provider, composite context acquisition, composição de domínio, commit plan, append, interaction marker, retries, idempotência e recovery. Esses elementos continuam nas Stages 5, 6 e 7.

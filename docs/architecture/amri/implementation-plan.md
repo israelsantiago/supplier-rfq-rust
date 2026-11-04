@@ -1,6 +1,6 @@
 # AMRI — incremental implementation and test plan
 
-**Status:** Stages 1–3 completed as bounded, separately evidenced deliveries. Stage 2 provides the pure protocol Core; Stage 3 provides the application-owned composite-context and FACTSTR state-port proof. Stages 4–9 remain pending; ADR-0034 remains Proposed.
+**Status:** Stages 1–3 and implementation code for Stages 4A–4B are published as bounded deliveries. Stage 4B code is present in commit `5d278958855e41277bd00573d2cf419a50ee875d`; this checkpoint does not claim local Rust/Cargo/Clippy verification because the associated logs are not part of the published commit and no GitHub CI run was found for that SHA. Stages 5–9 remain pending; ADR-0034 remains Proposed.
 
 Every stage is a separate reviewable delivery. A stage cannot be declared complete from compilation alone. Its code, tests, documentation, automated evidence and unresolved risks must be reviewed before the next stage begins.
 
@@ -86,6 +86,8 @@ Every stage is a separate reviewable delivery. A stage cannot be declared comple
 **Exit:** One canonical composite query/read produces one snapshot and one opaque token; the adapter reuses the exact query/version for one conditional append; relevant changes reject the full batch, irrelevant changes do not create false conflicts, and independent connections permit at most one competing append.
 
 ## Stage 4 — Three prepared Supply Chain participants
+
+**Status:** Stage 4A Shared Functional Core and Stage 4B prepared-participant code are published. Stage 4B reference commit: `5d278958855e41277bd00573d2cf419a50ee875d`. Verification evidence must be recorded from the maintainer's local Rust gates; this documentation checkpoint does not infer a test pass from the existence of the commit.
 
 **Goal:** Demonstrate at least three independent capability decisions without intermediate writes.
 

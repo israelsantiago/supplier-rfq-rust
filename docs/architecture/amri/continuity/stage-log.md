@@ -45,9 +45,9 @@ Este arquivo é o changelog de execução arquitetural. Não substitui Git log, 
 - Patcher disse `[ABORT] ... nenhum arquivo foi alterado`; portanto V1 não foi aplicada.
 - Próxima correção V2 documentada em `current-state.md` e `stage-04b-prepared-participants.md` (arquivo individual de fase abaixo).
 
-## Checkpoint documental solicitado pelo mantenedor
+## Histórico — checkpoint documental planejado antes da Stage 4B (superado)
 
-O mantenedor pediu consolidar em Markdown as decisões, arquitetura, plano por fases, referências, acordos e instruções de handoff. O pacote atual é a primeira entrega versionada de continuidade. Deve ser commitado/pushado na branch antes da aplicação V2 Stage 4B, para garantir que outro chat tenha uma fonte canônica.
+O mantenedor pediu consolidar em Markdown as decisões, arquitetura, plano por fases, referências, acordos e instruções de handoff. Naquele momento, o pacote de continuidade ainda precisava ser publicado antes da aplicação V2. Esse estado foi superado pela publicação do código Stage 4B no commit `5d278958855e41277bd00573d2cf419a50ee875d`; o estado operacional vigente está em `current-state.md` e `chat-handoff.md`.
 
 ## Modelo de registro para próximas fases
 
@@ -60,17 +60,26 @@ O primeiro desenho de correção V2 foi revisto antes de ser entregue: `skip_chi
 
 Os seis testes do patcher Stage 4B e os dois testes do instalador documental passaram neste empacotamento. Os mocks verificam que a formatação ocorre antes do `--check`, que nenhuma opção instável é passada ao rustfmt, que o diff usa o conteúdo formatado, que as 22 páginas Markdown e os dois índices são gerados, e que links relativos quebrados são rejeitados. Este ambiente não tem o binário real `rustfmt`, `cargo` ou `rustc`; o dry-run real e os gates Rust continuam pendentes no Ubuntu do mantenedor. Nenhum arquivo do repositório do usuário foi alterado pela falha V1.
 
-## 2026-11-03 — correção do instalador de continuidade
+## Histórico — correção do instalador de continuidade (antes da publicação Stage 4B)
 
 - Resultado observado: dry-run documental V1 abortou por falso positivo nas duas páginas AMRI já existentes. Nenhum arquivo do repositório foi alterado.
 - Causa: checagem de colisão não distinguia append gerenciado de sobrescrita.
 - Correção V2: valida prefixo preservado + exatamente um marcador inicial/final; conteúdo existente após marcador precisa ser byte a byte idêntico; novos documentos divergentes continuam fail-closed.
 - Evidência incluída no pacote: teste de append sobre README/plan existentes, segunda execução idempotente, detecção de marker drift e validação de links.
-- Situação atual: aguardar dry-run V2, aplicação documental, gates de docs/Mermaid e publicação antes de Stage 4B apply.
+- Situação naquele momento: aguardar dry-run V2 e publicação documental antes da aplicação Stage 4B. Esse estado foi superado pelo commit `5d278958855e41277bd00573d2cf419a50ee875d`.
 
-## 2026-11-03 — status do patcher Stage 4B V2 após o bloqueio documental
+## Histórico — status do patcher Stage 4B V2 antes da publicação (superado)
 
 - Os seis testes do patcher Stage 4B V2 passaram no empacotamento (incluindo ordem de formatação e verificação com mock). O dry-run real desse patcher não foi executado nesta sessão porque o checkpoint documental ainda não foi instalado/publicado.
 - A tentativa de instalar a continuidade V1 abortou antes de escrever por falso positivo nos arquivos README/implementation-plan existentes.
 - A continuidade V2 (pacote V3) corrige a colisão: valida append gerenciado, preservação de conteúdo, idempotência e marker drift; o restante do bundle é instalado em diretório novo e links relativos são verificados.
-- Estado da implementação: Stage 4A publicada; Stage 4B não aplicada; Stage 5–9 pendentes.
+- Estado registrado naquele momento: Stage 4A publicada; Stage 4B ainda não aplicada; Stage 5–9 pendentes. Foi superado pela publicação Stage 4B no commit `5d278958855e41277bd00573d2cf419a50ee875d`.
+
+## 2026-11-03 — Stage 4B: prepared participants publicados
+
+- Código publicado na branch `feat/amri-stage4-three-prepared-participants`, commit `5d278958855e41277bd00573d2cf419a50ee875d` (`feat(amri): add prepared RFQ sourcing participants (Stage 4B)`).
+- Participantes presentes: `CloseRfqParticipant`, `AwardSupplierQuoteParticipant` e `CreatePurchaseOrderParticipant`.
+- Grafo: Close e Award independentes; Create PO depende do hand-off validado `AwardedSupplierQuote`.
+- O escopo publicado é de preparação em memória e fatos propostos; não declara Reactor, Providers, composition policies, commit plan, `append_if`, marker ou recovery implementados.
+- A consulta ao GitHub nesta revisão não encontrou status de commit nem workflow CI associado a esse SHA. Portanto, a publicação do código está confirmada; a verificação local de Rust/Cargo/Clippy deve ser registrada separadamente com logs reais do mantenedor.
+- ADR-0034 permanece Proposed. Stage 5 — Reactor e Providers — é o próximo estágio planejado, ainda não implementado.

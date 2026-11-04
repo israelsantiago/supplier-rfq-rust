@@ -102,9 +102,9 @@ O catálogo do repositório é normativo para a classificação; esta tabela é 
 
 A Stage 4A já foi publicada no commit SHA registrado em `current-state.md`. Não executar de novo o publisher que exige o baseline pré-Stage4A.
 
-### Stage 4B — Prepared Participants (proposta ainda não aplicada)
+### Stage 4B — Prepared Participants (implementada e publicada)
 
-A proposta de aplicação é `src/amri_participants/mod.rs`, `src/amri_participants/rfq_sourcing.rs`, registro do módulo em `src/lib.rs` e `docs/architecture/amri/stage4b-prepared-participants.md`. Antes de aplicar, revise o aumento de visibilidade de `domain`; ele não é efeito colateral trivial. `InteractionDefinition` é somente metadado nesta fase.
+A implementação está publicada no commit `5d278958855e41277bd00573d2cf419a50ee875d`: `src/amri_participants/mod.rs`, `src/amri_participants/rfq_sourcing.rs` e registro em `src/lib.rs`. O módulo `crate::amri_participants` reexporta seletivamente os tipos de domínio necessários; `crate::domain` permanece `pub(crate)`. Os três participantes preparam resultados sem I/O ou writes. `InteractionDefinition` é metadado, não executor. A validação local de Rust deve ser evidenciada separadamente; Stage 5 Reactor/Providers permanece pendente.
 
 ### Stages 5–9 — ainda não implementar
 

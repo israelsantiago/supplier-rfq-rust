@@ -5,18 +5,19 @@
 **Repositório:** `israelsantiago/supplier-rfq-rust`\
 **Diretório local usual:** `/mnt/Dados/MeusDados/Downloads/supplier-rfq-rpu-rust`
 
-## Commit de referência Stage 4A verificado
+## Commit de referência Stage 4B publicado
 
-O GitHub foi consultado diretamente nesta sessão. O commit publicado da Stage 4A é:
+O GitHub foi consultado nesta revisão. O commit publicado dos participantes preparados Stage 4B é:
 
-- **HEAD publicado Stage 4A:** `203589e4d2c23338c8040e7802fabc77203fd6a9`
-- **Commit pai:** `7b004771cc1f42ab5def3cbda1c62bff50a92ff2`
-- **Mensagem:** `feat(amri): extract shared Functional Core for Stage 4A`
-- **Comparação:** 1 commit à frente do pai e 0 atrás.
-- **Arquivos Stage 4A:** exatamente 7 (3 novos em `src/domain/`, 3 arquivos de capability alterados e `src/lib.rs`).
-- **URL:** [commit Stage 4A](https://github.com/israelsantiago/supplier-rfq-rust/commit/203589e4d2c23338c8040e7802fabc77203fd6a9).
+- **HEAD publicado Stage 4B:** `5d278958855e41277bd00573d2cf419a50ee875d`
+- **Mensagem:** `feat(amri): add prepared RFQ sourcing participants (Stage 4B)`
+- **Branch:** `feat/amri-stage4-three-prepared-participants`
+- **Arquivos de implementação confirmados:** `src/lib.rs`, `src/amri_participants/mod.rs` e `src/amri_participants/rfq_sourcing.rs`.
+- **Participantes:** `CloseRfqParticipant`, `AwardSupplierQuoteParticipant` e `CreatePurchaseOrderParticipant`.
+- **CI GitHub:** a consulta de status e workflow runs para esse SHA retornou zero registros. Não inferir aprovação de CI.
+- **Verificação local:** os resultados de Cargo/rustfmt/Clippy precisam ser registrados com logs reais do mantenedor; este checkpoint documental não afirma que foram executados.
 
-A consulta remota confirmou que a branch existe, é pública e contém esse commit como último commit da implementação Stage 4A naquele momento. O pacote documental agora será instalado e publicado na mesma branch, portanto o HEAD da branch avançará para um commit documental. Registre esse novo SHA no `stage-log.md` e neste arquivo depois do push documental. A informação de `working tree` local precisa ser verificada no início de cada execução: não é possível inferir limpeza local a partir do GitHub.
+A implementação Stage 4B está publicada. Stage 5 permanece pendente. O status local do checkout ainda precisa ser conferido no início da execução; publicação remota não prova limpeza da árvore local.
 
 ## Matriz de status
 
@@ -27,7 +28,7 @@ A consulta remota confirmou que a branch existe, é pública e contém esse comm
 | 2 — AMRI Core puro | Implementada e verificada anteriormente | `src/amri/`; testes puros, cobertura/mutação scoped e verificador de fronteira descritos no plano original. |
 | 3 — Composite Context + state port | Implementada e verificada anteriormente | Planner, snapshot/token opaco e adaptador FACTSTR 0.5.2; evidências descritas no plano e Stage 3 doc. |
 | 4A — Shared Functional Core | Implementada, verificada pelo mantenedor e publicada | Commit `203589e4...`; decisão compartilhada de lifecycle/sourcing. |
-| 4B — Prepared Participants | **Não aplicada; V2 preparada, dry-run real pendente** | A V1 falhou por formatação/resolução de módulos nos temporários. A V2 passou nos testes Python/fixture do patcher, mas seu dry-run real no checkout ainda aguarda a publicação deste checkpoint documental. Nenhuma implementação 4B foi aplicada. |
+| 4B — Prepared Participants | **Implementada e publicada** | Commit `5d278958855e41277bd00573d2cf419a50ee875d`; três participantes preparados. Verificação local Rust/CI não comprovada por este checkpoint e deve ser registrada separadamente. |
 | 5 — Reactor + Providers | Pendente | Ainda não iniciar. |
 | 6 — Composition Policies + Commit Plan | Pendente | Ainda não iniciar. |
 | 7 — Commit atômico, marker e recovery | Pendente | Ainda não iniciar. |
@@ -36,7 +37,7 @@ A consulta remota confirmou que a branch existe, é pública e contém esse comm
 
 **Importante:** o mantenedor informou que a aplicação e a verificação completa da correção Stage 4A V2 terminaram com sucesso. Como a saída integral desses comandos não está anexada a este documento, registre-a como `Reported by maintainer`; o commit remoto comprova a publicação dos arquivos, não substitui o log local de testes.
 
-## Bloqueio atual da Stage 4B V1
+## Histórico — bloqueio da Stage 4B V1 (superado)
 
 Comando executado:
 
@@ -62,17 +63,15 @@ A opção rustfmt `skip_children` não será usada, pois é instável e pode dep
 O patcher V2 foi exercitado com seis testes Python simulados neste empacotamento; esses testes não executam o binário real do rustfmt. Este ambiente de geração não possui `rustfmt`, `cargo` ou `rustc`. Portanto, o dry-run real e os gates Cargo continuam pendentes no Ubuntu do mantenedor, sem qualquer afirmação de compilação feita aqui.
 ## Próximos passos obrigatórios
 
-1. Aplicar/commit/push este pacote documental na branch atual, depois de revisar o `dry-run` documental. Isso cria um ponto de continuidade independente da implementação 4B.
-2. Rodar os testes do patcher Stage 4B V2.
-3. Rodar o `dry-run` Stage 4B V2 revisado. Confirmar branch/HEAD remoto, allowlist, âncoras Stage 4A, ausência de infraestrutura e diff formatado.
-4. Revisar especialmente a exposição pública experimental de `crate::domain` e `crate::amri_participants`.
-5. Só então executar `--apply` e o verificador Rust no Ubuntu.
-6. Revisar diff, criar commit e push fast-forward da Stage 4B em operações separadas.
-7. Depois do push, consultar o commit remoto e atualizar os documentos antes de iniciar Stage 5.
+1. Confirmar no Ubuntu que o checkout local está na branch correta, limpo e alinhado com o HEAD remoto `5d278958855e41277bd00573d2cf419a50ee875d`.
+2. Executar e arquivar os gates locais Stage 4B: `cargo fmt --all -- --check`, `cargo check --all-targets --all-features --locked`, os filtros de testes puros Stage 4B/Domain, `cargo clippy --all-targets --all-features --locked -- -D warnings`, boundary guards e `git diff --check`. Não executar mutation testing/Testcontainers como parte da etapa pura.
+3. Registrar os comandos, códigos de saída, contagens e logs reais em `quality-and-evidence.md`. Se algum gate já foi executado, não presumir o resultado: usar a saída arquivada.
+4. Com Stage 4B confirmada localmente, iniciar o planejamento/implementação da Stage 5: Reactor e Providers read-only, sem policies cross-capability (Stage 6) e sem commit/`append_if`/marker/recovery (Stage 7).
+5. Cada estágio futuro deve ter diff revisado, allowlist, backup, gates, commit separado, push fast-forward e verificação do SHA remoto.
 
 ## Riscos e decisões em aberto
 
-- A promoção de `pub(crate) mod domain;` para `pub mod domain;` é necessária no desenho V1 para disponibilizar tipos usados em assinaturas públicas de participantes. Isso aumenta a API pública e deve continuar explicitamente experimental até revisão. Não esconder warnings com `#[allow(dead_code)]`.
+- A implementação publicada mantém `crate::domain` como `pub(crate)` e expõe os tipos necessários por reexports seletivos em `crate::amri_participants`. Essa superfície continua experimental; não promover a árvore de domínio inteira nem esconder warnings com `#[allow(dead_code)]`.
 - O contrato `SourcingContext` é uma projeção tipada ampla compartilhada por Award e pelo `FinalizeRfqSourcing` legado. Revisar se a visibilidade pública integral é desejada ou se uma fachada pública experimental deve limitar melhor a superfície.
 - Close e Award não têm dependência entre si. Ambos devem consumir projeções do mesmo snapshot único adquirido pela Stage 5/porta Stage 3.
 - O resultado de Close não pode ser usado para alterar artificialmente `SourcingContext.closed` antes de Award; as duas decisões observam o estado anterior e as duas consequências são propostas no lote.
@@ -90,12 +89,12 @@ git -C "$REPO" rev-parse HEAD
 git -C "$REPO" ls-remote --heads origin "refs/heads/$BRANCH"
 ```
 
-O HEAD remoto deve coincidir com o HEAD local antes de aplicar a próxima mudança. Após o checkpoint documental, o HEAD esperado é o novo commit `docs(amri): capture project continuity and phase agreements`; seu SHA deve ser anotado aqui após o push. Não execute novamente `publish-stage4a.sh`: aquele publisher espera o baseline anterior à Stage 4A e já não é válido depois do commit `203589e4...`.
+O HEAD remoto deve coincidir com o HEAD local antes de aplicar a próxima mudança. A implementação Stage 4B está publicada no SHA `5d278958855e41277bd00573d2cf419a50ee875d`; o SHA do checkpoint documental V4.4 será registrado no recibo em `~/Downloads` após o push. Não execute novamente `publish-stage4a.sh`: aquele publisher espera o baseline anterior à Stage 4A e já não é válido depois do commit `203589e4...`.
 
-## Ocorrência documental — falso positivo do instalador V1
+## Histórico — falso positivo do instalador documental V1
 
 Em 2026-11-03, o `apply-amri-continuity-docs-v1.sh --dry-run` abortou com `arquivos de continuidade ja existem com conteudo divergente` para `docs/architecture/amri/README.md` e `implementation-plan.md`. A inspeção do instalador confirmou falso positivo: `build_payload` gera append dos marcadores nos dois documentos existentes, mas a verificação de colisão os comparava com o conteúdo antigo como se qualquer diferença fosse sobrescrita indevida. O comando abortou antes da escrita; os dois documentos e a árvore do repositório permaneceram inalterados. A V2 do instalador permite somente o append determinístico preservando o conteúdo anterior, exige exatamente um par de marcadores e continua recusando divergência de conteúdo já gerenciado. Testes adicionais cobrem append, idempotência e marker drift.
 
-## Estado da correção Stage 4B V2
+## Histórico — correção Stage 4B V2 antes da publicação (superado)
 
 O patcher Stage 4B V2 foi preparado e os seis testes automatizados do pacote passaram, incluindo a formatação simulada em fluxo `format-then-check` sem opções rustfmt instáveis. Isso comprova apenas o patcher/fixtures; não é evidência de que o binário rustfmt real, Cargo, Clippy ou os testes Rust passaram no checkout. O dry-run real Stage 4B V2 deve ocorrer somente depois da instalação e publicação do checkpoint documental V2 descrito no README do pacote.

@@ -1,5 +1,13 @@
 # Estratégia de qualidade, testes e evidências
 
+## Checkpoint de publicação Stage 4B — 2026-11-03
+
+- Commit publicado: `5d278958855e41277bd00573d2cf419a50ee875d`.
+- A consulta GitHub para esse SHA retornou `total_count = 0` para statuses e `workflow_runs = 0` para Actions.
+- Este fato comprova apenas a ausência de evidência CI consultável nesta revisão; não prova aprovação nem falha dos testes.
+- Não foi anexado neste checkpoint log local de `cargo fmt`, `cargo check`, testes ou `cargo clippy`. Preencher a matriz abaixo somente com saídas efetivamente observadas pelo mantenedor.
+- A atualização documental é docs-only; nenhum gate Cargo foi executado por este pacote.
+
 ## 1. Princípio
 
 A evidência deve corresponder à propriedade que se afirma. `cargo check` não prova comportamento; teste puro não prova o adapter PostgreSQL; um teste de adapter não prova interoperabilidade externa; compilação de Stage 4B não prova atomicidade AMRI completa.
