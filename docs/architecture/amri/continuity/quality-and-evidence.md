@@ -8,6 +8,31 @@
 - Não foi anexado neste checkpoint log local de `cargo fmt`, `cargo check`, testes ou `cargo clippy`. Preencher a matriz abaixo somente com saídas efetivamente observadas pelo mantenedor.
 - A atualização documental é docs-only; nenhum gate Cargo foi executado por este pacote.
 
+## Evidência local Stage 4B — Audit V3 — 2026-11-04
+
+**Proveniência:** saída do terminal fornecida pelo mantenedor. A auditoria reportou baseline e snapshot local aprovados.
+
+| Gate | Resultado |
+|---|---|
+| cargo-fmt-check | PASS |
+| cargo-check-all-targets | PASS |
+| test-stage4b-prepared-participants | PASS |
+| test-domain-functional-core | PASS |
+| test-close-rfq-library | PASS |
+| test-finalize-rfq-sourcing-decision | PASS |
+| cargo-clippy-all-targets | PASS |
+| structural-boundaries-and-test-isolation | PASS |
+| application-state-boundary | PASS |
+| functional-core-test-isolation | PASS |
+
+- Total: 10 gates; falhas/bloqueios: 0.
+- Baseline, integridade do handoff, snapshot local e checksums: PASS.
+- Arquivos inesperadamente vazios: 0.
+- Pacote V3 SHA-256: `3e50a879c1d3b1c911b73bcb54268911620f1066d755dbb55424b6ee627199d2`.
+- Horário observado: `2026-11-04T14:10:31Z`–`2026-11-04T14:10:37Z`.
+- O resumo do terminal não informa contagens individuais de testes nem versão Rust; esses valores permanecem não informados.
+- Esta evidência representa validação local, não aprovação de CI remoto.
+
 ## 1. Princípio
 
 A evidência deve corresponder à propriedade que se afirma. `cargo check` não prova comportamento; teste puro não prova o adapter PostgreSQL; um teste de adapter não prova interoperabilidade externa; compilação de Stage 4B não prova atomicidade AMRI completa.

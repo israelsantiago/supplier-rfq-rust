@@ -1,6 +1,6 @@
 # Estado atual do AMRI
 
-**Atualizado em:** 2026-11-03\
+**Atualizado em:** 2026-11-04
 **Branch:** `feat/amri-stage4-three-prepared-participants`\
 **Repositório:** `israelsantiago/supplier-rfq-rust`\
 **Diretório local usual:** `/mnt/Dados/MeusDados/Downloads/supplier-rfq-rpu-rust`
@@ -15,9 +15,23 @@ O GitHub foi consultado nesta revisão. O commit publicado dos participantes pre
 - **Arquivos de implementação confirmados:** `src/lib.rs`, `src/amri_participants/mod.rs` e `src/amri_participants/rfq_sourcing.rs`.
 - **Participantes:** `CloseRfqParticipant`, `AwardSupplierQuoteParticipant` e `CreatePurchaseOrderParticipant`.
 - **CI GitHub:** a consulta de status e workflow runs para esse SHA retornou zero registros. Não inferir aprovação de CI.
-- **Verificação local:** os resultados de Cargo/rustfmt/Clippy precisam ser registrados com logs reais do mantenedor; este checkpoint documental não afirma que foram executados.
+- **Verificação local:** Audit V3 executado pelo mantenedor em 2026-11-04; dez gates PASS, zero reprovados/bloqueados e zero arquivos inesperadamente vazios. Contagens individuais dos testes e versão Rust não foram informadas no resumo.
 
-A implementação Stage 4B está publicada. Stage 5 permanece pendente. O status local do checkout ainda precisa ser conferido no início da execução; publicação remota não prova limpeza da árvore local.
+A implementação Stage 4B está publicada. O Audit V3 confirmou localmente o baseline e dez gates PASS em 2026-11-04. Stage 5 inicia pelo change set 5A; a evidência local não equivale a aprovação de CI remoto.
+
+## Verificação local Stage 4B — 2026-11-04
+
+O mantenedor executou `amri-stage5-continuity-audit-v3.sh` no checkout local.
+
+- Baseline, snapshot local, integridade do handoff e checksums: PASS.
+- Dez gates registrados: 10 PASS, 0 FAIL/BLOCKED.
+- `UNEXPECTED_EMPTY_COUNT=0`.
+- Pacote de auditoria V3 SHA-256: `3e50a879c1d3b1c911b73bcb54268911620f1066d755dbb55424b6ee627199d2`.
+- Execução observada: `2026-11-04T14:10:31Z` a `2026-11-04T14:10:37Z`.
+- O resumo de terminal não contém contagens individuais de testes nem versão Rust; esses valores não são presumidos.
+- Esta evidência é validação local informada pelo mantenedor, não aprovação de CI remoto.
+
+A Stage 4 está concluída para fins de implementação. Não reabrir a Stage 4 como pré-requisito da Stage 5, salvo regressão comprovada.
 
 ## Matriz de status
 
@@ -28,8 +42,8 @@ A implementação Stage 4B está publicada. Stage 5 permanece pendente. O status
 | 2 — AMRI Core puro | Implementada e verificada anteriormente | `src/amri/`; testes puros, cobertura/mutação scoped e verificador de fronteira descritos no plano original. |
 | 3 — Composite Context + state port | Implementada e verificada anteriormente | Planner, snapshot/token opaco e adaptador FACTSTR 0.5.2; evidências descritas no plano e Stage 3 doc. |
 | 4A — Shared Functional Core | Implementada, verificada pelo mantenedor e publicada | Commit `203589e4...`; decisão compartilhada de lifecycle/sourcing. |
-| 4B — Prepared Participants | **Implementada e publicada** | Commit `5d278958855e41277bd00573d2cf419a50ee875d`; três participantes preparados. Verificação local Rust/CI não comprovada por este checkpoint e deve ser registrada separadamente. |
-| 5 — Reactor + Providers | Pendente | Ainda não iniciar. |
+| 4B — Prepared Participants | **Implementada, publicada e verificada localmente** | Commit `5d278958855e41277bd00573d2cf419a50ee875d`; Audit V3: 10 gates PASS em 2026-11-04. |
+| 5 — Reactor + Providers | **Em andamento — Stage 5A** | Read-only boundary e projeção de contextos; Reactor e Providers completos ainda pendentes. |
 | 6 — Composition Policies + Commit Plan | Pendente | Ainda não iniciar. |
 | 7 — Commit atômico, marker e recovery | Pendente | Ainda não iniciar. |
 | 8 — Hardening operacional | Pendente | Ainda não iniciar. |
@@ -61,13 +75,13 @@ A correção Stage 4B V2 deve evitar opções instáveis do rustfmt e não deve 
 A opção rustfmt `skip_children` não será usada, pois é instável e pode depender de toolchain nightly. Qualquer erro de formatação aborta antes de modificar o repositório.
 
 O patcher V2 foi exercitado com seis testes Python simulados neste empacotamento; esses testes não executam o binário real do rustfmt. Este ambiente de geração não possui `rustfmt`, `cargo` ou `rustc`. Portanto, o dry-run real e os gates Cargo continuam pendentes no Ubuntu do mantenedor, sem qualquer afirmação de compilação feita aqui.
-## Próximos passos obrigatórios
+## Próximo passo vigente — Stage 5
 
-1. Confirmar no Ubuntu que o checkout local está na branch correta, limpo e alinhado com o HEAD remoto `5d278958855e41277bd00573d2cf419a50ee875d`.
-2. Executar e arquivar os gates locais Stage 4B: `cargo fmt --all -- --check`, `cargo check --all-targets --all-features --locked`, os filtros de testes puros Stage 4B/Domain, `cargo clippy --all-targets --all-features --locked -- -D warnings`, boundary guards e `git diff --check`. Não executar mutation testing/Testcontainers como parte da etapa pura.
-3. Registrar os comandos, códigos de saída, contagens e logs reais em `quality-and-evidence.md`. Se algum gate já foi executado, não presumir o resultado: usar a saída arquivada.
-4. Com Stage 4B confirmada localmente, iniciar o planejamento/implementação da Stage 5: Reactor e Providers read-only, sem policies cross-capability (Stage 6) e sem commit/`append_if`/marker/recovery (Stage 7).
-5. Cada estágio futuro deve ter diff revisado, allowlist, backup, gates, commit separado, push fast-forward e verificação do SHA remoto.
+A validação local Stage 4B foi concluída pelo Audit V3. Não repetir os gates Stage 4B como condição de entrada, salvo regressão ou mudança relevante.
+
+A primeira entrega funcional da Stage 5 é 5A: `CompositeContextReader` read-only, especificação composta para os três participantes e projeção de `RfqLifecycleContext`/`SourcingContext` do mesmo `CompositeSnapshot`. As entregas seguintes adicionam Providers e Reactor em change sets próprios.
+
+Stage 5 não inclui composition policies (Stage 6), plano de commit de domínio, `append_if`, Interaction Marker ou Recovery (Stage 7).
 
 ## Riscos e decisões em aberto
 

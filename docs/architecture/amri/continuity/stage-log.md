@@ -83,3 +83,14 @@ Os seis testes do patcher Stage 4B e os dois testes do instalador documental pas
 - O escopo publicado é de preparação em memória e fatos propostos; não declara Reactor, Providers, composition policies, commit plan, `append_if`, marker ou recovery implementados.
 - A consulta ao GitHub nesta revisão não encontrou status de commit nem workflow CI associado a esse SHA. Portanto, a publicação do código está confirmada; a verificação local de Rust/Cargo/Clippy deve ser registrada separadamente com logs reais do mantenedor.
 - ADR-0034 permanece Proposed. Stage 5 — Reactor e Providers — é o próximo estágio planejado, ainda não implementado.
+
+
+## 2026-11-04 — Stage 4B verificada localmente e início da Stage 5A
+
+- O mantenedor executou `amri-stage5-continuity-audit-v3.sh` no checkout local.
+- Resultado apresentado: baseline PASS; integridade do handoff e snapshot PASS; 10 gates PASS; 0 gates failed/blocked; 0 arquivos inesperadamente vazios.
+- Pacote de auditoria V3 SHA-256: `3e50a879c1d3b1c911b73bcb54268911620f1066d755dbb55424b6ee627199d2`.
+- A Stage 4 está concluída para fins de implementação e não deve ser reaberta sem evidência de regressão.
+- Início da Stage 5 pelo change set 5A: read-only context boundary e projeção de contextos usando um único snapshot.
+- A Stage 5 ainda não possui Reactor completo, Providers externos, cancelamento/timeout integrados ou coordenação completa dos três participantes.
+- Nenhuma composition policy Stage 6 ou operação de commit Stage 7 foi introduzida.

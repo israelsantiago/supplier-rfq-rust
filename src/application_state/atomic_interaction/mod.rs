@@ -5,7 +5,9 @@
 
 pub mod context;
 pub mod factstr;
+pub mod read_port;
 pub mod state_port;
+pub use read_port::{CompositeContextReader, ReadOnlyCompositeContextReader};
 
 #[cfg(test)]
 mod fake;

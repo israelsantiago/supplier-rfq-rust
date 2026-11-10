@@ -4,15 +4,15 @@ O plano detalhado original permanece em [`../implementation-plan.md`](../impleme
 
 ## Visão geral
 
-| Fase | Descrição | Estado em 2026-11-03 |
+| Fase | Descrição | Estado em 2026-11-04 |
 |---|---|---|
 | 0 | Baseline e proteção | Concluída anteriormente |
 | 1 | ADR/protocolo/documentação | Concluída como design; ADR-0034 Proposed |
 | 2 | Core AMRI puro | Implementada/verificada anteriormente |
 | 3 | Context planner + atomic state port | Implementada/verificada anteriormente |
 | 4A | Shared Functional Core | Implementada, verificada pelo mantenedor, publicada |
-| 4B | Prepared participants RFQ | Implementada e publicada (`5d278958855e41277bd00573d2cf419a50ee875d`); evidência local de gates ainda precisa ser registrada |
-| 5 | Reactor + Providers | Pendente |
+| 4B | Prepared participants RFQ | Implementada, publicada e verificada localmente; Audit V3: 10 gates PASS em 2026-11-04 |
+| 5 | Reactor + Providers | Em andamento — Stage 5A read-only boundary/context projection |
 | 6 | Composition policies + commit plan | Pendente |
 | 7 | Atomic FACTSTR commit, marker e recovery | Pendente |
 | 8 | Hardening/performance/observabilidade | Pendente |
@@ -32,6 +32,10 @@ O plano detalhado original permanece em [`../implementation-plan.md`](../impleme
 10. Revisar diff/status e criar commit separado.
 11. Push fast-forward sem force; verificar o HEAD remoto.
 12. Atualizar logs/documentos e só então abrir próxima fase.
+
+## Guardrails de automação
+
+As regras transversais para scripts, artefatos, backups, diffs, hashes, gates e publicação estão em [engineering-guardrails.md](./engineering-guardrails.md). Aplicam-se a todas as fases.
 
 ## Fases individuais
 

@@ -1,6 +1,17 @@
 # Stage 5 — Reactor e Providers externos
 
-**Estado:** Pendente. Só iniciar após Stage 4B aprovada, commitada e publicada.
+**Estado:** Em andamento — Stage 5A. Stage 4B está publicada e os dez gates locais foram aprovados pelo Audit V3 em 2026-11-04.
+
+## Subetapas executáveis da Stage 5
+
+As subetapas abaixo são change sets de implementação, não novas fases do roadmap:
+
+- **5A — Read-only Context Boundary e Projection:** restringir a capacidade de leitura, compor os requisitos dos três participantes e projetar os dois contextos do mesmo snapshot.
+- **5B — Providers e Execution Context:** reutilizar `ClockProvider`/`IdProvider`, definir identidade/fingerprint de requisição e Providers externos read-only com Fakes.
+- **5C — Reactor:** executar os participantes em ordem topológica estável, preservar o hand-off `AwardedSupplierQuote` e tratar abort/cancelamento/timeout.
+- **5D — Hardening e fechamento:** completar matriz de testes, verificadores, evidências, documentação e revisão do diff.
+
+Cada subetapa exige dry-run, backup, allowlist, diff e gates próprios. Não antecipar Stage 6 ou Stage 7.
 
 ## Objetivo
 

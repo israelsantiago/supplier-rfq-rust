@@ -45,3 +45,8 @@ Ao concluir qualquer fase, atualize no mesmo change set:
 - referências, diagramas e índice, se necessário.
 
 A cada nova fase ou retomada em chat, informe o estado qualitativo da janela de contexto. Não invente porcentagem: o ambiente não oferece ao assistente um medidor confiável de tokens restantes. Ver [acordo específico](./engineering-agreements.md#10-continuidade-e-janela-de-contexto).
+
+
+## Guardrails transversais de engenharia
+
+Leia [engineering-guardrails.md](./engineering-guardrails.md) antes de criar ou executar scripts de qualquer fase. O documento consolida regras de fail-closed, heredocs literais, backups, allowlists, diffs, manifests, checksums, pacotes verificáveis, isolamento de testes e publicação.

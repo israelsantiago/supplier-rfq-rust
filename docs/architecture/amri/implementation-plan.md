@@ -1,6 +1,6 @@
 # AMRI — incremental implementation and test plan
 
-**Status:** Stages 1–3 and implementation code for Stages 4A–4B are published as bounded deliveries. Stage 4B code is present in commit `5d278958855e41277bd00573d2cf419a50ee875d`; this checkpoint does not claim local Rust/Cargo/Clippy verification because the associated logs are not part of the published commit and no GitHub CI run was found for that SHA. Stages 5–9 remain pending; ADR-0034 remains Proposed.
+**Status (2026-11-04):** Stages 0–4B estão implementadas/publicadas; os dez gates locais Stage 4B foram aprovados pelo Audit V3 do mantenedor. Stage 5 está em andamento com o change set 5A (read-only context boundary e projection). Stage 6–9 permanecem futuras; ADR-0034 continua Proposed.
 
 Every stage is a separate reviewable delivery. A stage cannot be declared complete from compilation alone. Its code, tests, documentation, automated evidence and unresolved risks must be reviewed before the next stage begins.
 
@@ -87,7 +87,7 @@ Every stage is a separate reviewable delivery. A stage cannot be declared comple
 
 ## Stage 4 — Three prepared Supply Chain participants
 
-**Status:** Stage 4A Shared Functional Core and Stage 4B prepared-participant code are published. Stage 4B reference commit: `5d278958855e41277bd00573d2cf419a50ee875d`. Verification evidence must be recorded from the maintainer's local Rust gates; this documentation checkpoint does not infer a test pass from the existence of the commit.
+**Status:** Stage 4A Shared Functional Core and Stage 4B prepared-participant code are published. Stage 4B reference commit: `5d278958855e41277bd00573d2cf419a50ee875d`. The maintainer's local Audit V3 on 2026-11-04 reported 10 gates PASS and zero failed/blocked gates. The terminal summary did not provide individual test counts or the Rust toolchain version; no remote CI approval is inferred.
 
 **Goal:** Demonstrate at least three independent capability decisions without intermediate writes.
 
@@ -106,6 +106,22 @@ Every stage is a separate reviewable delivery. A stage cannot be declared comple
 **Tests:** Participant order and hand-off; abort on rejection; provider failure/timeout; expired evidence; request fingerprint mismatch; missing participant; cancellation; stable IDs/timestamps; no commit on any precommit failure. Test with Fakes, not live external services.
 
 **Exit:** Reactor coordinates the interaction without containing domain rules or accessing raw storage.
+
+### Stage 5A — Read-only Context Boundary e Projection
+
+**Estado:** primeiro change set funcional da Stage 5.
+
+**Entrega:** `CompositeContextReader` e `ReadOnlyCompositeContextReader`, sem operação de escrita exposta; uma especificação composta para Close, Award e Create PO; projeção de `RfqLifecycleContext` e `SourcingContext` a partir do mesmo `CompositeSnapshot`.
+
+**Limites:** não inclui Reactor completo, Providers externos, composition policy, `ValidatedCommitPlan` de domínio, `append_if`, marker, recovery ou commit.
+
+**Saída esperada:** participantes recebem projeções consistentes do mesmo snapshot; payload malformado, sequência duplicada e evento fora da especificação são erros de projeção, não rejeições de negócio.
+
+### Subetapas seguintes da Stage 5
+
+- **5B:** Providers read-only, Fakes, identidade lógica, fingerprint canônico e captura estável de clock/IDs.
+- **5C:** Reactor com ordem topológica estável, abort completo, cancelamento e timeout.
+- **5D:** matriz de testes, hardening, documentação e evidências da Stage 5.
 
 ## Stage 6 — Structural and domain composition validation
 

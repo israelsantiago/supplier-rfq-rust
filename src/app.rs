@@ -1,5 +1,6 @@
 use axum::Router;
 
+pub mod amri;
 pub mod atomic_sourcing_flow;
 pub mod command_rpus;
 pub use command_rpus::CommandRpus;
