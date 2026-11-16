@@ -80,6 +80,9 @@ Não usar `sed`/regex ampla como substituição frágil em código Rust. Preferi
 ## 8. Toolchain e gates
 
 - Rust Edition 2024, `Cargo.lock` travado nas validações reproduzíveis.
+- Toolchain estável do projeto fixada em Rust/Cargo/Rustfmt/Clippy `1.100.0` via `rust-toolchain.toml` e versão exata no GitHub Actions; não usar `stable` flutuante nos jobs estáveis.
+- Jobs de cobertura que dependem de `cargo +nightly` devem declarar explicitamente `nightly`; a toolchain pin do projeto não deve ser confundida com esse job.
+- O Verify local deve reproduzir os mesmos scripts e a mesma versão de Clippy do workflow remoto; uma versão anterior de Clippy não é evidência suficiente de aprovação CI.
 - Preservar `cargo fmt --all -- --check`, `cargo check --all-targets --all-features --locked` e `cargo clippy --all-targets --all-features --locked -- -D warnings`.
 - Executar testes unitários com filtros explícitos para lógica pura, sem iniciar alvos de integração por acidente.
 - Rodar `verify-rpu-boundaries.sh`, `verify-application-state-boundary.sh`, `verify-functional-core-test-isolation.sh`, `verify-openapi.sh`, `verify-mermaid-diagrams.sh` e `verify-documentation-current-state.sh` no escopo apropriado.

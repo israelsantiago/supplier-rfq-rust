@@ -25,8 +25,8 @@ const CREATE_PO_PARTICIPANT_ID: &str = "rfq.create-purchase-order";
 const CLOSE_FACT_TYPE: &str = "supply-chain.rfq.closed";
 const AWARD_FACT_TYPE: &str = "supply-chain.rfq.awarded";
 const CREATE_PO_FACT_TYPE: &str = "supply-chain.purchase-order.created";
-const INTERACTION_DEFINITION_ID: &str = "supply-chain.rfq-sourcing";
-const INTERACTION_DEFINITION_VERSION: u32 = 1;
+pub(crate) const RFQ_SOURCING_INTERACTION_DEFINITION_ID: &str = "supply-chain.rfq-sourcing";
+pub(crate) const RFQ_SOURCING_INTERACTION_DEFINITION_VERSION: u32 = 1;
 
 /// Typed payloads proposed by the three Supply Chain participants.
 /// These are in-memory proposals, not persisted events or serialization envelopes.
@@ -85,9 +85,9 @@ pub fn interaction_definition() -> InteractionDefinition {
     let create_po_id = create_po_participant_id();
 
     InteractionDefinition::new(
-        InteractionDefinitionId::new(INTERACTION_DEFINITION_ID)
+        InteractionDefinitionId::new(RFQ_SOURCING_INTERACTION_DEFINITION_ID)
             .expect("the interaction definition identifier is valid"),
-        NonZeroU32::new(INTERACTION_DEFINITION_VERSION)
+        NonZeroU32::new(RFQ_SOURCING_INTERACTION_DEFINITION_VERSION)
             .expect("the interaction definition version is non-zero"),
         vec![
             ParticipantDefinition::new(close_id, Vec::new(), vec![fact_type_id(CLOSE_FACT_TYPE)]),

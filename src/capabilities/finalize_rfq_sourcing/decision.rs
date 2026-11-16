@@ -9,7 +9,8 @@ use uuid::Uuid;
 use super::FinalizeRfqSourcingRequest;
 use crate::domain::rfq_lifecycle::{RfqLifecycleContext, RfqLifecycleRejection, decide_close_rfq};
 use crate::domain::sourcing::{
-    AwardQuoteSelection, decide_award_supplier_quote, decide_create_purchase_order,
+    AwardQuoteSelection, AwardedSupplierQuote, decide_award_supplier_quote,
+    decide_create_purchase_order,
 };
 use crate::events::{
     PurchaseOrderCreatedFact, PurchaseOrderDispatchRequestedFact, RfqAwardedFact, RfqClosedFact,
@@ -44,12 +45,28 @@ pub fn decide(
     let awarded_quote = decide_award_supplier_quote(&selection, context, now, award_id)?;
 
     let lifecycle = RfqLifecycleContext::new(context.rfq.is_some(), context.closed);
+    complete_sourcing_decision(
+        request,
+        &awarded_quote,
+        &lifecycle,
+        now,
+        purchase_order_id,
+        dispatch_id,
+    )
+}
+
+/// Complete the sourcing composition after the award preconditions have succeeded.
+fn complete_sourcing_decision(
+    request: &FinalizeRfqSourcingRequest,
+    awarded_quote: &AwardedSupplierQuote,
+    lifecycle: &RfqLifecycleContext,
+    now: DateTime<Utc>,
+    purchase_order_id: Uuid,
+    dispatch_id: Uuid,
+) -> Result<SourcingDecision, SourcingRejection> {
     let closed =
-        decide_close_rfq(request.rfq_id, &lifecycle, now).map_err(|rejection| match rejection {
-            RfqLifecycleRejection::RfqNotFound => SourcingRejection::RfqNotFound,
-            RfqLifecycleRejection::RfqAlreadyClosed => SourcingRejection::RfqAlreadyClosed,
-        })?;
-    let purchase_order = decide_create_purchase_order(&awarded_quote, purchase_order_id, now);
+        decide_close_rfq(request.rfq_id, lifecycle, now).map_err(map_lifecycle_rejection)?;
+    let purchase_order = decide_create_purchase_order(awarded_quote, purchase_order_id, now);
     let dispatch_requested = PurchaseOrderDispatchRequestedFact {
         dispatch_id,
         purchase_order_id,
@@ -63,6 +80,13 @@ pub fn decide(
         purchase_order,
         dispatch_requested,
     })
+}
+
+fn map_lifecycle_rejection(rejection: RfqLifecycleRejection) -> SourcingRejection {
+    match rejection {
+        RfqLifecycleRejection::RfqNotFound => SourcingRejection::RfqNotFound,
+        RfqLifecycleRejection::RfqAlreadyClosed => SourcingRejection::RfqAlreadyClosed,
+    }
 }
 
 #[cfg(test)]
@@ -521,6 +545,61 @@ mod tests {
         assert_eq!(
             decide_create_purchase_order(&awarded, purchase_order_id, decision_at),
             composed.purchase_order,
+        );
+    }
+    #[test]
+    fn maps_missing_rfq_lifecycle_rejection() {
+        let command = request();
+        let ctx = context();
+        let selection = AwardQuoteSelection::new(
+            command.rfq_id,
+            command.supplier_id,
+            command.quote_id,
+            command.expected_quote_set_version,
+        );
+        let now = Utc.with_ymd_and_hms(2026, 10, 29, 12, 0, 0).unwrap();
+        let awarded = decide_award_supplier_quote(&selection, &ctx, now, Uuid::from_u128(10))
+            .expect("valid fixture must produce an awarded quote");
+
+        assert_eq!(
+            complete_sourcing_decision(
+                &command,
+                &awarded,
+                &RfqLifecycleContext::new(false, false),
+                now,
+                Uuid::from_u128(11),
+                Uuid::from_u128(12),
+            )
+            .unwrap_err(),
+            SourcingRejection::RfqNotFound,
+        );
+    }
+
+    #[test]
+    fn maps_already_closed_lifecycle_rejection() {
+        let command = request();
+        let ctx = context();
+        let selection = AwardQuoteSelection::new(
+            command.rfq_id,
+            command.supplier_id,
+            command.quote_id,
+            command.expected_quote_set_version,
+        );
+        let now = Utc.with_ymd_and_hms(2026, 10, 29, 12, 0, 0).unwrap();
+        let awarded = decide_award_supplier_quote(&selection, &ctx, now, Uuid::from_u128(10))
+            .expect("valid fixture must produce an awarded quote");
+
+        assert_eq!(
+            complete_sourcing_decision(
+                &command,
+                &awarded,
+                &RfqLifecycleContext::new(true, true),
+                now,
+                Uuid::from_u128(11),
+                Uuid::from_u128(12),
+            )
+            .unwrap_err(),
+            SourcingRejection::RfqAlreadyClosed,
         );
     }
 }

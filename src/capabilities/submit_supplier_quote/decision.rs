@@ -442,10 +442,14 @@ mod tests {
     fn rejects_sum_overflow_across_valid_line_totals() {
         let (mut request, mut context) = fixture();
         let high_price = i64::MAX / 2 + 1;
-        for index in 0..2 {
-            request.items[index].quantity = 1;
-            request.items[index].unit_price_cents = high_price;
-            context.rfq.as_mut().unwrap().items[index].required_quantity = 1;
+        let rfq_items = &mut context.rfq.as_mut().unwrap().items;
+        assert_eq!(request.items.len(), 2);
+        assert_eq!(rfq_items.len(), 2);
+
+        for (request_item, rfq_item) in request.items.iter_mut().zip(rfq_items.iter_mut()) {
+            request_item.quantity = 1;
+            request_item.unit_price_cents = high_price;
+            rfq_item.required_quantity = 1;
         }
         assert_eq!(
             decide(&request, &context, Uuid::from_u128(3), fixed_now()).unwrap_err(),

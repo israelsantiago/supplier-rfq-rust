@@ -1,6 +1,6 @@
 # Estado atual do AMRI
 
-**Atualizado em:** 2026-11-04
+**Atualizado em:** 2026-11-16
 **Branch:** `feat/amri-stage4-three-prepared-participants`\
 **Repositório:** `israelsantiago/supplier-rfq-rust`\
 **Diretório local usual:** `/mnt/Dados/MeusDados/Downloads/supplier-rfq-rpu-rust`
@@ -43,7 +43,7 @@ A Stage 4 está concluída para fins de implementação. Não reabrir a Stage 4 
 | 3 — Composite Context + state port | Implementada e verificada anteriormente | Planner, snapshot/token opaco e adaptador FACTSTR 0.5.2; evidências descritas no plano e Stage 3 doc. |
 | 4A — Shared Functional Core | Implementada, verificada pelo mantenedor e publicada | Commit `203589e4...`; decisão compartilhada de lifecycle/sourcing. |
 | 4B — Prepared Participants | **Implementada, publicada e verificada localmente** | Commit `5d278958855e41277bd00573d2cf419a50ee875d`; Audit V3: 10 gates PASS em 2026-11-04. |
-| 5 — Reactor + Providers | **Em andamento — Stage 5A** | Read-only boundary e projeção de contextos; Reactor e Providers completos ainda pendentes. |
+| 5 — Reactor + Providers | **Em andamento — Stage 5B.1** | Stage 5A publicada no commit `921f60c4bb692cf8466e4a7e553c91dcf9bab923`; 5B.1 fixa Rust 1.100.0, corrige o lint de CI e integra identidade/fingerprint/ExecutionContext na Application. |
 | 6 — Composition Policies + Commit Plan | Pendente | Ainda não iniciar. |
 | 7 — Commit atômico, marker e recovery | Pendente | Ainda não iniciar. |
 | 8 — Hardening operacional | Pendente | Ainda não iniciar. |
@@ -112,3 +112,18 @@ Em 2026-11-03, o `apply-amri-continuity-docs-v1.sh --dry-run` abortou com `arqui
 ## Histórico — correção Stage 4B V2 antes da publicação (superado)
 
 O patcher Stage 4B V2 foi preparado e os seis testes automatizados do pacote passaram, incluindo a formatação simulada em fluxo `format-then-check` sem opções rustfmt instáveis. Isso comprova apenas o patcher/fixtures; não é evidência de que o binário rustfmt real, Cargo, Clippy ou os testes Rust passaram no checkout. O dry-run real Stage 4B V2 deve ocorrer somente depois da instalação e publicação do checkpoint documental V2 descrito no README do pacote.
+
+## Stage 5B.1 — base publicada e escopo vigente (2026-11-16)
+
+- **Baseline local/remoto:** branch `feat/amri-stage4-three-prepared-participants`, commit `921f60c4bb692cf8466e4a7e553c91dcf9bab923`; `origin` deve apontar para o mesmo SHA antes de aplicar.
+- **Stage 5A:** implementada, verificada localmente com 14/14 gates e publicada no commit acima.
+- **Audit Stage 5B V2:** seis gates locais PASS no Rust/Cargo 1.99.1 e 212 testes relatados no pacote; esta evidência não substitui o CI remoto.
+- **Falha CI reportada pelo mantenedor:** Clippy 1.100.0 detectou `clippy::needless_range_loop` em `src/capabilities/submit_supplier_quote/decision.rs:445`; o audit local usou Clippy 1.99.1 e não reproduziu o lint.
+- **Correção 5B.1:** substituir o range/index do teste de overflow por iteração pareada com `iter_mut().zip(...)`, preservando os dois itens e a intenção do teste.
+- **Toolchain:** Rust/Cargo/Clippy/Rustfmt 1.100.0 fixados em `rust-toolchain.toml` e nos jobs estáveis do workflow. Jobs de cobertura continuam explicitamente em nightly.
+- **Identity:** usar `supply-chain.rfq-sourcing`, versão 1, e fingerprint SHA-256 canônico com domain separator e codificação fixed-width dos campos `rfq_id`, `supplier_id`, `quote_id` e `expected_quote_set_version`.
+- **Execution Context:** a Application captura relógio e InteractionId uma vez; caller conserva e reutiliza o mesmo `ExecutionContext` para retries da mesma execução lógica.
+- **Limites:** AMRI Core continua sem dependência de RFQ/FACTSTR/SQLx/Axum/Providers. Não implementar Providers ERP/Compliance/Tax (5B.2), Reactor (5C), composition policies (Stage 6) ou writes/marker/recovery (Stage 7) neste change set.
+- **CI parity:** o Verify local Stage 5B.1 executa os mesmos scripts de workflow para jobs obrigatórios, com Rust 1.100.0; mutation testing fica fora do Verify padrão porque o workflow o condiciona a `workflow_dispatch`/`schedule`.
+
+O resultado Stage 5B.1 só poderá ser declarado aprovado após o Verify completo e o CI remoto aplicável passarem na toolchain fixada.

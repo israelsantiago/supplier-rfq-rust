@@ -137,3 +137,31 @@ Backups:
 Limitações / riscos pendentes:
 Revisor / data:
 ```
+
+## Stage 5B audit e correção de CI — 2026-11-16
+
+### Evidência de auditoria local V2
+
+- Baseline: `921f60c4bb692cf8466e4a7e553c91dcf9bab923`.
+- Toolchain local registrada: Cargo/Rust `1.99.1`; rustfmt `1.10.0-stable`.
+- Seis gates da auditoria: 6 PASS, 0 FAIL.
+- Testes reportados pelo pacote: 212 aprovados.
+- Essa auditoria não equivalia à toolchain CI após o release Rust 1.100.0.
+
+### Falha CI reportada pelo mantenedor
+
+- Clippy `1.100.0` com `-D warnings` falhou em `src/capabilities/submit_supplier_quote/decision.rs:445` por `clippy::needless_range_loop`.
+- A falha estava dentro do teste `rejects_sum_overflow_across_valid_line_totals`.
+- Causa operacional: validação local em Clippy 1.99.1, enquanto o runner remoto resolveu a toolchain estável 1.100.0.
+
+### Gates obrigatórios do change set 5B.1
+
+- `rust-toolchain.toml` fixa `1.100.0`; CI estável usa `dtolnay/rust-toolchain@1.100.0`.
+- `bash scripts/verify-rpu-boundaries.sh` — inclui `cargo fmt`, check all targets/features, test all targets/features e Clippy `-D warnings`.
+- `bash scripts/verify-testcontainers-isolation.sh`.
+- `bash scripts/verify-amri-core-boundaries.sh`.
+- `bash scripts/coverage-functional-core.sh` e `bash scripts/coverage-amri-core.sh` em nightly explícito, como no workflow.
+- `bash scripts/verify-openapi.sh`, `sh scripts/verify-mermaid-diagrams.sh` e `bash scripts/verify-documentation-current-state.sh`.
+- Mutação fica fora do Verify padrão porque o workflow condiciona esse job a `workflow_dispatch`/`schedule`.
+
+**Status:** todos os gates acima estão pendentes de execução após Apply. Não registrar PASS antes da saída observada.

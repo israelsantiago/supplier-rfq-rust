@@ -94,3 +94,13 @@ Os seis testes do patcher Stage 4B e os dois testes do instalador documental pas
 - Início da Stage 5 pelo change set 5A: read-only context boundary e projeção de contextos usando um único snapshot.
 - A Stage 5 ainda não possui Reactor completo, Providers externos, cancelamento/timeout integrados ou coordenação completa dos três participantes.
 - Nenhuma composition policy Stage 6 ou operação de commit Stage 7 foi introduzida.
+
+## 2026-11-16 — Stage 5B.1: toolchain, CI parity, identity e ExecutionContext (planejado para aplicação)
+
+- Baseline remoto confirmado: `921f60c4bb692cf8466e4a7e553c91dcf9bab923` na branch `feat/amri-stage4-three-prepared-participants`.
+- Audit Stage 5B V2 local: seis gates PASS usando Rust/Cargo 1.99.1; o pacote reportou 212 testes aprovados. Essa toolchain não reproduziu integralmente o lint do CI.
+- Falha CI reportada pelo mantenedor: Clippy 1.100.0 rejeitou o range/index no teste `rejects_sum_overflow_across_valid_line_totals` em `src/capabilities/submit_supplier_quote/decision.rs` com `clippy::needless_range_loop` e `-D warnings`.
+- Correção planejada: `iter_mut().zip(...)` com assertions de cardinalidade do fixture; nenhum `allow` de lint.
+- Fixar Rust/Cargo/Clippy/Rustfmt 1.100.0 em `rust-toolchain.toml` e em ambos os jobs estáveis; manter cobertura em nightly explícito.
+- Adicionar `RfqSourcingExecutionContextFactory` na Application e fingerprint canônico SHA-256 v1 para `FinalizeRfqSourcingRequest`, sem alterar o AMRI Core genérico.
+- Este registro descreve o change set planejado; não significa que Apply, gates, commit ou push tenham sido executados.

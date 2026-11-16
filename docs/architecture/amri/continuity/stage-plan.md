@@ -4,7 +4,7 @@ O plano detalhado original permanece em [`../implementation-plan.md`](../impleme
 
 ## Visão geral
 
-| Fase | Descrição | Estado em 2026-11-04 |
+| Fase | Descrição | Estado em 2026-11-16 |
 |---|---|---|
 | 0 | Baseline e proteção | Concluída anteriormente |
 | 1 | ADR/protocolo/documentação | Concluída como design; ADR-0034 Proposed |
@@ -12,7 +12,7 @@ O plano detalhado original permanece em [`../implementation-plan.md`](../impleme
 | 3 | Context planner + atomic state port | Implementada/verificada anteriormente |
 | 4A | Shared Functional Core | Implementada, verificada pelo mantenedor, publicada |
 | 4B | Prepared participants RFQ | Implementada, publicada e verificada localmente; Audit V3: 10 gates PASS em 2026-11-04 |
-| 5 | Reactor + Providers | Em andamento — Stage 5A read-only boundary/context projection |
+| 5 | Reactor + Providers | Em andamento — Stage 5B.1: toolchain/CI parity, identity e ExecutionContext |
 | 6 | Composition policies + commit plan | Pendente |
 | 7 | Atomic FACTSTR commit, marker e recovery | Pendente |
 | 8 | Hardening/performance/observabilidade | Pendente |
@@ -69,3 +69,14 @@ flowchart TD
 ## Critério de conclusão global da ADR-0034
 
 A ADR só pode mudar de `Proposed` para `Accepted` quando todos os critérios finais do ADR-0034 forem demonstrados: contracts/ownership revisados; snapshot/token comprovados; cenário de três participantes atômico; marker e recovery; testes existentes verdes; boundary guards; segundo domínio; documentação alinhada. Stage 4A/4B concluídas não aceitam AMRI completo.
+
+## Change set vigente — Stage 5B.1
+
+1. Fixar Rust 1.100.0 em `rust-toolchain.toml` e nos jobs estáveis do GitHub Actions; manter o job de cobertura em nightly explícito.
+2. Corrigir o teste `rejects_sum_overflow_across_valid_line_totals` com iteração pareada, eliminando `clippy::needless_range_loop` sem suprimir o lint.
+3. Implementar na Application `RfqSourcingExecutionContextFactory`, reutilizando `ClockProvider` e `IdProvider`.
+4. Definir fingerprint SHA-256 v1 com domain separation e campos de tamanho fixo; testar vetor conhecido, determinismo e sensibilidade a cada campo.
+5. Garantir captura única de timestamp/InteractionId e documentar que o `ExecutionContext` deve ser reutilizado nos retries da mesma execução lógica.
+6. Executar localmente os jobs obrigatórios do workflow; o Clippy deve ser o Clippy da toolchain 1.100.0.
+
+Não adicionar endpoints externos, adapters de ERP, Reactor, política cross-capability, `append_if`, Interaction Marker ou Recovery neste change set.
