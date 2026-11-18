@@ -3,7 +3,7 @@
 - **Status:** Proposed — Stage 2 pure Core and Stage 3 composite-context/state-port boundary implemented; full AMRI protocol remains unaccepted
 - **Date:** 2026-10-30
 - **Scope:** Optional protocol for coordinating three or more independent Domain Capabilities in one atomic interaction
-- **Related ADRs:** ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0010, ADR-0011, ADR-0023, ADR-0026, ADR-0031, ADR-0033
+- **Related ADRs:** ADR-0003, ADR-0004, ADR-0005, ADR-0006, ADR-0010, ADR-0011, ADR-0016, ADR-0023, ADR-0024, ADR-0025, ADR-0026, ADR-0031, ADR-0033
 - **Reference implementation:** `supplier-rfq-rust`, Supply Chain / RFQ
 
 ## 1. Context
@@ -246,6 +246,19 @@ Read-only validation evidence may be included in the commit plan or relevant dom
 When an external resource must remain available or unchanged, the provider must offer a reservation/lease, conditional version or equivalent. The protocol must track the reservation and release or compensate it when internal commit fails. The first RFQ experiment uses fake read-only Providers and does not create a real ERP order before commit.
 
 Actual external dispatch is a post-commit operation driven by a durable dispatch fact/consumer. Retry, downstream idempotency, reconciliation and dead-letter handling are separate responsibilities. No distributed transaction is claimed.
+
+<!-- ADR-0034-STAGE5B2-PROVIDERS:START -->
+
+### 9.1 — Stage 5B.2: contratos de Providers e harness HTTP de teste
+
+Os ports concretos do piloto RFQ pertencem à Application, fora do AMRI Core e do Functional Core. Os contratos são síncronos e read-only. `ErpReferenceProvider` consulta uma referência externa associada ao `supplier_id`; `ComplianceProvider` e `TaxProvider` retornam somente referências opacas a evidências relacionadas ao fornecedor. Os DTOs carregam proveniência mínima (`supplier_id`, `source_revision`, `observed_at`, `expires_at`) e a referência externa específica.
+
+O contrato deliberadamente não inventa `compliance_status`, `risk_score`, códigos fiscais, alíquotas, bases, cálculos, estruturas ERP ou políticas. As respostas não são decisões de domínio. `NotFound` e `NotApplicable` são resultados distintos de `Unavailable`, `TimedOut` e `InvalidResponse`. `expires_at` é metadado; não existe janela de frescor universal. `ProviderEvidenceMetadata::freshness_at` compara somente o instante informado com a expiração explícita (`Fresh`, `Stale` ou `UnboundedBySource`); não infere max-age e não toma decisão de aceitação/rejeição. A política de consumo continua pertencendo ao consumidor/domínio.
+
+Os Fakes são determinísticos e exclusivos de testes. Para o contrato HTTP, o projeto usa `wiremock` crate Rust 0.6.5 dentro de uma imagem de teste própria (`tests/wiremock-rs/`), iniciada por Testcontainers `GenericImage`. Isso não é a imagem oficial Java `wiremock/wiremock`, nem um endpoint real. O OpenAPI versionado descreve somente esse test double. A suíte Core/Functional Core continua sem HTTP, WireMock, Docker ou Testcontainers.
+
+A Stage 5B.2 não integra os ports ao Reactor nem aos participantes, não acessa storage, não reserva recursos externos e não cria atomicidade distribuída. A interpretação de evidência continua pertencendo a uma política/consumidor de domínio futuro, fora desta etapa.
+<!-- ADR-0034-STAGE5B2-PROVIDERS:END -->
 
 ## 10. Idempotency and recovery
 

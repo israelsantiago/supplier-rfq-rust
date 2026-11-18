@@ -88,3 +88,20 @@ Mutation testing é restrito a Functional Core puro, AMRI Core e políticas pura
 ## 5. Mudança de decisão exige trilha
 
 Toda alteração de decisão precisa registrar: (a) estado anterior; (b) motivação/evidência nova; (c) ADR/decision ID afetado; (d) código, testes e documentos impactados; (e) compatibilidade/migração; (f) gate para aceitar/superseder. Não editar decisão apenas porque o script atual torna a implementação mais conveniente.
+
+<!-- AMRI-STAGE5B2-DECISIONS:START -->
+
+## Stage 5B.2 — decisões delimitadas (2026-11-17)
+
+| Decisão de implementação | Estado | Limite |
+|---|---|---|
+| Portas ERP Reference, Compliance e Tax pertencem à Application | Proposta implementada no change set; gates pendentes | Não entram em AMRI Core/Functional Core |
+| Respostas carregam referência opaca e proveniência | Contrato provisório de teste | Não define atributo comercial/fiscal nem verdictos de compliance |
+| `NotFound`/`NotApplicable` diferem de indisponibilidade/timeout | Contrato tipado | Ausência não é falha de transporte ou rejeição de domínio |
+| Fakes determinísticos são feature/test-only | Proposto no change set | Sem rede, sleeps, Docker ou Testcontainers |
+| WireMock-RS 0.6.5 roda num container Rust customizado via Testcontainers | Harness de teste | Imagem local exclusiva de integração; não é serviço de produção nem imagem Java oficial |
+| Classificação de expiração | Helper de proveniência no change set | `freshness_at` compara somente `expires_at` explícito; não aplica max-age nem decide rejeição. A política de consumo permanece não decidida |
+| API de fornecedor real | Não decidida | OpenAPI da 5B.2 representa somente o test double |
+
+ADR-0034 permanece `Proposed`. 5B.2 não autoriza Reactor 5C, composition policies Stage 6, commit Stage 7 ou integração real de ERP/Compliance/Tax.
+<!-- AMRI-STAGE5B2-DECISIONS:END -->

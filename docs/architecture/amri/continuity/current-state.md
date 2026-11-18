@@ -43,7 +43,7 @@ A Stage 4 está concluída para fins de implementação. Não reabrir a Stage 4 
 | 3 — Composite Context + state port | Implementada e verificada anteriormente | Planner, snapshot/token opaco e adaptador FACTSTR 0.5.2; evidências descritas no plano e Stage 3 doc. |
 | 4A — Shared Functional Core | Implementada, verificada pelo mantenedor e publicada | Commit `203589e4...`; decisão compartilhada de lifecycle/sourcing. |
 | 4B — Prepared Participants | **Implementada, publicada e verificada localmente** | Commit `5d278958855e41277bd00573d2cf419a50ee875d`; Audit V3: 10 gates PASS em 2026-11-04. |
-| 5 — Reactor + Providers | **Em andamento — Stage 5B.1** | Stage 5A publicada no commit `921f60c4bb692cf8466e4a7e553c91dcf9bab923`; 5B.1 fixa Rust 1.100.0, corrige o lint de CI e integra identidade/fingerprint/ExecutionContext na Application. |
+| 5 — Reactor + Providers | **Em andamento — Stage 5B.2** | 5A e 5B.1 publicadas; Verify local 5B.1 com 10/10 gates, 298/298 regiões e 33/33 branches reportado pelo mantenedor; mutation SKIPPED. 5B.2 delimitada com ports/Fakes e harness WireMock-RS; Apply/Verify pendentes. CI remoto não confirmado. |
 | 6 — Composition Policies + Commit Plan | Pendente | Ainda não iniciar. |
 | 7 — Commit atômico, marker e recovery | Pendente | Ainda não iniciar. |
 | 8 — Hardening operacional | Pendente | Ainda não iniciar. |
@@ -127,3 +127,19 @@ O patcher Stage 4B V2 foi preparado e os seis testes automatizados do pacote pas
 - **CI parity:** o Verify local Stage 5B.1 executa os mesmos scripts de workflow para jobs obrigatórios, com Rust 1.100.0; mutation testing fica fora do Verify padrão porque o workflow o condiciona a `workflow_dispatch`/`schedule`.
 
 O resultado Stage 5B.1 só poderá ser declarado aprovado após o Verify completo e o CI remoto aplicável passarem na toolchain fixada.
+
+<!-- AMRI-STAGE5B2-CURRENT-STATE:START -->
+
+## Stage 5B.2 — External Read-Only Providers (checkpoint de 2026-11-17)
+
+- **Base publicada:** `ae25951ddfa360c57946dd0b1ad47ba629ac6225` na branch `feat/amri-stage4-three-prepared-participants`.
+- **Stage 5B.1:** publicação confirmada; Verify local 10/10 gates, post-gate integrity PASS, Functional Core 298/298 regiões e 33/33 branches foram reportados pelo mantenedor. Mutation testing foi SKIPPED. Isso não comprova CI remoto.
+- **CI remoto:** não há aprovação demonstrada nas consultas GitHub desta retomada. A consulta `fetch_commit_workflow_runs` usada retorna somente execuções associadas a PR; portanto, sua lista vazia não prova ausência de `workflow_dispatch`/`schedule`.
+- **5B.2:** change set proposto inclui portas Application read-only, Fakes determinísticos, contratos OpenAPI provisórios de test double e teste integrado com WireMock-RS 0.6.5 dentro de Testcontainers. Ainda não aplicado nem validado no checkout local.
+- **Contrato externo:** as respostas carregam somente referência opaca e proveniência. Não há verdictos de Compliance nem campos/cálculos fiscais. Nenhum endpoint real, credencial, SDK ou write foi adicionado.
+- **Infra de teste:** `wiremock-rs` é executado por um binário Rust próprio, empacotado em imagem local e iniciado por `GenericImage`. Não é a imagem Java `wiremock/wiremock`.
+- **Gates 5B.2:** pendentes até que os comandos sejam executados no checkout do mantenedor e seus recibos/logs sejam preservados.
+- **Mutation:** não executar a campanha consolidada durante 5B.2; reconciliação do workflow_dispatch permanece pendente.
+
+O próximo passo é executar `bash ~/Downloads/amri-stage5b2-wiremock-rs/scripts/amri-stage5b2-apply.sh "$REPO" --dry-run`, revisar o diff e, após aprovação, `--apply`. Verify, Commit e Push são operações separadas. Commit/Push não fazem parte do pacote.
+<!-- AMRI-STAGE5B2-CURRENT-STATE:END -->

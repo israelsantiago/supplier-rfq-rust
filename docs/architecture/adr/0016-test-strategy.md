@@ -33,3 +33,20 @@ A suíte deve testar cada camada com a evidência apropriada: Functional Core pu
 ## Separação entre Functional Core e testes de storage
 
 Mutation testing e branch coverage do Functional Core não devem depender de Docker, PostgreSQL ou HTTP. Os runners excluem somente nove testes de storage existentes dentro do alvo library e usam `DOCKER_HOST` inválido como defesa fail-fast. Esses testes continuam obrigatórios na suíte completa. A decisão pura `FinalizeRfqSourcing` está incluída em coverage e mutation testing. `scripts/verify-functional-core-test-isolation.sh` mantém essa decisão verificável e falha fechado se aparecer um novo uso de Testcontainers não catalogado.
+
+<!-- ADR-0016-WIREMOCK-RS:START -->
+
+## Atualização — contratos HTTP externos com WireMock-RS e Testcontainers
+
+Para testar integrações HTTP de Providers externos da Application, usar o crate Rust `wiremock` 0.6.5 (`wiremock-rs`) como servidor mock. Como o crate executa `MockServer` dentro do processo e não oferece distribuição standalone, o repositório mantém um binário test-only em `tests/wiremock-rs/`, empacotado numa imagem própria e iniciado por Testcontainers Rust (`GenericImage`). A imagem não é `wiremock/wiremock` (WireMock Java) e não é artefato de produção.
+
+- `tests/contracts/external-providers-v1.openapi.yaml` é a fonte do contrato HTTP provisório do test double.
+- `tests/external_provider_contracts.rs` é teste integrado e exige Docker e imagem local criada por `scripts/build-amri-wiremock-rs-image.sh`.
+- O test double cobre 200 tipado, 204 NotApplicable, 404 NotFound, 503 Unavailable, 504 TimedOut e payload inválido.
+- Testes unitários dos ports/Fakes não iniciam containers; `cargo test --lib --all-features --locked app::amri::providers::tests -- --test-threads=1` executa os testes unitários dos Providers/Fakes sem Docker. O alvo `lib` contém testes legados de storage com Testcontainers; para demonstrar isolamento, usar o filtro específico e não afirmar que a suíte `--lib` inteira é livre de Docker.
+- Functional Core, AMRI Core e Prepared Participants não importam `wiremock`, Testcontainers ou clientes HTTP.
+- Mutation testing/branch coverage do Functional Core continuam restritos à lógica pura. O novo teste integrado não entra nesses runners.
+- Não usar `sleep` para simular timeout. Usar resposta 504 para contrato de gateway e falhas determinísticas; timeout de socket deve ser testado pelo adapter HTTP quando existir.
+
+A existência do mock não prova interoperabilidade com sistemas reais. O OpenAPI é contrato do harness do projeto, não contrato oficial de qualquer fornecedor.
+<!-- ADR-0016-WIREMOCK-RS:END -->

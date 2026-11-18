@@ -104,3 +104,15 @@ Os seis testes do patcher Stage 4B e os dois testes do instalador documental pas
 - Fixar Rust/Cargo/Clippy/Rustfmt 1.100.0 em `rust-toolchain.toml` e em ambos os jobs estáveis; manter cobertura em nightly explícito.
 - Adicionar `RfqSourcingExecutionContextFactory` na Application e fingerprint canônico SHA-256 v1 para `FinalizeRfqSourcingRequest`, sem alterar o AMRI Core genérico.
 - Este registro descreve o change set planejado; não significa que Apply, gates, commit ou push tenham sido executados.
+
+<!-- AMRI-STAGE5B2-STAGE-LOG:START -->
+
+## 2026-11-17 — Stage 5B.2: design e pacote de implementação preparados
+
+- Baseline remoto confirmado: `ae25951ddfa360c57946dd0b1ad47ba629ac6225` na branch `feat/amri-stage4-three-prepared-participants`.
+- Auditoria de código identificou somente `supplier_id`, referências internas e metadados atuais; não identificou schema fiscal, veredicto de compliance externo ou contrato de integração ERP real.
+- O change set define contratos provisórios de test double, não especificações de fornecedores externos.
+- `wiremock` Rust 0.6.5 será executado num processo Rust em container próprio via Testcontainers `GenericImage`; o teste integrado fica fora da suíte `--lib`.
+- Fakes ficam em módulo de suporte de teste; AMRI Core e Functional Core permanecem livres de HTTP/Providers/Testcontainers.
+- Este registro descreve o pacote preparado. Apply, gates, Commit, Push e CI permanecem pendentes até saída observada.
+<!-- AMRI-STAGE5B2-STAGE-LOG:END -->

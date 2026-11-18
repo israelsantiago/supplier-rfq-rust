@@ -141,6 +141,6 @@ Não manter transação/lock de storage aberto durante chamada de rede ou espera
 
 ## 10. API pública experimental
 
-A proposta Stage 4B expõe `crate::amri_participants` e promove `crate::domain` de `pub(crate)` para `pub`, porque tipos de domínio aparecem em assinaturas públicas dos participantes. Isso evita API pública com parâmetros de visibilidade efetiva mais restrita e evita supressões `dead_code`. É um alargamento real da superfície pública: deve ser revisado no diff, documentado como experimental e não interpretado como garantia de estabilidade ou aceitação da ADR-0034.
+A implementação Stage 4B expõe `crate::amri_participants` com reexports seletivos dos tipos necessários. `crate::domain` permanece `pub(crate)` em `src/lib.rs`; a superfície pública experimental não promove a árvore de domínio inteira. Qualquer reexport adicional deve ser explícito e revisado, sem supressões `dead_code` ou aceitação implícita da ADR-0034.
 
 Referência de linguagem: [Rust Reference — visibility and privacy](https://doc.rust-lang.org/reference/visibility-and-privacy.html).

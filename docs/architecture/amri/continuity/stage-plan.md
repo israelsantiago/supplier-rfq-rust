@@ -12,7 +12,7 @@ O plano detalhado original permanece em [`../implementation-plan.md`](../impleme
 | 3 | Context planner + atomic state port | Implementada/verificada anteriormente |
 | 4A | Shared Functional Core | Implementada, verificada pelo mantenedor, publicada |
 | 4B | Prepared participants RFQ | Implementada, publicada e verificada localmente; Audit V3: 10 gates PASS em 2026-11-04 |
-| 5 | Reactor + Providers | Em andamento — Stage 5B.1: toolchain/CI parity, identity e ExecutionContext |
+| 5 | Reactor + Providers | Em andamento — Stage 5B.2: ports externos read-only, Fakes e contratos WireMock-RS; Apply/Verify pendentes |
 | 6 | Composition policies + commit plan | Pendente |
 | 7 | Atomic FACTSTR commit, marker e recovery | Pendente |
 | 8 | Hardening/performance/observabilidade | Pendente |
@@ -80,3 +80,39 @@ A ADR só pode mudar de `Proposed` para `Accepted` quando todos os critérios fi
 6. Executar localmente os jobs obrigatórios do workflow; o Clippy deve ser o Clippy da toolchain 1.100.0.
 
 Não adicionar endpoints externos, adapters de ERP, Reactor, política cross-capability, `append_if`, Interaction Marker ou Recovery neste change set.
+
+<!-- AMRI-STAGE5B2-STAGE-PLAN:START -->
+
+## Change set — Stage 5B.2: External Read-Only Providers
+
+**Estado:** design/implementação empacotados; Apply e gates no checkout do mantenedor pendentes.
+
+### Escopo
+
+1. Definir portas síncronas Application para ERP Reference, Compliance e Tax com entradas baseadas no `supplier_id` já existente.
+2. Usar resultados `Found`, `NotFound` e `NotApplicable`, distintos de `Unavailable`, `TimedOut` e `InvalidResponse`.
+3. Preservar apenas referência externa, revisão e tempos de observação/expiração; não criar verdictos de Compliance nem dados/cálculos fiscais.
+4. Definir Fakes determinísticos sob `cfg(test)`/feature `test-support`.
+5. Definir contratos OpenAPI versionados e test doubles HTTP somente para integração. `wiremock` crate 0.6.5 roda em um binário Rust próprio e é iniciado com Testcontainers `GenericImage`.
+6. Manter `wiremock-rs` e Testcontainers fora de `src/amri/`, `src/domain/` e dos testes de lógica pura.
+
+### Exclusões
+
+Sem endpoints reais, credenciais, SDKs, writes, integração de produção, Reactor 5C, policies Stage 6, append/marker/recovery Stage 7, timeout com espera artificial, `sleep` ou Docker nos testes unitários/core.
+
+### Gates propostos
+
+- `cargo fmt --all -- --check`
+- `cargo check --all-targets --all-features --locked`
+- `cargo test --lib --all-features --locked app::amri::providers::tests -- --test-threads=1` (filtro dos Providers/Fakes, sem Docker; o alvo lib inteiro contém testes históricos com Testcontainers)
+- `bash scripts/build-amri-wiremock-rs-image.sh "$REPO"`
+- `cargo test --test external_provider_contracts --all-features --locked`
+- `cargo clippy --all-targets --all-features --locked -- -D warnings`
+- `bash scripts/verify-rpu-boundaries.sh`
+- `bash scripts/verify-testcontainers-isolation.sh`
+- `bash scripts/verify-amri-provider-boundaries.sh`
+- `bash scripts/verify-functional-core-test-isolation.sh`
+- OpenAPI, Mermaid, documentação e coverage noturna existentes.
+
+Mutation testing permanece SKIPPED conforme acordo vigente. Não disparar `workflow_dispatch` antes de reconciliar a divergência registrada no handoff.
+<!-- AMRI-STAGE5B2-STAGE-PLAN:END -->

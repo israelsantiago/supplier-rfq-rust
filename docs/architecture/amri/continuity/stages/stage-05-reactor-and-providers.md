@@ -1,6 +1,6 @@
 # Stage 5 — Reactor e Providers externos
 
-**Estado:** Em andamento — Stage 5B.1. Stage 5A está publicada no commit `921f60c4bb692cf8466e4a7e553c91dcf9bab923`; o Audit Stage 5B V2 foi executado localmente, mas o CI reportou um lint Clippy na toolchain 1.100.0 que será corrigido neste change set.
+**Estado:** Em andamento — Stage 5B.2. Stage 5A e 5B.1 estão publicadas; Verify local 5B.1 com 10/10 gates e cobertura reportados pelo mantenedor; mutation SKIPPED. CI remoto não confirmado. Stage 5B.2 delimitada; Apply/Verify pendentes.
 
 ## Subetapas executáveis da Stage 5
 
@@ -59,3 +59,30 @@ Reactor coordena, não decide; sem store access e sem writes; Fakes cobrem falha
 - `InteractionId` é gerado pela Application via `IdProvider`; `captured_at_unix_ms` é capturado via `ClockProvider`.
 - O `ExecutionContext` resultante é imutável e deve ser conservado/reutilizado em retries da mesma execução lógica. Invocar a factory novamente significa iniciar outra interação e gera novo ID/timestamp.
 - O AMRI Core continua recebendo valores concretos e não conhece os Providers nem o encoder/hash.
+
+<!-- AMRI-STAGE5B2-STAGE-DOC:START -->
+
+## Stage 5B.2 — External Read-Only Providers
+
+**Estado:** change set delimitado e pacote preparado; Apply e Verify no checkout do mantenedor pendentes.
+
+### Contratos Application
+
+Os contratos ficam em `src/app/amri/providers/`, dentro da Application e com visibilidade `pub(crate)`. Os três ports são síncronos, recebem `Uuid supplier_id` já presente no domínio e devolvem referências tipadas com proveniência.
+
+`ProviderLookup<T>` distingue `Found`, `NotFound` e `NotApplicable`. `ExternalProviderError` distingue `Unavailable`, `TimedOut` e `InvalidResponse`. `ProviderEvidenceMetadata::freshness_at(instant)` classifica somente a expiração fornecida pela fonte (`Fresh`, `Stale` ou `UnboundedBySource`); não infere max-age e não rejeita a evidência. A política de consumo permanece fora desta etapa.
+
+### Fakes
+
+`FakeErpReferenceProvider`, `FakeComplianceProvider` e `FakeTaxProvider` são determinísticos e compilados somente para `cfg(test)` ou feature `test-support`. Não usam rede, timers, Docker, PostgreSQL ou Testcontainers.
+
+### Contratos HTTP de teste
+
+`tests/contracts/external-providers-v1.openapi.yaml` define schemas limitados a referências opacas e proveniência. O test double não representa API oficial do ERP, Compliance ou Tax de qualquer fornecedor.
+
+`tests/wiremock-rs/` empacota `wiremock` Rust 0.6.5 numa imagem local. `tests/external_provider_contracts.rs` inicia essa imagem por Testcontainers; o alvo é integrado e exige Docker. O build ocorre por `scripts/build-amri-wiremock-rs-image.sh` antes de `cargo test --all-targets`.
+
+### Fronteiras e exclusões
+
+Providers não entram em AMRI Core, Functional Core ou Prepared Participants; não consultam Application State; não executam writes nem garantem atomicidade externa. Nenhuma regra de Compliance/Tax é decidida. Nenhum endpoint real/credencial/SDK é integrado. Não antecipar 5B.3, 5C, Stage 6 ou Stage 7.
+<!-- AMRI-STAGE5B2-STAGE-DOC:END -->

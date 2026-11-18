@@ -50,3 +50,12 @@ A cada nova fase ou retomada em chat, informe o estado qualitativo da janela de 
 ## Guardrails transversais de engenharia
 
 Leia [engineering-guardrails.md](./engineering-guardrails.md) antes de criar ou executar scripts de qualquer fase. O documento consolida regras de fail-closed, heredocs literais, backups, allowlists, diffs, manifests, checksums, pacotes verificáveis, isolamento de testes e publicação.
+
+<!-- AMRI-STAGE5B2-READER-LINKS:START -->
+
+## Leitura adicional da Stage 5B.2
+
+- [Contratos externos read-only e WireMock-RS](../stage5b2-external-provider-contracts.md)
+
+O contrato HTTP é provisório e exclusivo do test double; não representa APIs de fornecedores reais.
+<!-- AMRI-STAGE5B2-READER-LINKS:END -->

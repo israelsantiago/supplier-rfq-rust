@@ -1,0 +1,137 @@
+openapi: 3.1.0
+info:
+  title: AMRI RFQ External Read-Only Provider Contracts
+  version: 1.0.0
+  description: >-
+    Project-owned provisional contracts used by the Stage 5B.2 Rust WireMock test double.
+    They are not claims about any production ERP, Compliance or Tax vendor API. Payloads
+    contain only supplier identity and evidence/reference provenance; they deliberately
+    contain no compliance verdict, tax calculation, tax classification or purchasing rule.
+servers:
+  - url: http://wiremock-rs.test
+    description: Test-only WireMock-RS Testcontainers endpoint; never a production endpoint.
+paths:
+  /v1/erp-reference/suppliers/{supplier_id}/reference:
+    get:
+      operationId: lookupErpSupplierReference
+      summary: Read an opaque ERP-side reference for an existing supplier identity
+      parameters:
+        - $ref: '#/components/parameters/SupplierId'
+      responses:
+        '200':
+          description: Reference evidence found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErpSupplierReferenceEvidence' }
+        '204': { $ref: '#/components/responses/NotApplicable' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+  /v1/compliance/suppliers/{supplier_id}/evidence:
+    get:
+      operationId: lookupComplianceSupplierEvidence
+      summary: Read an opaque reference to supplier compliance evidence
+      parameters:
+        - $ref: '#/components/parameters/SupplierId'
+      responses:
+        '200':
+          description: Evidence reference found; this is not a compliance decision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ComplianceEvidenceReference' }
+        '204': { $ref: '#/components/responses/NotApplicable' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+  /v1/tax/suppliers/{supplier_id}/evidence:
+    get:
+      operationId: lookupTaxSupplierEvidence
+      summary: Read an opaque reference to supplier tax evidence
+      parameters:
+        - $ref: '#/components/parameters/SupplierId'
+      responses:
+        '200':
+          description: Evidence reference found; this is not a tax calculation or policy decision
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TaxEvidenceReference' }
+        '204': { $ref: '#/components/responses/NotApplicable' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '400': { $ref: '#/components/responses/InvalidRequest' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+        '504': { $ref: '#/components/responses/GatewayTimeout' }
+components:
+  parameters:
+    SupplierId:
+      name: supplier_id
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    ProviderEvidenceMetadata:
+      type: object
+      additionalProperties: false
+      required: [supplier_id, observed_at]
+      properties:
+        supplier_id: { type: string, format: uuid }
+        source_revision: { type: [string, 'null'] }
+        observed_at: { type: string, format: date-time }
+        expires_at:
+          type: [string, 'null']
+          format: date-time
+          description: Optional source-declared expiry; consumers do not infer a maximum age.
+    ErpSupplierReferenceEvidence:
+      type: object
+      additionalProperties: false
+      required: [metadata, external_reference]
+      properties:
+        metadata: { $ref: '#/components/schemas/ProviderEvidenceMetadata' }
+        external_reference: { type: string, minLength: 1 }
+    ComplianceEvidenceReference:
+      type: object
+      additionalProperties: false
+      required: [metadata, evidence_reference]
+      properties:
+        metadata: { $ref: '#/components/schemas/ProviderEvidenceMetadata' }
+        evidence_reference: { type: string, minLength: 1 }
+    TaxEvidenceReference:
+      type: object
+      additionalProperties: false
+      required: [metadata, evidence_reference]
+      properties:
+        metadata: { $ref: '#/components/schemas/ProviderEvidenceMetadata' }
+        evidence_reference: { type: string, minLength: 1 }
+    Problem:
+      type: object
+      additionalProperties: true
+      required: [title, status, code]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer }
+        code: { type: string }
+  responses:
+    NotApplicable:
+      description: The requested lookup does not apply; no evidence payload is returned.
+    NotFound:
+      description: The requested supplier reference/evidence does not exist at this source.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    Unavailable:
+      description: The provider cannot currently serve the read-only lookup.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    GatewayTimeout:
+      description: The provider gateway timed out while resolving the lookup.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Problem' }
+    InvalidRequest:
+      description: The test server rejected a deliberately invalid lookup request.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Problem' }

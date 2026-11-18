@@ -20,3 +20,10 @@ Capturar os timestamps de ocorrência no início da execução lógica nos coman
 - Testes de integração podem montar `CommandRpus` com relógio/IDs controlados e EventStore decorado.
 - Uma futura capability que adote retry deve capturar valores lógicos uma única vez antes do laço, reler o contexto e refazer a decisão antes do append condicional.
 - Chaves idempotentes HTTP controlam repetições entre requisições; não substituem CCC nem fazem parte da decisão de domínio.
+
+<!-- ADR-0025-AMRI-PROVIDERS:START -->
+
+## Atualização — portas externas read-only na Application AMRI
+
+Os ports ERP Reference, Compliance e Tax são específicos de `app::amri`, com visibilidade interna (`pub(crate)`). Eles não são adicionados à fachada `CommandRpus`, aos DTOs HTTP ou às RPUs autônomas. A futura composição pode injetá-los na Application/coordenação apropriada, mas essa integração não faz parte da Stage 5B.2 (nem antecipa 5B.3/5C).
+<!-- ADR-0025-AMRI-PROVIDERS:END -->

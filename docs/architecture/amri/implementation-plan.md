@@ -1,6 +1,6 @@
 # AMRI — incremental implementation and test plan
 
-**Status (2026-11-04):** Stages 0–4B estão implementadas/publicadas; os dez gates locais Stage 4B foram aprovados pelo Audit V3 do mantenedor. Stage 5 está em andamento com o change set 5A (read-only context boundary e projection). Stage 6–9 permanecem futuras; ADR-0034 continua Proposed.
+**Status (2026-11-17):** Stages 0–4B implementadas/publicadas; Stage 5A e 5B.1 publicadas. O Verify local 5B.1 (10/10 gates, 298/298 regiões, 33/33 branches) foi reportado pelo mantenedor; mutation SKIPPED e CI remoto não confirmado. Stage 5B.2 tem change set definido e Apply/Verify pendentes. Stage 6–9 permanecem futuras; ADR-0034 continua Proposed.
 
 Every stage is a separate reviewable delivery. A stage cannot be declared complete from compilation alone. Its code, tests, documentation, automated evidence and unresolved risks must be reviewed before the next stage begins.
 

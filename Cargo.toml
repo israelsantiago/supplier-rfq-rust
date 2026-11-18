@@ -32,6 +32,7 @@ time = "0.3"
 proptest = "=1.11.0"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "rustls"] }
 testcontainers-modules = { version = "0.15.0", features = ["postgres"] }
+testcontainers = "=0.27.3"
 
 [lints.rust]
 unsafe_code = "forbid"
@@ -43,3 +44,12 @@ all = "warn"
 name = "acceptance_atomic_sourcing"
 path = "tests/acceptance_atomic_sourcing.rs"
 required-features = ["test-support"]
+
+[[test]]
+name = "external_provider_contracts"
+path = "tests/external_provider_contracts.rs"
+required-features = ["test-support"]
+
+[workspace]
+members = [".", "tests/wiremock-rs"]
+resolver = "3"

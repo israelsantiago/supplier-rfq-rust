@@ -165,3 +165,23 @@ Revisor / data:
 - Mutação fica fora do Verify padrão porque o workflow condiciona esse job a `workflow_dispatch`/`schedule`.
 
 **Status:** todos os gates acima estão pendentes de execução após Apply. Não registrar PASS antes da saída observada.
+
+<!-- AMRI-STAGE5B2-QUALITY:START -->
+
+## Stage 5B.2 — matriz de evidências e pendências (2026-11-17)
+
+| Evidência | Comando/critério | Estado neste pacote |
+|---|---|---|
+| Formatação | `cargo fmt --all -- --check` | Pendente no checkout do mantenedor |
+| Build | `cargo check --all-targets --all-features --locked` | Pendente |
+| Fakes/contratos puros | `cargo test --lib --all-features --locked app::amri::providers::tests -- --test-threads=1` | Pendente; filtro restrito aos Fakes/contratos unitários, não requer Docker |
+| Imagem WireMock-RS | `bash scripts/build-amri-wiremock-rs-image.sh "$REPO"` | Pendente; requer Docker |
+| Contrato HTTP integrado | `cargo test --test external_provider_contracts --all-features --locked` | Pendente; usa Testcontainers e a imagem local |
+| Clippy | `cargo clippy --all-targets --all-features --locked -- -D warnings` | Pendente |
+| Fronteiras | verify RPU, Application State, provider boundaries, Testcontainers e Functional Core isolation | Pendente |
+| Coverage | scripts de Functional Core e AMRI Core via nightly explícito | Pendente; não alteram o escopo de produção da 5B.2 |
+| Mutation | campanha consolidada | SKIPPED por política; não iniciar em 5B.2 |
+| GitHub Actions | workflow associado ao commit da 5B.2 | Pendente; não inferir aprovação a partir do Verify local |
+
+**Critério de honestidade:** nenhum `PASS` será escrito em documentos de evidência sem log não vazio, comando registrado, exit code zero e hash verificado. O Verify deve registrar gates individualmente. CI remoto e Verify local permanecem evidências separadas.
+<!-- AMRI-STAGE5B2-QUALITY:END -->
