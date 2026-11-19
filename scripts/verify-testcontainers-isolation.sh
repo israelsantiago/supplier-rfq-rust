@@ -52,18 +52,59 @@ PY
 # AMRI-STAGE5B2-WIREMOCK-TESTCONTAINER:START
 python3 - <<'PY_WIREMOCK'
 from pathlib import Path
+import tomllib
 
 integration = Path("tests/external_provider_contracts.rs").read_text(encoding="utf-8")
 server = Path("tests/wiremock-rs/src/main.rs").read_text(encoding="utf-8")
 dockerfile = Path("tests/wiremock-rs/Dockerfile").read_text(encoding="utf-8")
 manifest = Path("tests/wiremock-rs/Cargo.toml").read_text(encoding="utf-8")
 root_manifest = Path("Cargo.toml").read_text(encoding="utf-8")
+root_manifest_data = tomllib.loads(root_manifest)
+test_targets = [
+    target for target in root_manifest_data.get("test", [])
+    if target.get("name") == "external_provider_contracts"
+]
+if len(test_targets) != 1:
+    raise SystemExit("FAIL: Cargo.toml deve registrar exatamente um target external_provider_contracts")
+test_target = test_targets[0]
+if test_target.get("path") != "tests/external_provider_contracts.rs":
+    raise SystemExit("FAIL: target external_provider_contracts aponta para path inesperado")
+if "test-support" not in test_target.get("required-features", []):
+    raise SystemExit("FAIL: target external_provider_contracts deve exigir test-support")
+for token in (
+    "#[tokio::test]",
+    "async fn rust_wiremock_container_serves_all_three_versioned_provider_contracts()",
+    "fn erp_path(",
+    "fn compliance_path(",
+    "fn tax_path(",
+    "let erp: ErpSupplierReferenceEvidence",
+    "let compliance: ComplianceEvidenceReference",
+    "let tax: TaxEvidenceReference",
+    "assert_failure_semantics(&client, &base, erp_path",
+    "assert_failure_semantics(\n        &client,\n        &base,\n        compliance_path",
+    "assert_failure_semantics(&client, &base, tax_path",
+):
+    if token not in integration:
+        raise SystemExit(f"FAIL: suíte integrada não cobre contrato esperado: {token}")
+
+workflow = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+build_name = "- name: Build WireMock-RS image for Testcontainers integration"
+validate_name = "- name: Validate RPU boundaries and Rust tests"
+if workflow.count(build_name) != 1 or workflow.count(validate_name) != 1:
+    raise SystemExit("FAIL: workflow CI deve construir a imagem WireMock-RS antes do gate Rust")
+build_at = workflow.index(build_name)
+validate_at = workflow.index(validate_name)
+if build_at >= validate_at:
+    raise SystemExit("FAIL: build WireMock-RS deve preceder os testes Rust")
+build_block = workflow[build_at:validate_at]
+for token in ("docker build", "tests/wiremock-rs/Dockerfile", "supplier-rfq-amri-wiremock-rs:0.6.5-stage5b2-v1"):
+    if token not in build_block:
+        raise SystemExit(f"FAIL: step CI de build WireMock-RS incompleto: {token}")
 
 for token in (
     'GenericImage::new(IMAGE, IMAGE_TAG)',
     'WaitFor::message_on_stdout("AMRI_WIREMOCK_RS_READY")',
     'get_host_port_ipv4(8080)',
-    'external_provider_contracts',
 ):
     if token not in integration:
         raise SystemExit(f"FAIL: integração Testcontainers/WireMock incompleta: {token}")

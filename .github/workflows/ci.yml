@@ -23,6 +23,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes ripgrep
+      - name: Build WireMock-RS image for Testcontainers integration
+        run: |
+          docker build \
+            --file tests/wiremock-rs/Dockerfile \
+            --tag supplier-rfq-amri-wiremock-rs:0.6.5-stage5b2-v1 \
+            .
       - name: Validate RPU boundaries and Rust tests
         run: bash scripts/verify-rpu-boundaries.sh
       - name: Verify Testcontainers isolation strategy

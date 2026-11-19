@@ -9,7 +9,7 @@ fi
 REPO="$(cd "$REPO_INPUT" && pwd -P)"
 IMAGE="supplier-rfq-amri-wiremock-rs:0.6.5-stage5b2-v1"
 EXPECTED_BRANCH="feat/amri-stage4-three-prepared-participants"
-EXPECTED_HEAD="ae25951ddfa360c57946dd0b1ad47ba629ac6225"
+BASELINE_COMMIT="ae25951ddfa360c57946dd0b1ad47ba629ac6225"
 BASE_IMAGES=("rust:1.100.0-bookworm" "debian:bookworm-slim")
 PULL_RETRIES="${AMRI_DOCKER_PULL_RETRIES:-3}"
 PULL_INITIAL_DELAY="${AMRI_DOCKER_PULL_INITIAL_DELAY_SECONDS:-3}"
@@ -54,8 +54,20 @@ printf '%s\n' \
   "WIREMOCK_IMAGE=$IMAGE"
 
 [[ "$BRANCH" == "$EXPECTED_BRANCH" ]] || { echo "FAIL: branch inesperada: $BRANCH" >&2; exit 1; }
-[[ "$HEAD" == "$EXPECTED_HEAD" ]] || { echo "FAIL: HEAD inesperado: $HEAD" >&2; exit 1; }
-[[ "$REMOTE_HEAD" == "$EXPECTED_HEAD" ]] || { echo "FAIL: remote HEAD divergiu: $REMOTE_HEAD" >&2; exit 1; }
+git -C "$REPO" merge-base --is-ancestor "$BASELINE_COMMIT" "$HEAD" || {
+  echo "FAIL: HEAD não descende do baseline Stage 5B.2: $BASELINE_COMMIT" >&2; exit 1;
+}
+[[ "$REMOTE_HEAD" == "$HEAD" ]] || { echo "FAIL: remote HEAD deve corresponder ao HEAD local publicado: $REMOTE_HEAD != $HEAD" >&2; exit 1; }
+if ! git -C "$REPO" diff --quiet HEAD -- Cargo.toml Cargo.lock rust-toolchain.toml src tests; then
+  echo "FAIL: inputs do build (Cargo/src/tests) diferem do commit; publique ou descarte as alterações antes do build." >&2
+  exit 1
+fi
+UNTRACKED_BUILD_INPUTS="$(git -C "$REPO" ls-files --others --exclude-standard -- Cargo.toml Cargo.lock rust-toolchain.toml src tests)"
+[[ -z "$UNTRACKED_BUILD_INPUTS" ]] || {
+  echo "FAIL: existem inputs não rastreados no build context:" >&2
+  printf '%s\n' "$UNTRACKED_BUILD_INPUTS" >&2
+  exit 1
+}
 [[ "$ORIGIN_NORMALIZED" == "github.com/israelsantiago/supplier-rfq-rust" ]] || {
   echo "FAIL: origin inesperado: $ORIGIN" >&2; exit 1;
 }
