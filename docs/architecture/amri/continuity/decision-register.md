@@ -105,3 +105,21 @@ Toda alteração de decisão precisa registrar: (a) estado anterior; (b) motiva�
 
 ADR-0034 permanece `Proposed`. 5B.2 não autoriza Reactor 5C, composition policies Stage 6, commit Stage 7 ou integração real de ERP/Compliance/Tax.
 <!-- AMRI-STAGE5B2-DECISIONS:END -->
+
+<!-- AMRI-STAGE5B3R-DECISIONS:START -->
+
+## Decisões operacionais consolidadas — 2026-11-20
+
+- Stage 5B.3-R é documentation-only.
+- Não adicionar produção sem consumidor Reactor real.
+- ADR-0031 / `AtomicSourcingFlow` permanece fluxo legado independente.
+- ADR-0033 permanece Accepted.
+- ADR-0034 permanece Proposed.
+- Stage 5 continua prepare/read-only; não inclui composição de domínio,
+  commit plan, `append_if`, marker ou recovery.
+- Stage 6 é responsável por composition policies e commit plan.
+- Stage 7 é responsável pelo append condicional único, marker e recovery.
+- CCC retries preservam identidade lógica, fingerprint e timestamps;
+  renovam snapshot/token e descartam resultados preparados obsoletos.
+
+<!-- AMRI-STAGE5B3R-DECISIONS:END -->

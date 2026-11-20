@@ -112,3 +112,21 @@ Nunca inventar percentual/quantidade restante. Ao iniciar uma nova fase, primeir
 ## 11. Regra de saída de fase
 
 Uma fase só termina quando código/documentação revisados, gates aplicáveis passam, diff/allowlist limpos, commit foi criado, push fast-forward confirmado e o estado/histórico Markdown foi atualizado. Se usuário optar por não publicar, registrar explicitamente como trabalho local não publicado.
+
+<!-- AMRI-STAGE5B3R-PRODUCTIVITY:START -->
+
+## Produtividade, evidência e continuidade — 2026-11-20
+
+- Executar uma campanha consolidada por change set, evitando publishers
+  redundantes e rodadas manuais repetitivas.
+- Reutilizar gates PASS somente quando proveniência, tamanho e SHA-256
+  dos logs forem verificados e o escopo não tiver mudado.
+- Não repetir os 17 gates da 5B.2 para uma atualização documental.
+- Separar geração, aprovação, aplicação, commit e push; cada operação deve
+  possuir estado persistente e saída verificável.
+- Consultar GitHub e arquivos já publicados antes de pedir ao mantenedor
+  evidências que já existem.
+- Falhas de automação devem resultar em correção de script, regressão
+  reproduzível, aprendizado documentado e pacote imutável versionado.
+
+<!-- AMRI-STAGE5B3R-PRODUCTIVITY:END -->

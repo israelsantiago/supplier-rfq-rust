@@ -116,3 +116,19 @@ Os seis testes do patcher Stage 4B e os dois testes do instalador documental pas
 - Fakes ficam em módulo de suporte de teste; AMRI Core e Functional Core permanecem livres de HTTP/Providers/Testcontainers.
 - Este registro descreve o pacote preparado. Apply, gates, Commit, Push e CI permanecem pendentes até saída observada.
 <!-- AMRI-STAGE5B2-STAGE-LOG:END -->
+
+<!-- AMRI-STAGE5B3R-STAGELOG:START -->
+
+## 2026-11-20 — Stage 5B.2 re-verificação final
+
+- O mantenedor executou a re-verificação final no HEAD
+  `5fc082aee7e869908444b1bd6ac40d0df5c1721d`.
+- Resultado do recibo: 17/17 gates PASS, zero FAIL.
+- Onze gates executados novamente; seis resultados históricos reutilizados
+  após validação de integridade.
+- Evidência publicada no commit
+  `511fa159ecdcdb4f7c81eddda7c47be5d1474f9f`.
+- Mutation SKIPPED por política; promoção da fase não realizada.
+- Próxima atividade: Stage 5B.3-R documental e handoff Stage 5C.
+
+<!-- AMRI-STAGE5B3R-STAGELOG:END -->

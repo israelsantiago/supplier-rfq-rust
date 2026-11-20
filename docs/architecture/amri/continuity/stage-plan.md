@@ -4,7 +4,7 @@ O plano detalhado original permanece em [`../implementation-plan.md`](../impleme
 
 ## Visão geral
 
-| Fase | Descrição | Estado em 2026-11-16 |
+| Fase | Descrição | Estado em 2026-11-20 |
 |---|---|---|
 | 0 | Baseline e proteção | Concluída anteriormente |
 | 1 | ADR/protocolo/documentação | Concluída como design; ADR-0034 Proposed |
@@ -12,7 +12,7 @@ O plano detalhado original permanece em [`../implementation-plan.md`](../impleme
 | 3 | Context planner + atomic state port | Implementada/verificada anteriormente |
 | 4A | Shared Functional Core | Implementada, verificada pelo mantenedor, publicada |
 | 4B | Prepared participants RFQ | Implementada, publicada e verificada localmente; Audit V3: 10 gates PASS em 2026-11-04 |
-| 5 | Reactor + Providers | Em andamento — Stage 5B.2: ports externos read-only, Fakes e contratos WireMock-RS; Apply/Verify pendentes |
+| 5 | Reactor + Providers | 5B.2 re-verificada; 5B.3-R documental em andamento; Stage 5C seguinte |
 | 6 | Composition policies + commit plan | Pendente |
 | 7 | Atomic FACTSTR commit, marker e recovery | Pendente |
 | 8 | Hardening/performance/observabilidade | Pendente |
@@ -116,3 +116,25 @@ Sem endpoints reais, credenciais, SDKs, writes, integração de produção, Reac
 
 Mutation testing permanece SKIPPED conforme acordo vigente. Não disparar `workflow_dispatch` antes de reconciliar a divergência registrada no handoff.
 <!-- AMRI-STAGE5B2-STAGE-PLAN:END -->
+
+<!-- AMRI-STAGE5B3R-PLAN:START -->
+
+### Stage 5B.3-R — reconciliação documental
+
+**Tipo:** documentation-only.
+
+**Entrada:** recibo final 5B.2 publicado e validado: 17/17 gates PASS,
+zero FAIL, mutation SKIPPED por política, sem promoção automática de fase.
+
+**Saída:** estado atual, plano, acordos, guardrails, registro de decisões,
+qualidade/evidências, histórico e handoff atualizados.
+
+**Exclusões:** nenhuma alteração em `src/`, `tests/`, Cargo, workflows ou ADRs;
+nenhuma API/loader sem consumidor; nenhuma escrita, `append_if`, marker ou
+recovery.
+
+**Saída para Stage 5C:** especificação executável do primeiro consumidor real
+do Reactor, com ordem topológica determinística, participantes preparados,
+contexto coerente e retries CCC seguros.
+
+<!-- AMRI-STAGE5B3R-PLAN:END -->

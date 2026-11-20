@@ -59,3 +59,19 @@ Leia [engineering-guardrails.md](./engineering-guardrails.md) antes de criar ou 
 
 O contrato HTTP é provisório e exclusivo do test double; não representa APIs de fornecedores reais.
 <!-- AMRI-STAGE5B2-READER-LINKS:END -->
+
+<!-- AMRI-STAGE5B3R-README:START -->
+
+## Checkpoint Stage 5B.2 / Stage 5B.3-R — 2026-11-20
+
+A evidência final da Stage 5B.2 está publicada em
+[`evidence/stage5b2-final-reverify-20261120T211047693659491Z`](https://github.com/israelsantiago/supplier-rfq-rust/tree/evidence/stage5b2-final-reverify-20261120T211047693659491Z):
+17/17 gates PASS, zero FAIL. Mutation foi SKIPPED por política e a promoção
+do status da fase não foi realizada. A conclusão formal continua sujeita
+a revisão humana.
+
+A próxima subetapa é 5B.3-R, documental. Os aprendizados operacionais estão
+em [engineering-learnings.md](./engineering-learnings.md).
+A Stage 5C deve integrar o primeiro consumidor real do Reactor.
+
+<!-- AMRI-STAGE5B3R-README:END -->

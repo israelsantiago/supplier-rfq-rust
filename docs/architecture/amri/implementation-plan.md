@@ -1,6 +1,6 @@
 # AMRI — incremental implementation and test plan
 
-**Status (2026-11-17):** Stages 0–4B implementadas/publicadas; Stage 5A e 5B.1 publicadas. O Verify local 5B.1 (10/10 gates, 298/298 regiões, 33/33 branches) foi reportado pelo mantenedor; mutation SKIPPED e CI remoto não confirmado. Stage 5B.2 tem change set definido e Apply/Verify pendentes. Stage 6–9 permanecem futuras; ADR-0034 continua Proposed.
+**Status (2026-11-20):** Stages 0–4B implementadas/publicadas; Stage 5A e 5B.1 publicadas; Stage 5B.2 re-verificada localmente com 17/17 gates PASS e evidência-only publicada. Encerramento 5B.2 sujeito a revisão humana. Stage 5B.3-R documental; Stage 5C é a próxima implementação funcional. Mutation 5B.2 SKIPPED por política; CI remoto não confirmado. ADR-0034 continua Proposed.
 
 Every stage is a separate reviewable delivery. A stage cannot be declared complete from compilation alone. Its code, tests, documentation, automated evidence and unresolved risks must be reviewed before the next stage begins.
 
@@ -188,3 +188,19 @@ No checkpoint deste documento, Stage 4A está publicada no commit
 foi abortado por validação rustfmt em temporários, sem alteração do repositório. Consulte o
 registro de sessão e o arquivo `stages/stage-04b-prepared-participants.md` antes de retomar.
 <!-- AMRI-CONTINUITY-CHECKPOINT:END -->
+
+<!-- AMRI-STAGE5B3R-IMPLEMENTATION-PLAN:START -->
+
+## Stage 5B.3-R — reconciliação documental (2026-11-20)
+
+Change set exclusivo de documentação e continuidade. Não criar código
+de produção ou testes sem consumidor Reactor real. A evidência 5B.2 é
+reutilizada por proveniência e integridade; seus 17 gates não devem ser
+reexecutados sem mudança material de código, ambiente ou critério.
+
+A Stage 5C deve integrar o primeiro consumidor legítimo do Reactor.
+A Stage 6 continua responsável por composition policies e commit plan.
+A Stage 7 continua responsável pelo append condicional único, marker e
+recovery. ADR-0034 permanece Proposed.
+
+<!-- AMRI-STAGE5B3R-IMPLEMENTATION-PLAN:END -->

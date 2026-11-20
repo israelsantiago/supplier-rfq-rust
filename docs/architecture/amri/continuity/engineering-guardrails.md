@@ -95,3 +95,20 @@ Aprovação local não significa CI aprovado. Publicação Git não prova compil
 - Verificar SHA remoto após publicação.
 - Atualizar `current-state.md`, `stage-plan.md`, `stage-log.md` e `quality-and-evidence.md` no mesmo change set documental.
 - O handoff deve apontar artefatos reais, checksums, branch, HEAD, gates e pendências.
+
+<!-- AMRI-STAGE5B3R-PUBLISHER-LEARNINGS:START -->
+
+## Aprendizados adicionais de publishers — 2026-11-20
+
+- Persistir estado antes de validação, gate ou publicação potencialmente
+  falha; `status` deve funcionar mesmo após falha parcial.
+- Não depender exclusivamente de `git diff --cached`: cruzar porcelain v2,
+  índice (`git ls-files --stage`), nomes e blob hashes.
+- Validar patch completo com `git apply --stat` e `git apply --check`
+  contra o baseline exato; SHA-256 comprova identidade, não aplicabilidade.
+- Não sobrescrever run directories, worktrees ou pacotes distribuídos.
+- Preservar logs originais; sanitizar somente cópias publicáveis.
+- `SKIPPED` nunca deve ser convertido em PASS.
+- Push sem force, com verificação do SHA remoto antes e depois.
+
+<!-- AMRI-STAGE5B3R-PUBLISHER-LEARNINGS:END -->

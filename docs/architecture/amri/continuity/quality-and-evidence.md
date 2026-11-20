@@ -185,3 +185,26 @@ Revisor / data:
 
 **Critério de honestidade:** nenhum `PASS` será escrito em documentos de evidência sem log não vazio, comando registrado, exit code zero e hash verificado. O Verify deve registrar gates individualmente. CI remoto e Verify local permanecem evidências separadas.
 <!-- AMRI-STAGE5B2-QUALITY:END -->
+
+<!-- AMRI-STAGE5B3R-FINAL-EVIDENCE:START -->
+
+## Stage 5B.2 — re-verificação final publicada (2026-11-20)
+
+- Branch de desenvolvimento: `feat/amri-stage4-three-prepared-participants`.
+- HEAD verificado: `5fc082aee7e869908444b1bd6ac40d0df5c1721d`.
+- Branch de evidência: `evidence/stage5b2-final-reverify-20261120T211047693659491Z`.
+- Commit de evidência: `511fa159ecdcdb4f7c81eddda7c47be5d1474f9f`.
+- Resultado: 17/17 PASS, zero FAIL.
+- Gates recém-executados: 11; resultados históricos reutilizados: 6.
+- Logs históricos validados: 12, com tamanho e SHA-256.
+- Divergência de cinco arquivos explicada pelo commit
+  `72d44d8433b23841a9dfb0e875dcfac4accb0fcd`; 21 arquivos permaneceram
+  byte-idênticos à evidência de Apply.
+- Mutation: `SKIPPED_BY_STAGE5B2_POLICY`.
+- Promoção do status da fase: `NOT_PERFORMED`.
+- CI remoto: não confirmado por este recibo.
+
+A evidência permite revisão humana de encerramento da 5B.2; não promove
+automaticamente a fase nem aceita ADR-0034.
+
+<!-- AMRI-STAGE5B3R-FINAL-EVIDENCE:END -->

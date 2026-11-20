@@ -1,6 +1,6 @@
 # Estado atual do AMRI
 
-**Atualizado em:** 2026-11-16
+**Atualizado em:** 2026-11-20
 **Branch:** `feat/amri-stage4-three-prepared-participants`\
 **Repositório:** `israelsantiago/supplier-rfq-rust`\
 **Diretório local usual:** `/mnt/Dados/MeusDados/Downloads/supplier-rfq-rpu-rust`
@@ -43,7 +43,7 @@ A Stage 4 está concluída para fins de implementação. Não reabrir a Stage 4 
 | 3 — Composite Context + state port | Implementada e verificada anteriormente | Planner, snapshot/token opaco e adaptador FACTSTR 0.5.2; evidências descritas no plano e Stage 3 doc. |
 | 4A — Shared Functional Core | Implementada, verificada pelo mantenedor e publicada | Commit `203589e4...`; decisão compartilhada de lifecycle/sourcing. |
 | 4B — Prepared Participants | **Implementada, publicada e verificada localmente** | Commit `5d278958855e41277bd00573d2cf419a50ee875d`; Audit V3: 10 gates PASS em 2026-11-04. |
-| 5 — Reactor + Providers | **Em andamento — Stage 5B.2** | 5A e 5B.1 publicadas; Verify local 5B.1 com 10/10 gates, 298/298 regiões e 33/33 branches reportado pelo mantenedor; mutation SKIPPED. 5B.2 delimitada com ports/Fakes e harness WireMock-RS; Apply/Verify pendentes. CI remoto não confirmado. |
+| 5 — Reactor + Providers | Em andamento — 5B.2 com evidência final; encerramento sujeito a revisão humana | 5B.2: 17/17 gates PASS publicados como evidência-only; mutation SKIPPED por política; 5B.3-R documental; CI remoto não confirmado. |
 | 6 — Composition Policies + Commit Plan | Pendente | Ainda não iniciar. |
 | 7 — Commit atômico, marker e recovery | Pendente | Ainda não iniciar. |
 | 8 — Hardening operacional | Pendente | Ainda não iniciar. |
@@ -143,3 +143,26 @@ O resultado Stage 5B.1 só poderá ser declarado aprovado após o Verify complet
 
 O próximo passo é executar `bash ~/Downloads/amri-stage5b2-wiremock-rs/scripts/amri-stage5b2-apply.sh "$REPO" --dry-run`, revisar o diff e, após aprovação, `--apply`. Verify, Commit e Push são operações separadas. Commit/Push não fazem parte do pacote.
 <!-- AMRI-STAGE5B2-CURRENT-STATE:END -->
+
+<!-- AMRI-STAGE5B3R-CURRENT-STATE:START -->
+
+## Estado consolidado — 2026-11-20
+
+A re-verificação final da Stage 5B.2 foi publicada na branch
+`evidence/stage5b2-final-reverify-20261120T211047693659491Z`,
+commit `511fa159ecdcdb4f7c81eddda7c47be5d1474f9f`.
+
+O recibo registra 17/17 gates PASS, zero FAIL. Onze gates foram executados
+novamente e seis resultados históricos foram reutilizados após validação de
+tamanho e SHA-256 dos logs. Os cinco arquivos com divergência pós-Apply foram
+vinculados ao commit `72d44d8433b23841a9dfb0e875dcfac4accb0fcd`.
+
+Mutation testing permaneceu `SKIPPED_BY_STAGE5B2_POLICY`. Isso não equivale
+a PASS de mutation testing. A promoção do status da fase não foi executada.
+A Stage 5B.2 está elegível para revisão humana de encerramento, não
+automaticamente encerrada. CI remoto não foi confirmado por esta evidência.
+
+Próxima atividade: Stage 5B.3-R, reconciliação documental e preparação do
+handoff da Stage 5C.
+
+<!-- AMRI-STAGE5B3R-CURRENT-STATE:END -->

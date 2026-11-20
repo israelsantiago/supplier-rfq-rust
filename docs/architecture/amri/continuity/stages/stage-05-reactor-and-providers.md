@@ -1,6 +1,6 @@
 # Stage 5 — Reactor e Providers externos
 
-**Estado:** Em andamento — Stage 5B.2. Stage 5A e 5B.1 estão publicadas; Verify local 5B.1 com 10/10 gates e cobertura reportados pelo mantenedor; mutation SKIPPED. CI remoto não confirmado. Stage 5B.2 delimitada; Apply/Verify pendentes.
+**Estado:** Stage 5B.2 re-verificada com 17/17 gates PASS; evidência-only publicada. Encerramento sujeito a revisão humana. Stage 5B.3-R documental; Stage 5C é a próxima implementação funcional.
 
 ## Subetapas executáveis da Stage 5
 
@@ -86,3 +86,48 @@ Os contratos ficam em `src/app/amri/providers/`, dentro da Application e com vis
 
 Providers não entram em AMRI Core, Functional Core ou Prepared Participants; não consultam Application State; não executam writes nem garantem atomicidade externa. Nenhuma regra de Compliance/Tax é decidida. Nenhum endpoint real/credencial/SDK é integrado. Não antecipar 5B.3, 5C, Stage 6 ou Stage 7.
 <!-- AMRI-STAGE5B2-STAGE-DOC:END -->
+
+<!-- AMRI-STAGE5B3R-STAGE5:START -->
+
+## Continuidade após Stage 5B.2 — 2026-11-20
+
+A Stage 5B.2 possui recibo final publicado com 17/17 gates PASS e zero FAIL.
+O recibo registra 11 gates recém-executados, seis gates históricos reutilizados
+após validação dos logs, mutation `SKIPPED_BY_STAGE5B2_POLICY` e
+`PHASE_STATUS_PROMOTION=NOT_PERFORMED`.
+
+A evidência não confirma CI remoto e não altera automaticamente o estado
+da fase. O encerramento formal da 5B.2 permanece sujeito à revisão humana.
+
+### Stage 5B.3-R
+
+Subetapa documental. Atualiza continuidade, acordos, guardrails, evidências,
+registro de decisões e handoff. Não cria produção, novos ports, testes
+artificiais nem amplia a superfície pública.
+
+### Stage 5C — primeiro consumidor Reactor
+
+A implementação deverá integrar um consumidor real da Application, não
+tratar `FinalizeRfqSourcing`/`AtomicSourcingFlow` do ADR-0031 como Reactor AMRI.
+
+Invariantes de execução:
+
+- Close e Award são independentes e observam projeções do mesmo snapshot.
+- Create Purchase Order depende do resultado `AwardedSupplierQuote`.
+- Ordem de execução é determinística e topológica.
+- `InteractionId`, fingerprint e timestamps são capturados uma vez por
+  execução lógica e preservados em retries CCC.
+- Cada nova tentativa obtém snapshot/token atualizados; resultados preparados
+  da tentativa anterior são descartados.
+- Providers permanecem síncronos/read-only e preservam ausência de evidência
+  separada de falhas operacionais.
+- Não introduzir retry automático/failover de Provider.
+- Nenhum participante ou Reactor executa persistência na Stage 5.
+
+### Fronteiras posteriores
+
+Stage 6: policies de composição e commit plan imutável.
+Stage 7: único `append_if`, Interaction Marker e recovery.
+ADR-0034 permanece Proposed até os critérios de aceitação posteriores.
+
+<!-- AMRI-STAGE5B3R-STAGE5:END -->
