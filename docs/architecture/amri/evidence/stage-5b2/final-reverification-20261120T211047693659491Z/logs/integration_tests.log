@@ -1,0 +1,12 @@
+   Compiling supplier-rfq-rpu-rust v0.2.0 ([REPO_PATH])
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.38s
+     Running tests/external_provider_contracts.rs (target/debug/build/supplier-rfq-rpu-rust/f01bff138baae72c/out/external_provider_contracts-f01bff138baae72c)
+
+running 1 test
+test rust_wiremock_container_serves_all_three_versioned_provider_contracts ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.86s
+
+
+COMMAND_EXIT_CODE=0
+GATE_RESULT=PASS NAME=integration_tests EXIT_CODE=0

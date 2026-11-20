@@ -1,0 +1,6 @@
+PASS: Providers residem somente na Application; Core/Functional Core/participants permanecem sem HTTP e infraestrutura.
+PASS: contratos síncronos, read-only, tipados e Fakes feature-gated.
+PASS: OpenAPI contém somente referências externas e proveniência; nenhuma regra fiscal/compliance foi inventada.
+
+COMMAND_EXIT_CODE=0
+GATE_RESULT=PASS NAME=provider_boundaries EXIT_CODE=0

@@ -1,0 +1,10 @@
+{
+  "command": "env SKIP_RUST_VALIDATION=1 bash scripts/verify-rpu-boundaries.sh ",
+  "evidence_origin": "fresh_execution_on_pinned_head",
+  "exit_code": 0,
+  "log": "/home/[USER]/Downloads/amri-stage5b2-final-verifications-v1.0.1/run-20261120T211047693659491Z/logs/structural_boundaries.log",
+  "log_sha256": "b8b3762749110990a1d6ea210c87785f359b810e69b2d408182255ab9e7e0bb4",
+  "log_size": 1831,
+  "name": "structural_boundaries",
+  "result": "PASS"
+}

@@ -1,0 +1,9 @@
+OK: o cache contém Weak; cada fixture mantém Arc e libera o container via Drop + join.
+OK: nenhuma utilização de unsafe/FFI/atexit no fixture de testes.
+OK: banco isolado por fixture; criação serializada; concorrência limitada a quatro.
+OK: somente as suítes de integração esperadas usam o fixture; produção e Functional Core não são alterados.
+PASS: somente a suíte integrada inicia GenericImage WireMock-RS; imagem e crate Rust estão versionados.
+PASS: o test double é separado do Functional Core, AMRI Core e Prepared Participants.
+
+COMMAND_EXIT_CODE=0
+GATE_RESULT=PASS NAME=testcontainers_isolation EXIT_CODE=0

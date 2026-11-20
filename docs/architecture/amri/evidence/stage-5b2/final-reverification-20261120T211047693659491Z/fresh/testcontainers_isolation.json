@@ -1,0 +1,10 @@
+{
+  "command": "bash scripts/verify-testcontainers-isolation.sh ",
+  "evidence_origin": "fresh_execution_on_pinned_head",
+  "exit_code": 0,
+  "log": "/home/[USER]/Downloads/amri-stage5b2-final-verifications-v1.0.1/run-20261120T211047693659491Z/logs/testcontainers_isolation.log",
+  "log_sha256": "01da617f0aafdfa691f272211da914ccdabf29d622f1bf9634e9b08ddf4c9647",
+  "log_size": 632,
+  "name": "testcontainers_isolation",
+  "result": "PASS"
+}

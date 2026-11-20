@@ -1,0 +1,10 @@
+{
+  "command": "cargo test --test external_provider_contracts --all-features --locked -- --test-threads=1 ",
+  "evidence_origin": "fresh_execution_on_pinned_head",
+  "exit_code": 0,
+  "log": "/home/[USER]/Downloads/amri-stage5b2-final-verifications-v1.0.1/run-20261120T211047693659491Z/logs/integration_tests.log",
+  "log_sha256": "01b4a94c1349460c3033f15f880c820d704d7264732191e4e52f2aa4a54cdbce",
+  "log_size": 597,
+  "name": "integration_tests",
+  "result": "PASS"
+}

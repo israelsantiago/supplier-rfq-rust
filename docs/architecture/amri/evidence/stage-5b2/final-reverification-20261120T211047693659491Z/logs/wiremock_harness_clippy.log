@@ -1,0 +1,4 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.26s
+
+COMMAND_EXIT_CODE=0
+GATE_RESULT=PASS NAME=wiremock_harness_clippy EXIT_CODE=0

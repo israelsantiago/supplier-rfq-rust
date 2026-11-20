@@ -1,0 +1,10 @@
+{
+  "command": "cargo fmt --all -- --check ",
+  "evidence_origin": "fresh_execution_on_pinned_head",
+  "exit_code": 0,
+  "log": "/home/[USER]/Downloads/amri-stage5b2-final-verifications-v1.0.1/run-20261120T211047693659491Z/logs/cargo_fmt.log",
+  "log_sha256": "0dea233d71f76d42d3c50093a6a60536a8a18e96fe73b645c240b44180417103",
+  "log_size": 65,
+  "name": "cargo_fmt",
+  "result": "PASS"
+}

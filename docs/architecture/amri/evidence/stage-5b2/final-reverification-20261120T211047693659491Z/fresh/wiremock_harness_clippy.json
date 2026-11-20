@@ -1,0 +1,10 @@
+{
+  "command": "cargo clippy --manifest-path [REPO_PATH]/Cargo.toml -p amri-stage5b2-wiremock-rs --locked -- -D warnings ",
+  "evidence_origin": "fresh_execution_on_pinned_head",
+  "exit_code": 0,
+  "log": "/home/[USER]/Downloads/amri-stage5b2-final-verifications-v1.0.1/run-20261120T211047693659491Z/logs/wiremock_harness_clippy.log",
+  "log_sha256": "13e0a138b35918c0ec78fd3175b85fbfdfbb662eb9f5040cf9e5d9a7f6455ddf",
+  "log_size": 151,
+  "name": "wiremock_harness_clippy",
+  "result": "PASS"
+}

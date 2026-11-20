@@ -1,0 +1,5 @@
+    Checking supplier-rfq-rpu-rust v0.2.0 ([REPO_PATH])
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.81s
+
+COMMAND_EXIT_CODE=0
+GATE_RESULT=PASS NAME=cargo_clippy EXIT_CODE=0

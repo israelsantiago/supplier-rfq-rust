@@ -1,0 +1,137 @@
+{
+  "created_at_utc": "2026-11-20T21:13:14.633405+00:00",
+  "file_count": 25,
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "7180afaf2426b95776155c64addccfe9ce9d563bde326413e5db02cd223ade45",
+      "size_bytes": 921
+    },
+    {
+      "path": "SANITIZATION-MANIFEST.json",
+      "sha256": "c353bed9a9cdeda3c0cc0e77fb25fd27d1e2c64a1cb19ce9ef4d06b178de2fd3",
+      "size_bytes": 8065
+    },
+    {
+      "path": "fresh/build_wiremock_image.json",
+      "sha256": "46edae99d93096adb1df4a5ff8e764c0b99143ca8a4f4fbc8b764c072689da6e",
+      "size_bytes": 445
+    },
+    {
+      "path": "fresh/cargo_check.json",
+      "sha256": "554dbc823e5b7481cfe9f460a0eef87fd76a3edb303aa443a643583d959a41eb",
+      "size_bytes": 418
+    },
+    {
+      "path": "fresh/cargo_clippy.json",
+      "sha256": "7a3319f89a0ebb458544425168079d52a685ffe81bbdd4d3e521d96188b10262",
+      "size_bytes": 436
+    },
+    {
+      "path": "fresh/cargo_fmt.json",
+      "sha256": "1c9f27f79751c1e8f1312d8d87dcad48210967413fcdff4355dbf9dcca1d0c5b",
+      "size_bytes": 390
+    },
+    {
+      "path": "fresh/diff_check.json",
+      "sha256": "ebd9f03ed3e9100113d1bdab6fbfee8aabd35a31a1acc4a60f16544afe02e973",
+      "size_bytes": 464
+    },
+    {
+      "path": "fresh/integration_tests.json",
+      "sha256": "0addb208cdfad1e2170df0c3518b3b0abd018818743861d663d8c71a67fcbe90",
+      "size_bytes": 470
+    },
+    {
+      "path": "fresh/provider_boundaries.json",
+      "sha256": "563cf59d2278a29f6eb024c03bb42b6bd2d4adbe185fe41167f51e5579c5f3b0",
+      "size_bytes": 432
+    },
+    {
+      "path": "fresh/provider_unit_tests.json",
+      "sha256": "85442c043626351aaef61bf2c39bd3151a3d3ac91ad3b299ca5ed9c2774bcb75",
+      "size_bytes": 473
+    },
+    {
+      "path": "fresh/structural_boundaries.json",
+      "sha256": "7348aeb0007b26a0bd8cf459a23e2d03b2b0e7d243aeea1f7bd4b31400a28fb1",
+      "size_bytes": 454
+    },
+    {
+      "path": "fresh/testcontainers_isolation.json",
+      "sha256": "8bcb88ba72ed2def20a2532fe8005e4cccc552eb9ca53a91dfa0ac114a1faeb4",
+      "size_bytes": 442
+    },
+    {
+      "path": "fresh/wiremock_harness_clippy.json",
+      "sha256": "b36e47a311fa5f03efe19c40fb2a3a58871cbbb5b09926975a70c6b9f8bb9f76",
+      "size_bytes": 497
+    },
+    {
+      "path": "logs/build_wiremock_image.log",
+      "sha256": "8b0228d1059c3bf43d31d02f7bde6d7b601b7d200167f4c67dd75479cfa88684",
+      "size_bytes": 30492
+    },
+    {
+      "path": "logs/cargo_check.log",
+      "sha256": "8f54c9bf1001721c7fb4c994f36aed1a0c693b8fd62f28abbca177182b6f42ea",
+      "size_bytes": 195
+    },
+    {
+      "path": "logs/cargo_clippy.log",
+      "sha256": "4ece07b9146a4296c3cede580c2d3517a56c4cca3b001d0dc54e4a94fee6938a",
+      "size_bytes": 196
+    },
+    {
+      "path": "logs/cargo_fmt.log",
+      "sha256": "0dea233d71f76d42d3c50093a6a60536a8a18e96fe73b645c240b44180417103",
+      "size_bytes": 65
+    },
+    {
+      "path": "logs/diff_check.log",
+      "sha256": "5ba97945139da33a8ffeee2e13564eeb29d968f589952cec063074ce8dc2848a",
+      "size_bytes": 66
+    },
+    {
+      "path": "logs/integration_tests.log",
+      "sha256": "b0405ffddc904ae91f8a2f6b29f4ac13a8e184475ceb0dd6ea9390ac0c38e93f",
+      "size_bytes": 556
+    },
+    {
+      "path": "logs/provider_boundaries.log",
+      "sha256": "a57a871ee97d4a615aadfda80bd4e0c1824ff44fdbc739e03ea57f7fcb1cc220",
+      "size_bytes": 381
+    },
+    {
+      "path": "logs/provider_unit_tests.log",
+      "sha256": "824b0fe12c9dde3ef8a8598f628d9e3b0156b02f4bd61ce8a5c37d3816be5f44",
+      "size_bytes": 857
+    },
+    {
+      "path": "logs/structural_boundaries.log",
+      "sha256": "b8b3762749110990a1d6ea210c87785f359b810e69b2d408182255ab9e7e0bb4",
+      "size_bytes": 1831
+    },
+    {
+      "path": "logs/testcontainers_isolation.log",
+      "sha256": "01da617f0aafdfa691f272211da914ccdabf29d622f1bf9634e9b08ddf4c9647",
+      "size_bytes": 632
+    },
+    {
+      "path": "logs/wiremock_harness_clippy.log",
+      "sha256": "13e0a138b35918c0ec78fd3175b85fbfdfbb662eb9f5040cf9e5d9a7f6455ddf",
+      "size_bytes": 151
+    },
+    {
+      "path": "reverification-receipt.json",
+      "sha256": "4cd75781509f68079480bb4bca36673ab894681c029de5e20eaf51b6d4debdff",
+      "size_bytes": 14156
+    }
+  ],
+  "phase_status_promotion": "NOT_PERFORMED",
+  "publication_type": "evidence-only",
+  "sanitization_manifest": "SANITIZATION-MANIFEST.json",
+  "schema": "amri.stage5b2.final-reverification-publication.v1",
+  "source_head": "5fc082aee7e869908444b1bd6ac40d0df5c1721d",
+  "temporary_branch": "evidence/stage5b2-final-reverify-20261120T211047693659491Z"
+}

@@ -1,0 +1,10 @@
+{
+  "command": "cargo test --lib --all-features --locked app::amri::providers::tests -- --test-threads=1 ",
+  "evidence_origin": "fresh_execution_on_pinned_head",
+  "exit_code": 0,
+  "log": "/home/[USER]/Downloads/amri-stage5b2-final-verifications-v1.0.1/run-20261120T211047693659491Z/logs/provider_unit_tests.log",
+  "log_sha256": "74c05a05a0d279f0a02f28c9539f910b2171880f7d9437c697447d62f22de973",
+  "log_size": 898,
+  "name": "provider_unit_tests",
+  "result": "PASS"
+}

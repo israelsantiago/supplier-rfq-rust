@@ -1,0 +1,10 @@
+{
+  "command": "bash scripts/build-amri-wiremock-rs-image.sh [REPO_PATH] ",
+  "evidence_origin": "fresh_execution_on_pinned_head",
+  "exit_code": 0,
+  "log": "/home/[USER]/Downloads/amri-stage5b2-final-verifications-v1.0.1/run-20261120T211047693659491Z/logs/build_wiremock_image.log",
+  "log_sha256": "2093559815703b2789a09babb600da1f6f172047b9811518a1600549f79a683d",
+  "log_size": 30589,
+  "name": "build_wiremock_image",
+  "result": "PASS"
+}

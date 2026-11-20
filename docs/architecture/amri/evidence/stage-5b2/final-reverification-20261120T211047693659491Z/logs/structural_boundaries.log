@@ -1,0 +1,35 @@
+== 1. Capabilities não devem depender de Axum ==
+OK
+
+== 2. Um RPU não deve depender de outro RPU ==
+OK: nenhuma referência cruzada explícita entre capabilities.
+Imports de módulos internos da própria capability são permitidos.
+
+== 3. Handlers devem desserializar DTOs HTTP, não requests internos ==
+OK
+
+== 4. Revisão informativa: dependências técnicas nos módulos de decisão/contexto ==
+Nenhuma referência técnica óbvia encontrada nos arquivos analisados.
+
+== 5. Feature slices e contratos compartilhados ==
+OK: os oito RPUs possuem pasta de feature e process_request.rs.
+
+Validação estrutural executada; os comandos Cargo foram executados pela etapa chamadora.
+
+OK: Application State boundary e migration HTTP histórica/dedicada.
+
+== Isolamento Functional Core/Testcontainers ==
+PASS: inventário completo de nove testes PostgreSQL da library identificado e filtrado.
+PASS: mutation/coverage não chamam Docker; DOCKER_HOST inválido protege contra regressão.
+PASS: mutation testing detecta CPU/RAM/disco, usa scratch fora de /tmp e valida baseline puro.
+PASS: FinalizeRfqSourcing está incluído em mutation testing e branch coverage.
+PASS: módulos candidatos do Functional Core não referenciam Testcontainers.
+PASS: CPUs detectados dinamicamente neste host: efetivos=4, afinidade/logical=8, físicos=4.
+PASS: perfil sintético de 8 CPUs cobre limites de RAM/disco, override e falta de recursos.
+PASS: Providers residem somente na Application; Core/Functional Core/participants permanecem sem HTTP e infraestrutura.
+PASS: contratos síncronos, read-only, tipados e Fakes feature-gated.
+PASS: OpenAPI contém somente referências externas e proveniência; nenhuma regra fiscal/compliance foi inventada.
+Verificações concluídas.
+
+COMMAND_EXIT_CODE=0
+GATE_RESULT=PASS NAME=structural_boundaries EXIT_CODE=0

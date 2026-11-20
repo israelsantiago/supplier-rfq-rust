@@ -1,0 +1,197 @@
+{
+  "created_at_utc": "2026-11-20T21:13:14.629719+00:00",
+  "files": [
+    {
+      "path": "reverification-receipt.json",
+      "published_sha256": "4cd75781509f68079480bb4bca36673ab894681c029de5e20eaf51b6d4debdff",
+      "published_size_bytes": 14156,
+      "sanitized": true,
+      "source_sha256": "31250319e4d24b23ab3b5e1312060780d83d2c9ecb702afdb673ee014ab056f8",
+      "source_size_bytes": 14374
+    },
+    {
+      "path": "logs/build_wiremock_image.log",
+      "published_sha256": "8b0228d1059c3bf43d31d02f7bde6d7b601b7d200167f4c67dd75479cfa88684",
+      "published_size_bytes": 30492,
+      "sanitized": true,
+      "source_sha256": "2093559815703b2789a09babb600da1f6f172047b9811518a1600549f79a683d",
+      "source_size_bytes": 30589
+    },
+    {
+      "path": "logs/cargo_check.log",
+      "published_sha256": "8f54c9bf1001721c7fb4c994f36aed1a0c693b8fd62f28abbca177182b6f42ea",
+      "published_size_bytes": 195,
+      "sanitized": true,
+      "source_sha256": "6fb7cda9a63965bc96261093f6e8e6b1db86a6dbf999c1c65b20961d4576703b",
+      "source_size_bytes": 236
+    },
+    {
+      "path": "logs/cargo_clippy.log",
+      "published_sha256": "4ece07b9146a4296c3cede580c2d3517a56c4cca3b001d0dc54e4a94fee6938a",
+      "published_size_bytes": 196,
+      "sanitized": true,
+      "source_sha256": "f78bf870d0cc55921ea5ea56354b6a11de214342b857aa9bcabdb60d50050e40",
+      "source_size_bytes": 237
+    },
+    {
+      "path": "logs/cargo_fmt.log",
+      "published_sha256": "0dea233d71f76d42d3c50093a6a60536a8a18e96fe73b645c240b44180417103",
+      "published_size_bytes": 65,
+      "sanitized": false,
+      "source_sha256": "0dea233d71f76d42d3c50093a6a60536a8a18e96fe73b645c240b44180417103",
+      "source_size_bytes": 65
+    },
+    {
+      "path": "logs/diff_check.log",
+      "published_sha256": "5ba97945139da33a8ffeee2e13564eeb29d968f589952cec063074ce8dc2848a",
+      "published_size_bytes": 66,
+      "sanitized": false,
+      "source_sha256": "5ba97945139da33a8ffeee2e13564eeb29d968f589952cec063074ce8dc2848a",
+      "source_size_bytes": 66
+    },
+    {
+      "path": "logs/integration_tests.log",
+      "published_sha256": "b0405ffddc904ae91f8a2f6b29f4ac13a8e184475ceb0dd6ea9390ac0c38e93f",
+      "published_size_bytes": 556,
+      "sanitized": true,
+      "source_sha256": "01b4a94c1349460c3033f15f880c820d704d7264732191e4e52f2aa4a54cdbce",
+      "source_size_bytes": 597
+    },
+    {
+      "path": "logs/provider_boundaries.log",
+      "published_sha256": "a57a871ee97d4a615aadfda80bd4e0c1824ff44fdbc739e03ea57f7fcb1cc220",
+      "published_size_bytes": 381,
+      "sanitized": false,
+      "source_sha256": "a57a871ee97d4a615aadfda80bd4e0c1824ff44fdbc739e03ea57f7fcb1cc220",
+      "source_size_bytes": 381
+    },
+    {
+      "path": "logs/provider_unit_tests.log",
+      "published_sha256": "824b0fe12c9dde3ef8a8598f628d9e3b0156b02f4bd61ce8a5c37d3816be5f44",
+      "published_size_bytes": 857,
+      "sanitized": true,
+      "source_sha256": "74c05a05a0d279f0a02f28c9539f910b2171880f7d9437c697447d62f22de973",
+      "source_size_bytes": 898
+    },
+    {
+      "path": "logs/structural_boundaries.log",
+      "published_sha256": "b8b3762749110990a1d6ea210c87785f359b810e69b2d408182255ab9e7e0bb4",
+      "published_size_bytes": 1831,
+      "sanitized": false,
+      "source_sha256": "b8b3762749110990a1d6ea210c87785f359b810e69b2d408182255ab9e7e0bb4",
+      "source_size_bytes": 1831
+    },
+    {
+      "path": "logs/testcontainers_isolation.log",
+      "published_sha256": "01da617f0aafdfa691f272211da914ccdabf29d622f1bf9634e9b08ddf4c9647",
+      "published_size_bytes": 632,
+      "sanitized": false,
+      "source_sha256": "01da617f0aafdfa691f272211da914ccdabf29d622f1bf9634e9b08ddf4c9647",
+      "source_size_bytes": 632
+    },
+    {
+      "path": "logs/wiremock_harness_clippy.log",
+      "published_sha256": "13e0a138b35918c0ec78fd3175b85fbfdfbb662eb9f5040cf9e5d9a7f6455ddf",
+      "published_size_bytes": 151,
+      "sanitized": false,
+      "source_sha256": "13e0a138b35918c0ec78fd3175b85fbfdfbb662eb9f5040cf9e5d9a7f6455ddf",
+      "source_size_bytes": 151
+    },
+    {
+      "path": "fresh/build_wiremock_image.json",
+      "published_sha256": "46edae99d93096adb1df4a5ff8e764c0b99143ca8a4f4fbc8b764c072689da6e",
+      "published_size_bytes": 445,
+      "sanitized": true,
+      "source_sha256": "28888b8b95ae8cc951117b91d9091fa8433cc01793c56d620f6e48b322ae2e74",
+      "source_size_bytes": 494
+    },
+    {
+      "path": "fresh/cargo_check.json",
+      "published_sha256": "554dbc823e5b7481cfe9f460a0eef87fd76a3edb303aa443a643583d959a41eb",
+      "published_size_bytes": 418,
+      "sanitized": true,
+      "source_sha256": "ac12b570c5c90753fa20095c539035bd8be007d7909ab99d41e757b981f93a6e",
+      "source_size_bytes": 426
+    },
+    {
+      "path": "fresh/cargo_clippy.json",
+      "published_sha256": "7a3319f89a0ebb458544425168079d52a685ffe81bbdd4d3e521d96188b10262",
+      "published_size_bytes": 436,
+      "sanitized": true,
+      "source_sha256": "9f6a95df883d6a0e48b703d29fcba4b3ccac8ddb86cbb51fd703eb3458e7533c",
+      "source_size_bytes": 444
+    },
+    {
+      "path": "fresh/cargo_fmt.json",
+      "published_sha256": "1c9f27f79751c1e8f1312d8d87dcad48210967413fcdff4355dbf9dcca1d0c5b",
+      "published_size_bytes": 390,
+      "sanitized": true,
+      "source_sha256": "384ddb2ef3dfa7b33adc3809a5e29e159ba2ae9d3314a6f3d209672dceb59c7a",
+      "source_size_bytes": 398
+    },
+    {
+      "path": "fresh/diff_check.json",
+      "published_sha256": "ebd9f03ed3e9100113d1bdab6fbfee8aabd35a31a1acc4a60f16544afe02e973",
+      "published_size_bytes": 464,
+      "sanitized": true,
+      "source_sha256": "9cc330f84f411f69d56b0fcef5255150bd37776515e5f36614bb9d13b75a49d3",
+      "source_size_bytes": 472
+    },
+    {
+      "path": "fresh/integration_tests.json",
+      "published_sha256": "0addb208cdfad1e2170df0c3518b3b0abd018818743861d663d8c71a67fcbe90",
+      "published_size_bytes": 470,
+      "sanitized": true,
+      "source_sha256": "6cf0fe8422e760e7d6c35d74e8b5ed15a8c1906cca33b53c3b8bf7f6d9306208",
+      "source_size_bytes": 478
+    },
+    {
+      "path": "fresh/provider_boundaries.json",
+      "published_sha256": "563cf59d2278a29f6eb024c03bb42b6bd2d4adbe185fe41167f51e5579c5f3b0",
+      "published_size_bytes": 432,
+      "sanitized": true,
+      "source_sha256": "fcf2a9b112e0f8fd48376b7fdcb3d4557a148c12baf0a8c9c1a4e96c8ae7a12c",
+      "source_size_bytes": 440
+    },
+    {
+      "path": "fresh/provider_unit_tests.json",
+      "published_sha256": "85442c043626351aaef61bf2c39bd3151a3d3ac91ad3b299ca5ed9c2774bcb75",
+      "published_size_bytes": 473,
+      "sanitized": true,
+      "source_sha256": "b17bd33c39a24ef359d97469beb23c6aaa02ecea6d2704859866275e626d72ac",
+      "source_size_bytes": 481
+    },
+    {
+      "path": "fresh/structural_boundaries.json",
+      "published_sha256": "7348aeb0007b26a0bd8cf459a23e2d03b2b0e7d243aeea1f7bd4b31400a28fb1",
+      "published_size_bytes": 454,
+      "sanitized": true,
+      "source_sha256": "656dbe6ceb241d3a7b02d0af5b4c98a519b91dac8e6eacbae5e1c9241fe581cb",
+      "source_size_bytes": 462
+    },
+    {
+      "path": "fresh/testcontainers_isolation.json",
+      "published_sha256": "8bcb88ba72ed2def20a2532fe8005e4cccc552eb9ca53a91dfa0ac114a1faeb4",
+      "published_size_bytes": 442,
+      "sanitized": true,
+      "source_sha256": "5071caa3d059a875f81df1943818564c43c3094b2b9b9abf03f4548930c609d5",
+      "source_size_bytes": 450
+    },
+    {
+      "path": "fresh/wiremock_harness_clippy.json",
+      "published_sha256": "b36e47a311fa5f03efe19c40fb2a3a58871cbbb5b09926975a70c6b9f8bb9f76",
+      "published_size_bytes": 497,
+      "sanitized": true,
+      "source_sha256": "20e5a80978c3e8fb4a4c886c008fc52a91a49c122e58b2dbb687be8928fed4c9",
+      "source_size_bytes": 546
+    }
+  ],
+  "originals_modified": false,
+  "redaction_counts": {
+    "home_path": 35,
+    "repo_path": 9
+  },
+  "schema": "amri.stage5b2.evidence-sanitization.v1",
+  "source_head": "5fc082aee7e869908444b1bd6ac40d0df5c1721d",
+  "temporary_branch": "evidence/stage5b2-final-reverify-20261120T211047693659491Z"
+}

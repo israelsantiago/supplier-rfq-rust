@@ -1,0 +1,10 @@
+{
+  "command": "bash scripts/verify-amri-provider-boundaries.sh ",
+  "evidence_origin": "fresh_execution_on_pinned_head",
+  "exit_code": 0,
+  "log": "/home/[USER]/Downloads/amri-stage5b2-final-verifications-v1.0.1/run-20261120T211047693659491Z/logs/provider_boundaries.log",
+  "log_sha256": "a57a871ee97d4a615aadfda80bd4e0c1824ff44fdbc739e03ea57f7fcb1cc220",
+  "log_size": 381,
+  "name": "provider_boundaries",
+  "result": "PASS"
+}

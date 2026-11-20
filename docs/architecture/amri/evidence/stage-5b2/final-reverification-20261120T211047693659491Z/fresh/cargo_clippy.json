@@ -1,0 +1,10 @@
+{
+  "command": "cargo clippy --all-targets --all-features --locked -- -D warnings ",
+  "evidence_origin": "fresh_execution_on_pinned_head",
+  "exit_code": 0,
+  "log": "/home/[USER]/Downloads/amri-stage5b2-final-verifications-v1.0.1/run-20261120T211047693659491Z/logs/cargo_clippy.log",
+  "log_sha256": "f78bf870d0cc55921ea5ea56354b6a11de214342b857aa9bcabdb60d50050e40",
+  "log_size": 237,
+  "name": "cargo_clippy",
+  "result": "PASS"
+}

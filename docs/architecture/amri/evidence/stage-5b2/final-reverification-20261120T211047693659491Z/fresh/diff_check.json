@@ -1,0 +1,10 @@
+{
+  "command": "git diff --check ae25951ddfa360c57946dd0b1ad47ba629ac6225 5fc082aee7e869908444b1bd6ac40d0df5c1721d ",
+  "evidence_origin": "fresh_execution_on_pinned_head",
+  "exit_code": 0,
+  "log": "/home/[USER]/Downloads/amri-stage5b2-final-verifications-v1.0.1/run-20261120T211047693659491Z/logs/diff_check.log",
+  "log_sha256": "5ba97945139da33a8ffeee2e13564eeb29d968f589952cec063074ce8dc2848a",
+  "log_size": 66,
+  "name": "diff_check",
+  "result": "PASS"
+}
