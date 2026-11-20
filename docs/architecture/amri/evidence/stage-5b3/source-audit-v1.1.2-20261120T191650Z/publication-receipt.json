@@ -1,0 +1,34 @@
+{
+  "all_gates_pass": true,
+  "allowlist": [
+    "docs/architecture/amri/evidence/stage-5b3/source-audit-v1.1.2-20261120T191650Z/PUBLISH-MANIFEST.md",
+    "docs/architecture/amri/evidence/stage-5b3/source-audit-v1.1.2-20261120T191650Z/SHA256SUMS",
+    "docs/architecture/amri/evidence/stage-5b3/source-audit-v1.1.2-20261120T191650Z/amri-stage5b3-source-audit-v1.1.2-20261120T191650Z.tar.gz",
+    "docs/architecture/amri/evidence/stage-5b3/source-audit-v1.1.2-20261120T191650Z/amri-stage5b3-source-audit-v1.1.2-20261120T191650Z.tar.gz.sha256",
+    "docs/architecture/amri/evidence/stage-5b3/source-audit-v1.1.2-20261120T191650Z/publication-receipt.json"
+  ],
+  "branch": "feat/amri-stage4-three-prepared-participants",
+  "bundle_sha256": "8c1e7293d3132dc91628889b1984a6e4534444719e41cee122de47b2daccac70",
+  "checkout_mutation": "NONE",
+  "created_at_utc": "2026-11-20T19:41:21.400662+00:00",
+  "file_sha256": {
+    "docs/architecture/amri/evidence/stage-5b3/source-audit-v1.1.2-20261120T191650Z/PUBLISH-MANIFEST.md": "10f1559af0ce4e02dd5ea69206a1ebaaabea6e648a7c868dcd215df9da0b9fa2",
+    "docs/architecture/amri/evidence/stage-5b3/source-audit-v1.1.2-20261120T191650Z/SHA256SUMS": "99239b4b2d0117b52983c83e5997723022da57a52ba86708b0fd068d156f5697",
+    "docs/architecture/amri/evidence/stage-5b3/source-audit-v1.1.2-20261120T191650Z/amri-stage5b3-source-audit-v1.1.2-20261120T191650Z.tar.gz": "8c1e7293d3132dc91628889b1984a6e4534444719e41cee122de47b2daccac70",
+    "docs/architecture/amri/evidence/stage-5b3/source-audit-v1.1.2-20261120T191650Z/amri-stage5b3-source-audit-v1.1.2-20261120T191650Z.tar.gz.sha256": "2f997f1afef8c2b5ae8cfe37766a38109597774c0fc8b5b0b90c1054fe470d65"
+  },
+  "head_before_publication": "3324f28fbcdc928475ce2d01690af86d80798918",
+  "notes": [
+    "Evidence-only publication; no source code or ADR files are changed.",
+    "All four payload files were staged and validated before this receipt was created.",
+    "No commit or push is performed by prepare, preflight, or stage.",
+    "The receipt's own SHA-256 is held in the local session state outside the Git working tree."
+  ],
+  "progress": "COMPLETED",
+  "publication_status": "PREPARED_FOR_EXPLICIT_COMMIT_AND_PUSH",
+  "publication_type": "evidence-only",
+  "repository": "israelsantiago/supplier-rfq-rust",
+  "schema_version": 1,
+  "source_archive_sha256": "d907fd4877150f36aa1b634f9ceb218c1657e3840d3fd75dbff6d0587abc7934",
+  "source_audit_result": "PASS"
+}
