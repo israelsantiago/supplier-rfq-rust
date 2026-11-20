@@ -1,0 +1,13 @@
++ set -Eeuo pipefail
+++ git rev-parse --show-toplevel
++ ROOT=[DATA_PATH]
++ cd [DATA_PATH]
++ fixture=tests/common/postgres.rs
++ [[ -f tests/common/postgres.rs ]]
++ python3 -
+OK: o cache contém Weak; cada fixture mantém Arc e libera o container via Drop + join.
+OK: nenhuma utilização de unsafe/FFI/atexit no fixture de testes.
+OK: banco isolado por fixture; criação serializada; concorrência limitada a quatro.
+OK: somente as suítes de integração esperadas usam o fixture; produção e Functional Core não são alterados.
++ python3 -
+FAIL: integração Testcontainers/WireMock incompleta: external_provider_contracts

@@ -1,0 +1,221 @@
+{
+  "allowlist": [
+    "Cargo.lock",
+    "Cargo.toml",
+    "docs/architecture/adr/0016-test-strategy.md",
+    "docs/architecture/adr/0024-test-support-feature.md",
+    "docs/architecture/adr/0025-rpu-command-facade.md",
+    "docs/architecture/adr/0034-atomic-multi-rpu-interaction.md",
+    "docs/architecture/amri/continuity/README.md",
+    "docs/architecture/amri/continuity/architecture-and-boundaries.md",
+    "docs/architecture/amri/continuity/current-state.md",
+    "docs/architecture/amri/continuity/decision-register.md",
+    "docs/architecture/amri/continuity/quality-and-evidence.md",
+    "docs/architecture/amri/continuity/stage-log.md",
+    "docs/architecture/amri/continuity/stage-plan.md",
+    "docs/architecture/amri/continuity/stages/stage-05-reactor-and-providers.md",
+    "docs/architecture/amri/implementation-plan.md",
+    "docs/architecture/amri/stage5b2-external-provider-contracts.md",
+    "scripts/build-amri-wiremock-rs-image.sh",
+    "scripts/verify-amri-provider-boundaries.sh",
+    "scripts/verify-rpu-boundaries.sh",
+    "scripts/verify-testcontainers-isolation.sh",
+    "src/app/amri/mod.rs",
+    "src/app/amri/providers/mod.rs",
+    "src/app/amri/providers/testing.rs",
+    "src/app/amri/providers/tests.rs",
+    "tests/contracts/external-providers-v1.openapi.yaml",
+    "tests/external_provider_contracts.rs",
+    "tests/wiremock-rs/Cargo.toml",
+    "tests/wiremock-rs/Dockerfile",
+    "tests/wiremock-rs/src/main.rs"
+  ],
+  "apply_receipt": "~/Downloads/amri-stage5b2-apply-20261117T210244712057Z/apply-receipt.json",
+  "apply_receipt_sha256": "d09f1e0e6309fdd9aa4afec0fdcc485d8a022ea8a9cbc791f9c8de9a401788d0",
+  "base_head": "ae25951ddfa360c57946dd0b1ad47ba629ac6225",
+  "branch": "feat/amri-stage4-three-prepared-participants",
+  "changed_paths": [
+    "Cargo.lock",
+    "Cargo.toml",
+    "docs/architecture/adr/0016-test-strategy.md",
+    "docs/architecture/adr/0024-test-support-feature.md",
+    "docs/architecture/adr/0025-rpu-command-facade.md",
+    "docs/architecture/adr/0034-atomic-multi-rpu-interaction.md",
+    "docs/architecture/amri/continuity/README.md",
+    "docs/architecture/amri/continuity/architecture-and-boundaries.md",
+    "docs/architecture/amri/continuity/current-state.md",
+    "docs/architecture/amri/continuity/decision-register.md",
+    "docs/architecture/amri/continuity/quality-and-evidence.md",
+    "docs/architecture/amri/continuity/stage-log.md",
+    "docs/architecture/amri/continuity/stage-plan.md",
+    "docs/architecture/amri/continuity/stages/stage-05-reactor-and-providers.md",
+    "docs/architecture/amri/implementation-plan.md",
+    "docs/architecture/amri/stage5b2-external-provider-contracts.md",
+    "scripts/build-amri-wiremock-rs-image.sh",
+    "scripts/verify-amri-provider-boundaries.sh",
+    "scripts/verify-rpu-boundaries.sh",
+    "scripts/verify-testcontainers-isolation.sh",
+    "src/app/amri/mod.rs",
+    "src/app/amri/providers/mod.rs",
+    "src/app/amri/providers/testing.rs",
+    "src/app/amri/providers/tests.rs",
+    "tests/contracts/external-providers-v1.openapi.yaml",
+    "tests/external_provider_contracts.rs",
+    "tests/wiremock-rs/Cargo.toml",
+    "tests/wiremock-rs/Dockerfile",
+    "tests/wiremock-rs/src/main.rs"
+  ],
+  "created_at_utc": "2026-11-17T22:40:29.146777+00:00",
+  "failed_gates": [
+    "build_wiremock_image",
+    "integration_tests",
+    "structural_boundaries",
+    "testcontainers_isolation",
+    "provider_boundaries"
+  ],
+  "gates": [
+    {
+      "exit_code": 0,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/cargo_fmt.log",
+      "log_sha256": "0e1737e53f2cbcbd0848fb248cc431d45e908368d6b3e0c4a868a96a00c954f5",
+      "log_size": 130,
+      "name": "cargo_fmt",
+      "result": "PASS"
+    },
+    {
+      "exit_code": 0,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/cargo_check.log",
+      "log_sha256": "a16cbde923983392b458312aedcdd45973e36164b1f384644aac698400d2bf65",
+      "log_size": 227,
+      "name": "cargo_check",
+      "result": "PASS"
+    },
+    {
+      "exit_code": 0,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/provider_unit_tests.log",
+      "log_sha256": "2fc4239104146d0bfccb525aeb4e31d66383beaf1bbb5c878f11488e94991b90",
+      "log_size": 1133,
+      "name": "provider_unit_tests",
+      "result": "PASS"
+    },
+    {
+      "exit_code": 1,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/build_wiremock_image.log",
+      "log_sha256": "6f07ead959f2e5faf0829e555856dfd4eaed9c3f7684a62dcdcb7a7552e94529",
+      "log_size": 3883,
+      "name": "build_wiremock_image",
+      "result": "FAIL"
+    },
+    {
+      "exit_code": 101,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/integration_tests.log",
+      "log_sha256": "0de417f1ee2109c3e320777cffe31f779dd4a5e3703e73f22a96ef24df169a8e",
+      "log_size": 27125,
+      "name": "integration_tests",
+      "result": "FAIL"
+    },
+    {
+      "exit_code": 0,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/cargo_clippy.log",
+      "log_sha256": "c462b84f27f44451e9c3769b9ceca051ae505a63d57741cc1aaf8076e3dec61a",
+      "log_size": 342,
+      "name": "cargo_clippy",
+      "result": "PASS"
+    },
+    {
+      "exit_code": 0,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/wiremock_harness_clippy.log",
+      "log_sha256": "24e94db2b2dc73738e31646d8e584dc3b29330c1c3003acacb675eccfe4269df",
+      "log_size": 374,
+      "name": "wiremock_harness_clippy",
+      "result": "PASS"
+    },
+    {
+      "exit_code": 1,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/structural_boundaries.log",
+      "log_sha256": "910d3bf3a2391ea406838216db4c4db0c1b8a273c82efce189ed26dd3c420210",
+      "log_size": 1701,
+      "name": "structural_boundaries",
+      "result": "FAIL"
+    },
+    {
+      "exit_code": 1,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/testcontainers_isolation.log",
+      "log_sha256": "33936bd498f4d70dbdc54510ede01842c30da19a2ebfb2781b2fb49ff781371c",
+      "log_size": 608,
+      "name": "testcontainers_isolation",
+      "result": "FAIL"
+    },
+    {
+      "exit_code": 0,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/amri_core_boundaries.log",
+      "log_sha256": "fdbd0c52cd11aa4fdf316c87a6d9efa7c89d900652354443c0c3773ed83ddc7c",
+      "log_size": 412,
+      "name": "amri_core_boundaries",
+      "result": "PASS"
+    },
+    {
+      "exit_code": 1,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/provider_boundaries.log",
+      "log_sha256": "1c74de51430b0c52287992b8587f487f191d272751617b6fe450a6731f770416",
+      "log_size": 262,
+      "name": "provider_boundaries",
+      "result": "FAIL"
+    },
+    {
+      "exit_code": 0,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/openapi.log",
+      "log_sha256": "b5519ed4f17a6168e63213d3f378439ec3ad6681eaae02d77eef040da2f26d2b",
+      "log_size": 325,
+      "name": "openapi",
+      "result": "PASS"
+    },
+    {
+      "exit_code": 0,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/mermaid.log",
+      "log_sha256": "31a50784f70825e1494bbd314bfd2d9ebf416d9f099e44fea53581e5d9342546",
+      "log_size": 1824,
+      "name": "mermaid",
+      "result": "PASS"
+    },
+    {
+      "exit_code": 0,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/documentation.log",
+      "log_sha256": "2f32289daea51393221c370133372d6b5110d0425ffdb8290337b2947995ab65",
+      "log_size": 391,
+      "name": "documentation",
+      "result": "PASS"
+    },
+    {
+      "exit_code": 0,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/functional_core_coverage.log",
+      "log_sha256": "b51aa8f864442c44993963892fd915b4ba60fd09345f1a5eaf51ae3bea04b882",
+      "log_size": 22074,
+      "name": "functional_core_coverage",
+      "result": "PASS"
+    },
+    {
+      "exit_code": 0,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/amri_core_coverage.log",
+      "log_sha256": "f3dec951df9625aa8c76cce696016c1377804a7fabd67bd586208ac19742dca0",
+      "log_size": 5726,
+      "name": "amri_core_coverage",
+      "result": "PASS"
+    },
+    {
+      "exit_code": 0,
+      "log": "~/Downloads/amri-stage5b2-verify-20261117T223107867751817/logs/diff_check.log",
+      "log_sha256": "d85222c5854598ae1d38dfc51ee3067e0be9a29338fbbb4164a3d4eebebf9d64",
+      "log_size": 121,
+      "name": "diff_check",
+      "result": "PASS"
+    }
+  ],
+  "mutation": "SKIPPED_BY_STAGE5B2_POLICY",
+  "receipt_type": "Verify",
+  "remote_ci": "NOT_VERIFIED_BY_LOCAL_VERIFY",
+  "repair_receipt": "[DATA_PATH]",
+  "repair_receipt_sha256": "195218c9f6153430b2f28d4906834c12b4e64f7755be839dfb59253ee355ab0a",
+  "repo": "[DATA_PATH]",
+  "result": "FAIL"
+}

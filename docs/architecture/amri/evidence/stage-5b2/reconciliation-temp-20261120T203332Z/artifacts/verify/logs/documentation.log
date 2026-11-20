@@ -1,0 +1,9 @@
+GATE=documentation
+COMMAND=bash scripts/verify-documentation-current-state.sh
+STARTED_UTC=2026-11-17T22:39:00Z
+OK: README, 34 ADRs indexadas, ADR-0031/0033 e arquitetura FACTSTR alinhados.
+OK: links Markdown relativos verificados em 41 arquivos .md.
+OK: capabilities, idempotência HTTP, classificação RPU/Reactor e branch main consistentes.
+
+EXIT_CODE=0
+FINISHED_UTC=2026-11-17T22:39:00Z

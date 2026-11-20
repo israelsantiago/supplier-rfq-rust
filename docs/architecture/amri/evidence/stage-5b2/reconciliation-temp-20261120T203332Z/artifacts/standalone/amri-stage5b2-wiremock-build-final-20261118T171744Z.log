@@ -1,0 +1,541 @@
+REPOSITORY=[DATA_PATH]
+BRANCH=feat/amri-stage4-three-prepared-participants
+HEAD=ae25951ddfa360c57946dd0b1ad47ba629ac6225
+ORIGIN=git@github.com:israelsantiago/supplier-rfq-rust.git
+REMOTE_HEAD=ae25951ddfa360c57946dd0b1ad47ba629ac6225
+ORIGIN_NORMALIZED=github.com/israelsantiago/supplier-rfq-rust
+WIREMOCK_IMAGE=supplier-rfq-amri-wiremock-rs:0.6.5-stage5b2-v1
+BUILD_RUN_DIR=~/Downloads/amri-stage5b2-wiremock-build-20261118T171746Z
+BUILD_LOG=~/Downloads/amri-stage5b2-wiremock-build-20261118T171746Z/build.log
+DOCKER_CONTEXT=default
+DOCKER_ENDPOINT=unix:///var/run/docker.sock
+DOCKER_SERVER_VERSION=29.10.0
+DOCKER_ROOT_DIR=[DATA_PATH]
+DOCKER_STORAGE_DRIVER=overlay2
+DOCKER_DRIVER_STATUS=[["Backing Filesystem","extfs"],["Supports d_type","true"],["Using metacopy","false"],["Native Overlay Diff","true"],["userxattr","false"]]
+BUILDX_BUILDER_ENV_WAS_SET=NO
+STORAGE_PATH=[DATA_PATH]
+STORAGE_AVAILABLE_BYTES=796942422016
+STORAGE_MINIMUM_BYTES=4294967296
+========== DOCKER DISK USAGE BEFORE PULL ==========
+Images space usage:
+
+REPOSITORY            TAG                IMAGE ID       CREATED        SIZE      SHARED SIZE   UNIQUE SIZE   CONTAINERS
+rust                  1.100.0-bookworm   9a1b4f2e690d   5 days ago     1.58GB    0B            1.579GB       0
+debian                bookworm-slim      43f84a0b210f   13 days ago    74.9MB    0B            74.87MB       0
+postgres              16-alpine          6a2e324ebe59   3 weeks ago    294MB     0B            294.3MB       0
+postgres              18                 662db3da228c   2 months ago   457MB     0B            456.6MB       0
+postgres              18-alpine          c293117fcecd   2 months ago   304MB     0B            303.7MB       0
+adminer               4.8.1              b108b9a25fa6   2 years ago    250MB     0B            250.2MB       0
+alpine                3.16               d49a5025be10   2 years ago    5.54MB    0B            5.545MB       0
+testcontainers/ryuk   0.6.0              71009a3edde7   2 years ago    14.9MB    0B            14.91MB       0
+testcontainers/ryuk   0.5.1              ec913eeff75a   3 years ago    12.7MB    0B            12.7MB        0
+testcontainers/ryuk   0.3.3              64f4b02dc986   5 years ago    12MB      0B            11.98MB       0
+
+Containers space usage:
+
+CONTAINER ID   IMAGE     COMMAND   LOCAL VOLUMES   SIZE      CREATED   STATUS    NAMES
+
+Local Volumes space usage:
+
+VOLUME NAME                                                        LINKS     SIZE
+cc5b8a5752732e663d49fd58e5d3ce801dc579fa59bc6bd46e6633b8d669f162   0         144.1MB
+defa09eb225e747b98df051f84a6281c5dfc8c011f9dca7108a7240a32022653   0         65.79MB
+pack-cache-153ea4ef4450.launch                                     0         278.8MB
+pack-cache-153ea4ef4450.build                                      0         41.75MB
+pack-cache-a6a11e30bb48.launch                                     0         293.5MB
+375cd06f1bd93cce3ebcac6592894a55_database__components-jooq-data    0         0B
+3e7959df54dadc1fb945409e776f7e4363fc7d97c6d4a4cef6c8652ee57a1ced   0         48.6MB
+4b7b38a06072b036fff30af6c6d0a139c8edd75ac8765ff1759a139655910156   0         368.9MB
+bookstore_bookstore-db-data                                        0         48.59MB
+bookstore_bookstore-pgadmin                                        0         172kB
+c461d5b7c0c1b0543b2a1a425358e4e470fee3e55233e9df76f699a7c586b906   0         144.1MB
+pack-cache-38c07685afbc.launch                                     0         285.8MB
+pack-cache-a345447b6615.launch                                     0         272.8MB
+pack-cache-e0303b41dbb9.build                                      0         41.75MB
+101f28f583ee44f65b5214827dc9bc65dd2602ed6a19a1484dc62f92aedcb7ff   0         65.77MB
+19626f50bc438399bdba8e462447d93b43ca6840f5fb53d4765df2922b523cdd   0         48.31MB
+3ad9f7a025580920ce39675a3d2bc94495e053068714efa2fc1a1190ec1ca61e   0         65.79MB
+5d11c09328eb4e5cada97701e4ae27206d2774196fd6ad066409098d05c4f6da   0         368.8MB
+5fd22e3c02eab7785895859f1a2d75c95546a56d25f22f0db4fdede8b68eb93d   0         48.85MB
+spring-boot-microservices-course_grafana_data                      0         1.063MB
+c6788c48e60bf85056cb591370f1510cd7366dd5d87d9dfb07e6d787a5caeb50   0         65.73MB
+ce3aeb47c527514980cd24236dec26c76d62eede2f83659b740450bf30860dfe   0         48.61MB
+de2a33ee8cf954c90d46c5adbddbc411bc6e1e70d7814614c013d67594b1a7bf   0         48.85MB
+pack-cache-38c07685afbc.build                                      0         41.75MB
+pack-cache-a345447b6615.build                                      0         41.75MB
+portainer_data                                                     0         8.39MB
+pack-cache-e0303b41dbb9.launch                                     0         283.2MB
+096587fe62128e4ac876d92c43b16593703ae470c38f5996f19b51661226af30   0         48.61MB
+e7dfb11deaf9057db6df2668062f73b5f64292148a57621ba3721ea845b37f5a   0         49.08MB
+pack-cache-a6a11e30bb48.build                                      0         41.75MB
+
+Build cache usage: 1.339MB
+
+CACHE ID       CACHE TYPE     SIZE      CREATED       LAST USED     USAGE     SHARED
+i8l1u22p5i0r   regular        0B        2 hours ago   2 hours ago   1         true
+ozip6iou9yqc   regular        0B        2 hours ago   2 hours ago   1         true
+ifmthjkq4qpw   regular        0B        2 hours ago   2 hours ago   1         true
+jlbj6p8ngjo7   regular        0B        2 hours ago   2 hours ago   1         true
+a17913em5t6y   regular        453kB     2 hours ago   2 hours ago   1         false
+nzt2xkc8lyvw   source.local   669kB     2 hours ago   2 hours ago   1         false
+rkt02qwv28w8   regular        98.2kB    2 hours ago   2 hours ago   1         false
+u263usg9gwje   regular        0B        2 hours ago   2 hours ago   1         false
+lnubueme05ac   regular        118kB     2 hours ago   2 hours ago   1         false
+s9mx7xt8ffik   source.local   430B      2 hours ago   2 hours ago   1         false
+xrdqzc68nyft   source.local   0B        2 hours ago   2 hours ago   1         false
+6jeefv7kfmxg   regular        0B        2 hours ago   2 hours ago   1         true
+s51v3mj3840p   regular        0B        2 hours ago   2 hours ago   1         true
+========== BASE IMAGE: rust:1.100.0-bookworm ==========
+DOCKER_PULL_IMAGE=rust:1.100.0-bookworm ATTEMPT=1/3
+1.100.0-bookworm: Pulling from library/rust
+Digest: sha256:ade39a710ef85f3506cffcfec3e8a24ba090badef1dff2fb798f71d878833fea
+Status: Image is up to date for rust:1.100.0-bookworm
+docker.io/library/rust:1.100.0-bookworm
+BASE_IMAGE_READY=rust:1.100.0-bookworm
+BASE_IMAGE_ID=sha256:9a1b4f2e690d8ffe0b1dae1a72750318928a9b5d94ebf7539dbb4f4c765104da
+STORAGE_PATH=[DATA_PATH]
+STORAGE_AVAILABLE_BYTES=796942413824
+STORAGE_MINIMUM_BYTES=4294967296
+========== BASE IMAGE: debian:bookworm-slim ==========
+DOCKER_PULL_IMAGE=debian:bookworm-slim ATTEMPT=1/3
+bookworm-slim: Pulling from library/debian
+Digest: sha256:734a72b3d6142a71993b4bc580ca01d8ca687f77a2c422d96a961d3376b179bc
+Status: Image is up to date for debian:bookworm-slim
+docker.io/library/debian:bookworm-slim
+BASE_IMAGE_READY=debian:bookworm-slim
+BASE_IMAGE_ID=sha256:43f84a0b210f98845ef003912981774c95efe439eaa4b1cb62cf803fd46fc82a
+STORAGE_PATH=[DATA_PATH]
+STORAGE_AVAILABLE_BYTES=796942413824
+STORAGE_MINIMUM_BYTES=4294967296
+========== DOCKER DISK USAGE AFTER PULL ==========
+Images space usage:
+
+REPOSITORY            TAG                IMAGE ID       CREATED        SIZE      SHARED SIZE   UNIQUE SIZE   CONTAINERS
+rust                  1.100.0-bookworm   9a1b4f2e690d   5 days ago     1.58GB    0B            1.579GB       0
+debian                bookworm-slim      43f84a0b210f   13 days ago    74.9MB    0B            74.87MB       0
+postgres              16-alpine          6a2e324ebe59   3 weeks ago    294MB     0B            294.3MB       0
+postgres              18                 662db3da228c   2 months ago   457MB     0B            456.6MB       0
+postgres              18-alpine          c293117fcecd   2 months ago   304MB     0B            303.7MB       0
+adminer               4.8.1              b108b9a25fa6   2 years ago    250MB     0B            250.2MB       0
+alpine                3.16               d49a5025be10   2 years ago    5.54MB    0B            5.545MB       0
+testcontainers/ryuk   0.6.0              71009a3edde7   2 years ago    14.9MB    0B            14.91MB       0
+testcontainers/ryuk   0.5.1              ec913eeff75a   3 years ago    12.7MB    0B            12.7MB        0
+testcontainers/ryuk   0.3.3              64f4b02dc986   5 years ago    12MB      0B            11.98MB       0
+
+Containers space usage:
+
+CONTAINER ID   IMAGE     COMMAND   LOCAL VOLUMES   SIZE      CREATED   STATUS    NAMES
+
+Local Volumes space usage:
+
+VOLUME NAME                                                        LINKS     SIZE
+pack-cache-a345447b6615.build                                      0         41.75MB
+portainer_data                                                     0         8.39MB
+pack-cache-e0303b41dbb9.launch                                     0         283.2MB
+096587fe62128e4ac876d92c43b16593703ae470c38f5996f19b51661226af30   0         48.61MB
+e7dfb11deaf9057db6df2668062f73b5f64292148a57621ba3721ea845b37f5a   0         49.08MB
+pack-cache-a6a11e30bb48.build                                      0         41.75MB
+cc5b8a5752732e663d49fd58e5d3ce801dc579fa59bc6bd46e6633b8d669f162   0         144.1MB
+defa09eb225e747b98df051f84a6281c5dfc8c011f9dca7108a7240a32022653   0         65.79MB
+pack-cache-153ea4ef4450.launch                                     0         278.8MB
+pack-cache-153ea4ef4450.build                                      0         41.75MB
+pack-cache-a6a11e30bb48.launch                                     0         293.5MB
+375cd06f1bd93cce3ebcac6592894a55_database__components-jooq-data    0         0B
+3e7959df54dadc1fb945409e776f7e4363fc7d97c6d4a4cef6c8652ee57a1ced   0         48.6MB
+4b7b38a06072b036fff30af6c6d0a139c8edd75ac8765ff1759a139655910156   0         368.9MB
+bookstore_bookstore-db-data                                        0         48.59MB
+bookstore_bookstore-pgadmin                                        0         172kB
+c461d5b7c0c1b0543b2a1a425358e4e470fee3e55233e9df76f699a7c586b906   0         144.1MB
+pack-cache-38c07685afbc.launch                                     0         285.8MB
+pack-cache-a345447b6615.launch                                     0         272.8MB
+pack-cache-e0303b41dbb9.build                                      0         41.75MB
+101f28f583ee44f65b5214827dc9bc65dd2602ed6a19a1484dc62f92aedcb7ff   0         65.77MB
+19626f50bc438399bdba8e462447d93b43ca6840f5fb53d4765df2922b523cdd   0         48.31MB
+3ad9f7a025580920ce39675a3d2bc94495e053068714efa2fc1a1190ec1ca61e   0         65.79MB
+5d11c09328eb4e5cada97701e4ae27206d2774196fd6ad066409098d05c4f6da   0         368.8MB
+5fd22e3c02eab7785895859f1a2d75c95546a56d25f22f0db4fdede8b68eb93d   0         48.85MB
+spring-boot-microservices-course_grafana_data                      0         1.063MB
+c6788c48e60bf85056cb591370f1510cd7366dd5d87d9dfb07e6d787a5caeb50   0         65.73MB
+ce3aeb47c527514980cd24236dec26c76d62eede2f83659b740450bf30860dfe   0         48.61MB
+de2a33ee8cf954c90d46c5adbddbc411bc6e1e70d7814614c013d67594b1a7bf   0         48.85MB
+pack-cache-38c07685afbc.build                                      0         41.75MB
+
+Build cache usage: 1.339MB
+
+CACHE ID       CACHE TYPE     SIZE      CREATED       LAST USED     USAGE     SHARED
+i8l1u22p5i0r   regular        0B        2 hours ago   2 hours ago   1         true
+ozip6iou9yqc   regular        0B        2 hours ago   2 hours ago   1         true
+ifmthjkq4qpw   regular        0B        2 hours ago   2 hours ago   1         true
+jlbj6p8ngjo7   regular        0B        2 hours ago   2 hours ago   1         true
+a17913em5t6y   regular        453kB     2 hours ago   2 hours ago   1         false
+nzt2xkc8lyvw   source.local   669kB     2 hours ago   2 hours ago   1         false
+rkt02qwv28w8   regular        98.2kB    2 hours ago   2 hours ago   1         false
+u263usg9gwje   regular        0B        2 hours ago   2 hours ago   1         false
+lnubueme05ac   regular        118kB     2 hours ago   2 hours ago   1         false
+s9mx7xt8ffik   source.local   430B      2 hours ago   2 hours ago   1         false
+xrdqzc68nyft   source.local   0B        2 hours ago   2 hours ago   1         false
+6jeefv7kfmxg   regular        0B        2 hours ago   2 hours ago   1         true
+s51v3mj3840p   regular        0B        2 hours ago   2 hours ago   1         true
+========== HOST CARGO CHECK ==========
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.17s
+BUILD_CONTEXT_WORKSPACE_MEMBER=tests/wiremock-rs/Cargo.toml
+BUILD_CONTEXT_FILES=106
+BUILD_CONTEXT_BYTES=669763
+BUILD_CONTEXT_FILE=Cargo.lock SHA256=621f1cc132febb2cdc34d383590f44e4efedd68461eda305020902c31d12ff31
+BUILD_CONTEXT_FILE=Cargo.toml SHA256=8df362b2d861591b7708f1dd9838ed3504c377a662920e503132e59f114ffb87
+BUILD_CONTEXT_FILE=Dockerfile SHA256=02427cf288e040779faef377c04fe00b053072bc4b80cfd199ae5955f45da00c
+BUILD_CONTEXT_FILE=rust-toolchain.toml SHA256=c3dcaa2e4c0d9b494b33f2d1539f78166c78b3f1355bb68934405d559af4db43
+BUILD_CONTEXT_FILE=src/amri/definition.rs SHA256=e6df5d80c7b16c751c6205ad99b717b318995018a24f4c0782147817e0fd8c00
+BUILD_CONTEXT_FILE=src/amri/error.rs SHA256=f8fbb6ae9922d54edf9a72a7ad32f0797241c99ec013cc24190ce1aa092dc0a5
+BUILD_CONTEXT_FILE=src/amri/execution.rs SHA256=7460b9d25a35be5a82a1683d9d4376756c4abf2340b81c24d089c0a5115b107a
+BUILD_CONTEXT_FILE=src/amri/identity.rs SHA256=6bf7cb22dede9ff1fa8ea7dc83f6123824cc321e550ed8247af2e132d02d74a7
+BUILD_CONTEXT_FILE=src/amri/mod.rs SHA256=78dddcbf55b5b03a9b683e8207ae7fdc0ef6f62eab2acd9d5b63576535d4e58a
+BUILD_CONTEXT_FILE=src/amri/outcome.rs SHA256=0ec7442fc423a6948b2379164ef066c088ca702f20fcbfe94252aea7ca3e9902
+BUILD_CONTEXT_FILE=src/amri/plan.rs SHA256=3b3c1f185730d061dc34bd2e2f62820577792295e32fec3dbc8f059b19222b96
+BUILD_CONTEXT_FILE=src/amri/tests.rs SHA256=6d4ed873830ae7213b0fa8d3f3045c7af4587d5068d51fb3e19d5a79c7748351
+BUILD_CONTEXT_FILE=src/amri_participants/mod.rs SHA256=3781bb4252f777eae488c0fa49c8a9d55829feed97615fb674322d94ef2ba047
+BUILD_CONTEXT_FILE=src/amri_participants/rfq_sourcing.rs SHA256=0ff56f4e189db2755fe5dd005560b36d861c168ca5adf6e7fa6137db4e5a9269
+BUILD_CONTEXT_FILE=src/api_state.rs SHA256=39f3a7c1e2e5964ade17bb5c0a15f84239f3537c254565aed1fdef63a1178f07
+BUILD_CONTEXT_FILE=src/app/amri/execution_context.rs SHA256=60ae7c366268d19138522598fbf093b206abb7b91194ff7fb68be51df81ef009
+BUILD_CONTEXT_FILE=src/app/amri/mod.rs SHA256=6c24539026c7d550110803834f67f55dc6abbdefc1d5e6f4bf32d4f6a2aebeb4
+BUILD_CONTEXT_FILE=src/app/amri/providers/mod.rs SHA256=b73d53386e9534e5e418e3f34f706b1fe6e568b4277e9cf280f93786ea764482
+BUILD_CONTEXT_FILE=src/app/amri/providers/testing.rs SHA256=f1e4518e14b172dfdcecb179d56b6ed69ea91acaebfe79c451a44194874cebc8
+BUILD_CONTEXT_FILE=src/app/amri/providers/tests.rs SHA256=e759603d67381ab58cbf8d58b75e0485cb675445a6f65e745030983be5f2f1d2
+BUILD_CONTEXT_FILE=src/app/amri/rfq_sourcing_context.rs SHA256=9dac9ea85137e75383bb490e26a9683ddf9575114b54cf5e4e5746a51d894727
+BUILD_CONTEXT_FILE=src/app/atomic_sourcing_flow.rs SHA256=0a6caa55a2865a743017471d54517688448cab4f42c36c1b13d27ec41db34fa3
+BUILD_CONTEXT_FILE=src/app/command_rpus.rs SHA256=949a32a4286d3c2e3199e388a0e20df5e0171dbd96c1e65da6a452cb9880c3b5
+BUILD_CONTEXT_FILE=src/app/query_rpus.rs SHA256=5158bd06c0f0fad2e69f0aea7639915c82371e2c7282c24dd3522609ff95dad3
+BUILD_CONTEXT_FILE=src/app.rs SHA256=94e920934d949c4ecd350810f33ed6b71fac752d0dd00bd6c982810e3fa9138c
+BUILD_CONTEXT_FILE=src/application_state/atomic_interaction/context.rs SHA256=69b1a8bd143159e63baba8cd643e0c7deceb344d509130ff3386f0ae8c15f99b
+BUILD_CONTEXT_FILE=src/application_state/atomic_interaction/factstr.rs SHA256=d154f169e5db15214ed805c265e1038418c57b7e502dc992ef1fdbb9c38a0956
+BUILD_CONTEXT_FILE=src/application_state/atomic_interaction/fake.rs SHA256=284b2f6af0d805f189450948474057e08a50cbc1e35495ee9d091ec4b8d6e3af
+BUILD_CONTEXT_FILE=src/application_state/atomic_interaction/mod.rs SHA256=47654ace8e4309c71785aefe2a7258afc50ca1cc487e35f1026fa6ab8392f6d7
+BUILD_CONTEXT_FILE=src/application_state/atomic_interaction/read_port.rs SHA256=4529fefa728dedd71e6fbb7b56d79980e43ff40a92156f1f8fdf770693c520a1
+BUILD_CONTEXT_FILE=src/application_state/atomic_interaction/state_port.rs SHA256=e9fc420499c165dbbfeeb98f80125d8208f04038e064981bae37f33a53c7af75
+BUILD_CONTEXT_FILE=src/application_state/atomic_sourcing_factstr.rs SHA256=1737b218a32d4f1ffc090e6d29e50907032107320cb76185d283da4cf2e03e2c
+BUILD_CONTEXT_FILE=src/application_state/factstr.rs SHA256=0f7e6ce59d56719993c367d549400fcc54933e6edd22de3c11ca36aebce22f32
+BUILD_CONTEXT_FILE=src/application_state.rs SHA256=a56bc7a3ae2e39f8583bf7e9d6de1e72fff28bf00f2faba957bbe497cdafec45
+BUILD_CONTEXT_FILE=src/capabilities/close_rfq/append_consequences.rs SHA256=aac7f5b545ae2bbabdac5da51365db088cb809cbe26a5a6bbafef6040219a8d3
+BUILD_CONTEXT_FILE=src/capabilities/close_rfq/build_context.rs SHA256=8f77283b23af5cf125175e98e851724e37ffa6b7bedcd9a3762cc280cd3f0b6c
+BUILD_CONTEXT_FILE=src/capabilities/close_rfq/generate_consequences.rs SHA256=678359f4f548e6c8d579baed93c3e7522e926d0f87c8139fc45757041773e1b8
+BUILD_CONTEXT_FILE=src/capabilities/close_rfq/load_context.rs SHA256=f03cd26d511730f868c268617a72ebc54a13ab36f30e6e8d63892790beaf9508
+BUILD_CONTEXT_FILE=src/capabilities/close_rfq/mod.rs SHA256=534efd1e01827fecf7bbc68bab433c097d648a00fe4a1abb2ef7e85e3db1084f
+BUILD_CONTEXT_FILE=src/capabilities/close_rfq/process_request.rs SHA256=98926b94b937a8578e79ce101694c23db9c62d28e3f5202b8ad4293d1717602c
+BUILD_CONTEXT_FILE=src/capabilities/finalize_rfq_sourcing/decision.rs SHA256=89ef3a82a19b5de9acfd5fc90cf7e62b6b873cee8378e7cd12748d228bd5c0f0
+BUILD_CONTEXT_FILE=src/capabilities/finalize_rfq_sourcing/mod.rs SHA256=ff59f2ac0b7ae5457f6ce3bf36bcc6bf33b83314bc59ab8118a6153c73bf3a44
+BUILD_CONTEXT_FILE=src/capabilities/finalize_rfq_sourcing/state.rs SHA256=2f5de275c0f8f5cccb7c9a7329c528ff41758cfc7adcd38f5a3cdd7e336c40ac
+BUILD_CONTEXT_FILE=src/capabilities/get_rfq_summary/load_context.rs SHA256=19ec4c39b0453b24c8eb7ef2f19f0b9cc96807a55fb815e71c8dfdf3137004e9
+BUILD_CONTEXT_FILE=src/capabilities/get_rfq_summary/mod.rs SHA256=c4fbe39ef15906cc8b494c1d7cf217c91cba162958253bc0fc9e32269f2320a5
+BUILD_CONTEXT_FILE=src/capabilities/get_rfq_summary/process_request.rs SHA256=6cae0501beb7916e8e0b3a1c4f952bce0fc00c205004aeb69afd71e1a019797c
+BUILD_CONTEXT_FILE=src/capabilities/list_rfq_summaries/build_context.rs SHA256=e2f1e63f42ccd9956fbe3188fca72e8ce4ff8bccea066fd48c34ab9b4950b19c
+BUILD_CONTEXT_FILE=src/capabilities/list_rfq_summaries/load_context.rs SHA256=e03e9cd377f6eafbe979f705c6ba2e800599b1594d5cffc3b788effabece5a23
+BUILD_CONTEXT_FILE=src/capabilities/list_rfq_summaries/mod.rs SHA256=22dbe58dcf2319e7d65107a8bb9dfa08a45ae69c4eda08975f5e16356fa7a7fa
+BUILD_CONTEXT_FILE=src/capabilities/list_rfq_summaries/process_request.rs SHA256=63d0fa394b9df4fe6850d1c85efebe8b61c6dc58ad8c1d5ee0bc3c8f3c3cf804
+BUILD_CONTEXT_FILE=src/capabilities/list_supplier_quotes/build_context.rs SHA256=ac1d0d72a6719e9849410942ddd36d7fb2a00ff4830c1343b298afaa40403e23
+BUILD_CONTEXT_FILE=src/capabilities/list_supplier_quotes/load_context.rs SHA256=9dda620bf66854c8d4e9118fed4276d4a79578d982313323bc4c9d5052a6f4c1
+BUILD_CONTEXT_FILE=src/capabilities/list_supplier_quotes/mod.rs SHA256=cb72186e14d096f6b7f1e66723e708c13df24b5212f895ded0e69a1a29fe5fe9
+BUILD_CONTEXT_FILE=src/capabilities/list_supplier_quotes/process_request.rs SHA256=32914937ec474e78c9aff8e4b196b91b65eafb48f35b8740a6969d435f0689a6
+BUILD_CONTEXT_FILE=src/capabilities/open_rfq/append_consequences.rs SHA256=70ef6466bc13874c92313fc2198aa1d3db463ce1db9d19fc7ecd19940fd22d94
+BUILD_CONTEXT_FILE=src/capabilities/open_rfq/build_context.rs SHA256=623ffe31354b48e321f220f4f1f341511b46e2e2341ea01461671c2558d807af
+BUILD_CONTEXT_FILE=src/capabilities/open_rfq/generate_consequences.rs SHA256=b553ac15f7d951b7212ae289634abb941908b39c8ed27cdf02ad11f4e289de04
+BUILD_CONTEXT_FILE=src/capabilities/open_rfq/load_context.rs SHA256=ce57c78106d1fd0152475e398ba17b8c07c4ffb916a9d4775e018a26c17acdd1
+BUILD_CONTEXT_FILE=src/capabilities/open_rfq/mod.rs SHA256=6e88f2051199128e9424b94b5f15a463415468bd2d6568c749a0dd4d31c1e246
+BUILD_CONTEXT_FILE=src/capabilities/open_rfq/process_request.rs SHA256=6415c253280560d309c18adb00093b72ed90b23f257c385db39da6bdcc79adb8
+BUILD_CONTEXT_FILE=src/capabilities/register_supplier/append_consequences.rs SHA256=4fb29f575becb74236bc627a8226fe7523bf838d7e998358b104443501e8ab7f
+BUILD_CONTEXT_FILE=src/capabilities/register_supplier/build_context.rs SHA256=5a86c0320eebe31ec8613335c9cfeba19914f098d5fbb1b685f31b296ec10603
+BUILD_CONTEXT_FILE=src/capabilities/register_supplier/generate_consequences.rs SHA256=4d742e8ec54b65e6ff8b43cb69dc69318a367b14b2f47182fde6dd00bdef09bd
+BUILD_CONTEXT_FILE=src/capabilities/register_supplier/load_context.rs SHA256=8061221b929f487d2ff3808136203e2eadc21fd0dbe55740819b57cb67a4b71b
+BUILD_CONTEXT_FILE=src/capabilities/register_supplier/mod.rs SHA256=a8ae9d7068422c3ab474e6eb5092db7d0953d30b29a51a97606d1e3d79c1bb99
+BUILD_CONTEXT_FILE=src/capabilities/register_supplier/process_request.rs SHA256=563f404442393e127b300a585fbf4735600aace6163167b27ce8c9b4a3132a12
+BUILD_CONTEXT_FILE=src/capabilities/set_supplier_eligibility/append_consequences.rs SHA256=07ea67d91145a736c8481f6e511eb1b30cee140064029d96a5e9b18e22781806
+BUILD_CONTEXT_FILE=src/capabilities/set_supplier_eligibility/build_context.rs SHA256=d8a50c5a17d385e822f85317c974d879cfad0400dcd0edd99abfb80a57e9ae0b
+BUILD_CONTEXT_FILE=src/capabilities/set_supplier_eligibility/generate_consequences.rs SHA256=ce09efa53728bc934d784972f61349f7ae3576464b0bb256615640da163435b6
+BUILD_CONTEXT_FILE=src/capabilities/set_supplier_eligibility/load_context.rs SHA256=1290d3e164dad147a3147024f1cea8ea0d9aec9cb8050d97cc0ce99ce6ef8ddf
+BUILD_CONTEXT_FILE=src/capabilities/set_supplier_eligibility/mod.rs SHA256=fc1d32f4fc19a6d54fe089faa204b2506007240521784c80aefaa00dab3bab03
+BUILD_CONTEXT_FILE=src/capabilities/set_supplier_eligibility/process_request.rs SHA256=23c635df717812007de26ada75dc7e3b8f32a4d99c00bc556fcfe03d1dcd251e
+BUILD_CONTEXT_FILE=src/capabilities/submit_supplier_quote/append_consequences.rs SHA256=d883e1c314bc70ef208d952e207290d9ed503126eb990fc269678b577a13055b
+BUILD_CONTEXT_FILE=src/capabilities/submit_supplier_quote/build_context.rs SHA256=1bbffe86ad75e11742ed1b531027220214a94dfecc701ec9073897cb6280bd35
+BUILD_CONTEXT_FILE=src/capabilities/submit_supplier_quote/decision.rs SHA256=fc3f9cb678e537dc6ea6e80f607b157886310be3cb78abf9d470760cec4ce948
+BUILD_CONTEXT_FILE=src/capabilities/submit_supplier_quote/load_context.rs SHA256=5a8c12456d44e42d42ed988a640b14b0a2c34a87deefd4c43eef9186c3c0a51d
+BUILD_CONTEXT_FILE=src/capabilities/submit_supplier_quote/mod.rs SHA256=74a93af3e9592c55ea6841709bdfc91f52afd3d5d598abe957ecec3946f27872
+BUILD_CONTEXT_FILE=src/capabilities/submit_supplier_quote/process_request/ccc_tests.rs SHA256=35572dfab5dcbc80efbc4c31a91977b8a35961ecafdb31628607ef15557960b1
+BUILD_CONTEXT_FILE=src/capabilities/submit_supplier_quote/process_request.rs SHA256=4295aaa199615d25df5438a76123b90a399b646829b426535fd05066b3463024
+BUILD_CONTEXT_FILE=src/capabilities/submit_supplier_quote/request.rs SHA256=110df97578128b4a874f03a6902ae1c0bfaebf20d03e66b26016d4175a720828
+BUILD_CONTEXT_FILE=src/capabilities.rs SHA256=4814fe66920be421cd45c4773133701a48be34397341ac55f910dfd0aa470c1b
+BUILD_CONTEXT_FILE=src/domain/mod.rs SHA256=55630ac762f51ab7491d8264590611f288e835727adbbef9f3c30bad8689471a
+BUILD_CONTEXT_FILE=src/domain/rfq_lifecycle.rs SHA256=4560d5599c523aa5400b5c51d86f0699820e9903fb133d1bd0f026c39dd39aef
+BUILD_CONTEXT_FILE=src/domain/sourcing.rs SHA256=65527b5066e01efe028b41f00f6e34e81d7072ea3bb544084be694e18af21ce4
+BUILD_CONTEXT_FILE=src/events/mod.rs SHA256=49bbcb173e45f085db849a385503fa80252dc43ddb80c2ca370d0ee5ca7b1d41
+BUILD_CONTEXT_FILE=src/http/dto.rs SHA256=523f10d5ce2c7551394b818d5ee198faf24f18bd18e44c48d8d5cf29b8d6d280
+BUILD_CONTEXT_FILE=src/http/handlers.rs SHA256=736c55d715228738fe6b7ed15c2840260c4f7d1f628e737d72e0a978158393cb
+BUILD_CONTEXT_FILE=src/http/idempotency.rs SHA256=aec7d0fefee60c898a367374ea11189d587508cb6892f0cd9d2f5a8e13c0d073
+BUILD_CONTEXT_FILE=src/http.rs SHA256=df44539c3067bb1cdb30e89bc4d5462868e86f98f67b59a69f0baad3f49a6677
+BUILD_CONTEXT_FILE=src/lib.rs SHA256=01124ae2b11c4a7684adca5fb9f47fde2c6428d82129c16590696ab2d15a695a
+BUILD_CONTEXT_FILE=src/main.rs SHA256=ab19a0926c0ab666d064b0a90985cdbcf58b5a697f54f884f52f6e008fb2af7b
+BUILD_CONTEXT_FILE=src/projections/rfq_summary_projection/apply_events.rs SHA256=88035fcc340e86f6536342058de521b40a5b85d37d9179c5b7775f7cdf19cf16
+BUILD_CONTEXT_FILE=src/projections/rfq_summary_projection/mod.rs SHA256=b96387d705c9bedffbf0a708f14f2c042a0d3a91fdce37ee89f2efbcdd1cbe7d
+BUILD_CONTEXT_FILE=src/projections/rfq_summary_reader.rs SHA256=575cc87b92636fb22f14509c2adbefae6a6f24df7fb71b5ca96565e9dcfa683b
+BUILD_CONTEXT_FILE=src/projections.rs SHA256=bdb18dc1b3ab9780b0416a1e0632d68b63b44dad18595c46483d86c503cd3e8e
+BUILD_CONTEXT_FILE=src/providers.rs SHA256=739c32ef652e2bbffb02ebea9eabe4cdbd19009ddfd55e04e68554eab3ae3313
+BUILD_CONTEXT_FILE=tests/acceptance_api.rs SHA256=90c688cfb39ab194a2b575a85f46a4d8edc28de50391528f4787b5862c2bf192
+BUILD_CONTEXT_FILE=tests/acceptance_api_addition.rs.txt SHA256=73bb450bbe6b187079cd8f44723423544a184b4b1a9bc43132761f68aeb4b69c
+BUILD_CONTEXT_FILE=tests/acceptance_atomic_sourcing.rs SHA256=652a0ed7d30109ea310a45d9d7c4a91f4ec4441ea61b4efc8b1c3c934c5418e5
+BUILD_CONTEXT_FILE=tests/amri_factstr_state.rs SHA256=5bc2625dc901e39518897def7c975f93644c029e7d65f83a08fe0dde89e25e32
+BUILD_CONTEXT_FILE=tests/common/postgres.rs SHA256=717a706af792daabeb1c686d58684b5b249b5b2064a18c21e43c98cb61c8342a
+BUILD_CONTEXT_FILE=tests/contracts/external-providers-v1.openapi.yaml SHA256=bae4eb5f1cb497e6ebf0f3bb470fdeb670b1b42a398aa61a10df15d5398a7594
+BUILD_CONTEXT_FILE=tests/external_provider_contracts.rs SHA256=7b58fb9210ee69046ca6a0fbc978b097a5634a89f4263ac07bf3f5ec71ef2ccd
+BUILD_CONTEXT_FILE=tests/wiremock-rs/Cargo.toml SHA256=3a69f8f2d26594b4f935317f1c500fcaaefbd2fae61af11a2c910d3e1c46e9d0
+BUILD_CONTEXT_FILE=tests/wiremock-rs/Dockerfile SHA256=02427cf288e040779faef377c04fe00b053072bc4b80cfd199ae5955f45da00c
+BUILD_CONTEXT_FILE=tests/wiremock-rs/src/main.rs SHA256=93c942ad4dc25717c1620c6e35d75863394f0696aa916c6065f4e0f87ef45d4b
+BUILD_CONTEXT_PATH=~/Downloads/amri-stage5b2-wiremock-build-20261118T171746Z/context
+BUILD_CONTEXT_DISK_BYTES=669763
+HOST_CONTEXT_FREE_BYTES=796941266944
+HOST_CONTEXT_MINIMUM_BYTES=536870912
+STORAGE_PATH=[DATA_PATH]
+STORAGE_AVAILABLE_BYTES=796941266944
+STORAGE_MINIMUM_BYTES=4294967296
+========== BUILD WIREMOCK-RS WITH UBUNTU DOCKER ENGINE ==========
+BUILD_COMMAND=env -u DOCKER_CONTEXT -u DOCKER_HOST -u BUILDX_BUILDER DOCKER_BUILDKIT=1 docker --context default build --pull=false --file ~/Downloads/amri-stage5b2-wiremock-build-20261118T171746Z/context/Dockerfile --tag supplier-rfq-amri-wiremock-rs:0.6.5-stage5b2-v1 ~/Downloads/amri-stage5b2-wiremock-build-20261118T171746Z/context
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile:
+#1 transferring dockerfile: 469B 0.0s done
+#1 DONE 0.3s
+
+#2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/rust:1.100.0-bookworm
+#3 DONE 0.0s
+
+#4 [internal] load .dockerignore
+#4 transferring context:
+#4 transferring context: 2B done
+#4 DONE 0.3s
+
+#5 [builder 1/6] FROM docker.io/library/rust:1.100.0-bookworm
+#5 DONE 0.0s
+
+#6 [stage-1 1/2] FROM docker.io/library/debian:bookworm-slim
+#6 CACHED
+
+#7 [internal] load build context
+#7 transferring context: 125.72kB done
+#7 DONE 0.2s
+
+#8 [builder 2/6] WORKDIR /workspace
+#8 CACHED
+
+#9 [builder 3/6] COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
+#9 CACHED
+
+#10 [builder 4/6] COPY src ./src
+#10 CACHED
+
+#11 [builder 5/6] COPY tests ./tests
+#11 DONE 1.2s
+
+#12 [builder 6/6] RUN cargo build --release --locked -p amri-stage5b2-wiremock-rs
+#12 5.580 info: syncing channel updates for 1.100.0-x86_64-unknown-linux-gnu
+#12 8.359 info: latest update on 2026-11-12 for version 1.100.0 (0ef1bc386 2026-11-09)
+#12 8.410 info: downloading 2 components
+#12 12.70     Updating crates.io index
+#12 27.97  Downloading crates ...
+#12 28.40   Downloaded assert-json-diff v2.0.2
+#12 28.47   Downloaded atomic-waker v1.1.2
+#12 28.48   Downloaded aho-corasick v1.1.5
+#12 28.50   Downloaded futures-task v0.3.34
+#12 28.52   Downloaded fnv v1.0.7
+#12 28.52   Downloaded tokio-macros v2.7.2
+#12 28.52   Downloaded potential_utf v0.1.6
+#12 28.56   Downloaded deadpool-runtime v0.1.4
+#12 28.57   Downloaded percent-encoding v2.3.2
+#12 28.57   Downloaded zerofrom v0.1.8
+#12 28.57   Downloaded lazy_static v1.5.1
+#12 28.58   Downloaded futures-sink v0.3.34
+#12 28.59   Downloaded httpdate v1.0.3
+#12 28.59   Downloaded num_cpus v1.17.0
+#12 28.60   Downloaded stable_deref_trait v1.2.1
+#12 28.61   Downloaded futures-io v0.3.34
+#12 28.61   Downloaded idna_adapter v1.2.1
+#12 28.61   Downloaded yoke-derive v0.8.4
+#12 28.61   Downloaded utf8_iter v1.0.4
+#12 28.61   Downloaded futures-core v0.3.34
+#12 28.62   Downloaded form_urlencoded v1.2.2
+#12 28.62   Downloaded try-lock v0.2.5
+#12 28.62   Downloaded http-body v1.1.0
+#12 28.62   Downloaded want v0.3.2
+#12 28.62   Downloaded zerofrom-derive v0.1.8
+#12 28.63   Downloaded itoa v1.0.18
+#12 28.63   Downloaded tinystr v0.8.5
+#12 28.63   Downloaded equivalent v1.0.3
+#12 28.64   Downloaded quote v1.0.47
+#12 28.64   Downloaded zerovec-derive v0.11.7
+#12 28.64   Downloaded writeable v0.6.4
+#12 28.65   Downloaded slab v0.4.12
+#12 28.65   Downloaded futures-macro v0.3.34
+#12 28.65   Downloaded pin-project-lite v0.2.17
+#12 28.67   Downloaded zmij v1.0.23
+#12 28.68   Downloaded displaydoc v0.2.7
+#12 28.68   Downloaded http-body-util v0.1.5
+#12 28.69   Downloaded base64 v0.22.1
+#12 28.70   Downloaded futures-executor v0.3.34
+#12 28.70   Downloaded smallvec v1.16.4
+#12 28.71   Downloaded synstructure v0.14.0
+#12 28.71   Downloaded yoke v0.8.4
+#12 28.72   Downloaded once_cell v1.21.4
+#12 28.73   Downloaded unicode-ident v1.0.27
+#12 28.74   Downloaded bytes v1.12.1
+#12 28.74   Downloaded litemap v0.8.3
+#12 28.75   Downloaded futures-channel v0.3.34
+#12 28.76   Downloaded httparse v1.10.1
+#12 28.76   Downloaded socket2 v0.6.5
+#12 28.77   Downloaded tracing-core v0.1.36
+#12 28.78   Downloaded icu_provider v2.1.1
+#12 28.79   Downloaded serde_core v1.0.229
+#12 28.79   Downloaded log v0.4.34
+#12 28.80   Downloaded proc-macro2 v1.0.107
+#12 28.81   Downloaded futures v0.3.34
+#12 28.83   Downloaded icu_locale_core v2.1.1
+#12 28.84   Downloaded icu_normalizer_data v2.1.1
+#12 28.85   Downloaded deadpool v0.12.3
+#12 28.86   Downloaded wiremock v0.6.5
+#12 28.87   Downloaded icu_properties v2.1.2
+#12 28.87   Downloaded serde v1.0.229
+#12 28.88   Downloaded zerotrie v0.2.5
+#12 28.89   Downloaded icu_normalizer v2.1.1
+#12 28.90   Downloaded icu_collections v2.1.1
+#12 28.93   Downloaded url v2.5.8
+#12 28.93   Downloaded memchr v2.8.3
+#12 28.95   Downloaded http v1.5.0
+#12 28.96   Downloaded mio v1.2.4
+#12 28.98   Downloaded indexmap v2.14.2
+#12 28.99   Downloaded hyper-util v0.1.21
+#12 29.00   Downloaded zerovec v0.11.9
+#12 29.02   Downloaded icu_properties_data v2.1.2
+#12 29.05   Downloaded idna v1.1.0
+#12 29.06   Downloaded serde_json v1.0.154
+#12 29.09   Downloaded hashbrown v0.17.1
+#12 29.10   Downloaded futures-util v0.3.34
+#12 29.14   Downloaded regex v1.13.1
+#12 29.15   Downloaded tokio-util v0.7.20
+#12 29.18   Downloaded h2 v0.4.20
+#12 29.20   Downloaded hyper v1.12.0
+#12 29.22   Downloaded syn v3.0.9
+#12 29.25   Downloaded regex-syntax v0.8.11
+#12 29.27   Downloaded tracing v0.1.44
+#12 29.32   Downloaded regex-automata v0.4.18
+#12 29.79   Downloaded libc v0.2.191
+#12 29.89   Downloaded tokio v1.54.1
+#12 30.50    Compiling proc-macro2 v1.0.107
+#12 30.50    Compiling unicode-ident v1.0.27
+#12 30.50    Compiling quote v1.0.47
+#12 30.50    Compiling stable_deref_trait v1.2.1
+#12 30.50    Compiling libc v0.2.191
+#12 30.50    Compiling pin-project-lite v0.2.17
+#12 30.51    Compiling bytes v1.12.1
+#12 30.51    Compiling futures-core v0.3.34
+#12 33.15    Compiling memchr v2.8.3
+#12 33.17    Compiling futures-sink v0.3.34
+#12 33.70    Compiling itoa v1.0.18
+#12 34.02    Compiling litemap v0.8.3
+#12 34.33    Compiling writeable v0.6.4
+#12 34.44    Compiling slab v0.4.12
+#12 34.64    Compiling icu_properties_data v2.1.2
+#12 34.65    Compiling smallvec v1.16.4
+#12 34.75    Compiling icu_normalizer_data v2.1.1
+#12 35.01    Compiling http v1.5.0
+#12 35.27    Compiling futures-channel v0.3.34
+#12 35.31    Compiling serde_core v1.0.229
+#12 35.32    Compiling once_cell v1.21.4
+#12 35.65    Compiling tracing-core v0.1.36
+#12 35.72    Compiling zmij v1.0.23
+#12 35.78    Compiling hashbrown v0.17.1
+#12 35.86    Compiling httparse v1.10.1
+#12 36.00    Compiling equivalent v1.0.3
+#12 36.31    Compiling atomic-waker v1.1.2
+#12 36.44    Compiling fnv v1.0.7
+#12 36.54    Compiling serde_json v1.0.154
+#12 36.90    Compiling http-body v1.1.0
+#12 37.07    Compiling syn v3.0.9
+#12 37.11    Compiling tracing v0.1.44
+#12 37.16    Compiling serde v1.0.229
+#12 37.41    Compiling indexmap v2.14.2
+#12 37.52    Compiling futures-io v0.3.34
+#12 37.78    Compiling socket2 v0.6.5
+#12 37.79    Compiling mio v1.2.4
+#12 37.80    Compiling try-lock v0.2.5
+#12 37.95    Compiling futures-task v0.3.34
+#12 37.96    Compiling want v0.3.2
+#12 39.12    Compiling aho-corasick v1.1.5
+#12 39.29    Compiling regex-syntax v0.8.11
+#12 39.31    Compiling utf8_iter v1.0.4
+#12 39.51    Compiling percent-encoding v2.3.2
+#12 39.59    Compiling httpdate v1.0.3
+#12 39.64    Compiling num_cpus v1.17.0
+#12 39.99    Compiling form_urlencoded v1.2.2
+#12 40.07    Compiling deadpool-runtime v0.1.4
+#12 40.21    Compiling lazy_static v1.5.1
+#12 40.28    Compiling http-body-util v0.1.5
+#12 40.34    Compiling log v0.4.34
+#12 40.51    Compiling base64 v0.22.1
+#12 44.21    Compiling regex-automata v0.4.18
+#12 44.25    Compiling assert-json-diff v2.0.2
+#12 45.55    Compiling synstructure v0.14.0
+#12 47.42    Compiling zerofrom-derive v0.1.8
+#12 48.20    Compiling yoke-derive v0.8.4
+#12 48.32    Compiling zerovec-derive v0.11.7
+#12 48.35    Compiling displaydoc v0.2.7
+#12 48.45    Compiling tokio-macros v2.7.2
+#12 48.59    Compiling futures-macro v0.3.34
+#12 49.22    Compiling zerofrom v0.1.8
+#12 49.43    Compiling tokio v1.54.1
+#12 49.67    Compiling futures-util v0.3.34
+#12 49.81    Compiling yoke v0.8.4
+#12 49.97    Compiling zerovec v0.11.9
+#12 49.97    Compiling zerotrie v0.2.5
+#12 50.10    Compiling regex v1.13.1
+#12 51.56    Compiling tinystr v0.8.5
+#12 51.64    Compiling potential_utf v0.1.6
+#12 51.87    Compiling icu_locale_core v2.1.1
+#12 51.95    Compiling icu_collections v2.1.1
+#12 55.71    Compiling icu_provider v2.1.1
+#12 56.16    Compiling futures-executor v0.3.34
+#12 56.37    Compiling icu_properties v2.1.2
+#12 56.38    Compiling icu_normalizer v2.1.1
+#12 56.47    Compiling futures v0.3.34
+#12 57.87    Compiling idna_adapter v1.2.1
+#12 57.99    Compiling idna v1.1.0
+#12 58.27    Compiling tokio-util v0.7.20
+#12 58.27    Compiling deadpool v0.12.3
+#12 58.58    Compiling url v2.5.8
+#12 59.69    Compiling h2 v0.4.20
+#12 64.09    Compiling hyper v1.12.0
+#12 66.44    Compiling hyper-util v0.1.21
+#12 66.88    Compiling wiremock v0.6.5
+#12 68.70    Compiling amri-stage5b2-wiremock-rs v0.1.0 (/workspace/tests/wiremock-rs)
+#12 71.98     Finished `release` profile [optimized] target(s) in 59.99s
+#12 DONE 74.3s
+
+#13 [stage-1 2/2] COPY --from=builder /workspace/target/release/amri-stage5b2-wiremock-rs /usr/local/bin/amri-stage5b2-wiremock-rs
+#13 DONE 1.2s
+
+#14 exporting to image
+#14 exporting layers
+#14 exporting layers 1.0s done
+#14 writing image sha256:ea69ba5204adb43ae65e7bd1c0060b9c41eb4f2ddab2b998fda824674f37589c 0.1s done
+#14 naming to docker.io/library/supplier-rfq-amri-wiremock-rs:0.6.5-stage5b2-v1
+#14 naming to docker.io/library/supplier-rfq-amri-wiremock-rs:0.6.5-stage5b2-v1 0.3s done
+#14 DONE 2.0s
+PASS: imagem WireMock-RS construída e carregada no image store do Docker Engine.
+IMAGE=supplier-rfq-amri-wiremock-rs:0.6.5-stage5b2-v1
+IMAGE_ID=sha256:ea69ba5204adb43ae65e7bd1c0060b9c41eb4f2ddab2b998fda824674f37589c
+IMAGE_SIZE_BYTES=78230222
+DOCKER_IMAGE_BUILD_RECEIPT=~/Downloads/amri-stage5b2-wiremock-build-20261118T171746Z/docker-image-build-receipt.json
+DOCKER_IMAGE_BUILD_RECEIPT_SHA256=409226bb6d01a422374bc624f3c5c5b4c78fa17c56bda4182456b4d88da770c7
+BUILD_SCRIPT_SHA256=4fdd24bb9905dfb399c95913d01d188c30bdf4ae3f1c51616b14f35e00667b69
+BUILD_LOG=~/Downloads/amri-stage5b2-wiremock-build-20261118T171746Z/build.log
+BUILD_LOG_SHA256=774a2d372c7775ff9a3c35e6abddf3ea54e2fc9d1c48e712f6e26771cabab5b5
+DOCKER_IMAGE_BUILD=PASS

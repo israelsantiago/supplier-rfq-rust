@@ -1,0 +1,11 @@
+GATE=testcontainers_isolation
+COMMAND=bash scripts/verify-testcontainers-isolation.sh
+STARTED_UTC=2026-11-17T22:36:54Z
+OK: o cache contém Weak; cada fixture mantém Arc e libera o container via Drop + join.
+OK: nenhuma utilização de unsafe/FFI/atexit no fixture de testes.
+OK: banco isolado por fixture; criação serializada; concorrência limitada a quatro.
+OK: somente as suítes de integração esperadas usam o fixture; produção e Functional Core não são alterados.
+FAIL: integração Testcontainers/WireMock incompleta: external_provider_contracts
+
+EXIT_CODE=1
+FINISHED_UTC=2026-11-17T22:36:54Z
