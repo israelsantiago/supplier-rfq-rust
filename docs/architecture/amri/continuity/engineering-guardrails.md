@@ -112,3 +112,84 @@ Aprovação local não significa CI aprovado. Publicação Git não prova compil
 - Push sem force, com verificação do SHA remoto antes e depois.
 
 <!-- AMRI-STAGE5B3R-PUBLISHER-LEARNINGS:END -->
+
+
+## 10. Isolamento de zsh e Bash
+
+**Regra obrigatória:** comandos operacionais AMRI que usem opções estritas de
+shell (`errexit`, `nounset`, `pipefail`) devem rodar em um processo Bash filho.
+Nunca enviar um bloco colável que comece com `set -e`, `set -u`, `set -o
+pipefail` ou combinações dessas opções para execução direta no nível superior
+de uma sessão interativa zsh.
+
+Padrão obrigatório para blocos coláveis no terminal do mantenedor:
+
+```bash
+bash <<'BASH'
+set -Eeuo pipefail
+
+REPO="/mnt/Dados/MeusDados/Downloads/supplier-rfq-rpu-rust"
+# Demais comandos Bash do diagnóstico ou da operação ficam aqui.
+printf 'REPO=%s\n' "$REPO"
+BASH
+```
+
+Regras complementares:
+
+1. O delimitador do heredoc deve ser literal e entre aspas simples (`<<'BASH'`),
+   impedindo que o zsh expanda `$`, `${...}`, `$(...)`, crases e barras antes
+   de o Bash receber o conteúdo.
+2. Scripts distribuídos devem ter shebang Bash (`#!/usr/bin/env bash`) e ser
+   executados como processo separado (`bash ./script.sh` ou `./script.sh`).
+   Nunca usar `source script.sh` ou `. script.sh`.
+3. `set -Eeuo pipefail` deve ficar dentro do arquivo Bash ou do heredoc filho,
+   depois de validado o interpretador; nunca antes do comando `bash` no shell
+   interativo.
+4. Não usar `emulate`, `setopt`, `unsetopt` ou alterações no prompt do zsh como
+   substituto para isolamento de processo. O material distribuído pelo AMRI
+   deve continuar Bash explícito e independente da configuração pessoal do
+   shell do mantenedor.
+5. Se `nounset` tiver sido ativado acidentalmente na sessão zsh, recuperar a
+   sessão com `unsetopt UNSET PIPE_FAIL`. Não presumir que isso identifica ou corrige um bug no
+   tema/prompt, nem alterar arquivos de configuração para mascarar o incidente.
+6. Antes da entrega, validar scripts com `bash -n`; testar a execução no Bash
+   filho e, quando zsh estiver disponível, verificar que as opções do shell
+   pai permanecem inalteradas após o heredoc terminar.
+
+Esta regra é consequência direta do incidente de 2026-11-21 registrado em
+[engineering-learnings.md](./engineering-learnings.md).
+
+## 11. Runner executável obrigatório em toda entrega
+
+**Regra invariável:** toda entrega operacional preparada pelo assistente deve
+incluir um script executável que rode os artefatos entregues. O README, um
+patch, uma sequência de comandos ou um trecho para copiar/colar não substitui
+essa obrigação.
+
+Requisitos mínimos:
+
+1. Gerar um runner específico do pacote, com shebang Bash e modos claros
+   (`--help`, `verify`, `diagnose`, `preflight`, `apply` ou o conjunto
+   equivalente adequado ao artefato).
+2. Se o runner estiver dentro de `.tar.gz` ou outro pacote que precise ser
+   extraído antes de ser executado, entregar também um launcher externo que
+   verifique o checksum, valide os caminhos do arquivo compactado, faça
+   extração temporária segura, preserve diretórios/pacotes existentes e
+   invoque o runner interno. Não exigir que o mantenedor escreva o launcher.
+3. O modo padrão deve ser não destrutivo. Escrita/aplicação exige modo ou
+   argumento explícito e deve repetir os prechecks imediatamente antes dela.
+4. O runner deve produzir logs, registrar exit codes, imprimir repositório,
+   branch e HEAD quando aplicável, validar a allowlist, criar backup verificável
+   antes da escrita e documentar/implementar rollback.
+5. Commit, push, merge, `git add` e outras publicações nunca são implícitos;
+   seguem autorização e precheck separados dos acordos de publicação.
+6. Testar o próprio runner (`bash -n`, `--help`, fixture de sucesso, fixtures
+   de falha, pacote/checksums e caminhos com espaços) antes de disponibilizá-lo.
+7. Fornecer links diretos para o runner, pacote, checksum e README, e um único
+   comando de execução que funcione no terminal do mantenedor. Não transferir
+   ao usuário a montagem manual do script ou a orquestração dos arquivos.
+
+A entrega só pode ser descrita como completa quando o runner e seu launcher,
+quando necessário, existirem e tiverem sido verificados. Se não for possível
+produzi-los, declarar explicitamente o bloqueio e não apresentar o pacote como
+pronto para execução.
