@@ -132,3 +132,30 @@ Os seis testes do patcher Stage 4B e os dois testes do instalador documental pas
 - Próxima atividade: Stage 5B.3-R documental e handoff Stage 5C.
 
 <!-- AMRI-STAGE5B3R-STAGELOG:END -->
+
+<!-- AMRI-STAGE5B3R-STAGELOG-20261121:START -->
+
+## 2026-11-21 — recuperação da publicação e fechamento documental em andamento
+
+### Commit de guardrails publicado
+
+- Commit: `dc2bf33fbd6e95f0fdbaad77b3f8c644af794f93`.
+- Mensagem: `docs(amri): record shell isolation and executable runner guardrails`.
+- Arquivos: `engineering-learnings.md`, `engineering-guardrails.md`.
+- A aplicação foi validada com backup e checksums; auditoria pós-Apply: PASS.
+- Precommit: 10/10 PASS; recibo recuperado do commit: 11/11 PASS.
+- Push fast-forward: `164d51b..dc2bf33`; remoto verificado no mesmo SHA; sem force push.
+- A falha inicial do publisher decorreu da ausência do commit receipt depois de o commit já ter sido criado. O runner de recuperação verificou parent, tree, allowlist, blobs, patch revisado e remoto antes de reconstruir evidência e publicar.
+- O diagnóstico inicial também falhou ao acessar `COMMIT_RECEIPT_VALID` não exportado no ambiente Python. O defeito do diagnóstico foi identificado; essa execução não deve ser relatada como PASS.
+
+### Revisão Stage 5B.2
+
+- Recibo publicado: 17/17 PASS, 0 FAIL; 11 frescos e 6 históricos reutilizados; 12 registros históricos validados por tamanho/SHA-256.
+- Mutation SKIPPED por política; CI remoto não confirmado; promoção automática não executada.
+- Revisão da evidência concluída; manter limitações no status, sem transformar SKIPPED em PASS.
+
+### Stage 5B.3-R
+
+Este change set consolida estado, plano, decision register, quality/evidence, log, README e chat-handoff, e cria `stages/stage-05c-handoff.md`. Só marcar 5B.3-R como concluída após Apply/gates/commit/push confirmados.
+
+<!-- AMRI-STAGE5B3R-STAGELOG-20261121:END -->

@@ -78,3 +78,21 @@
 - Validar `bash -n`, `--help`, execução em fixture, falhas esperadas, checksums,
   extração e caminhos com espaços antes da entrega. Informar com precisão
   quais verificações foram realmente executadas.
+
+<!-- AMRI-PUBLISHER-LEARNINGS-20261121:START -->
+
+## 2026-11-21 — receipts, publishers e diagnóstico de subprocessos
+
+- Um `git commit` pode ter sido criado mesmo quando o publisher termina com erro antes de gerar seu recibo. Antes de repetir a operação, reconciliar `HEAD`, parent, subject, tree, allowlist, blobs, working tree e remote. Nunca repetir commit cegamente.
+- Cada operação mutável deve persistir um estado/intention antes da operação e criar o recibo assim que o resultado for conhecido. O trap de falha deve preservar `FAILED_STEP`, linha, comando, exit code e log.
+- O publisher deve validar os pós-estados independentemente do exit code do comando: push concluído e verificado é diferente de comando de push iniciado; commit criado e verificado é diferente de receipt criado.
+- O diagnóstico de 2026-11-21 falhou com `KeyError: COMMIT_RECEIPT_VALID` porque a variável shell não foi exportada ao subprocesso Python. Variáveis consumidas por `os.environ` devem ser explicitamente exportadas, ou transmitidas por argumentos; validar contrato de ambiente antes de chamar o subprocesso.
+- Fixtures de diagnóstico devem incluir variáveis ausentes, vazias e válidas. Erros internos do próprio diagnóstico não podem ser classificados como diagnóstico concluído.
+- A recuperação bem-sucedida foi publicada em `dc2bf33fbd6e95f0fdbaad77b3f8c644af794f93`; execução informada: 11/11 recovered commit gates, push fast-forward e SHA remoto verificado.
+- O runner `amri-stage5b3r-finalization-v1.0.0` falhou antes do Apply porque gerou `backup/SHA256SUMS` com `find . -type f` enquanto redirecionava a própria saída para esse mesmo arquivo. O shell criou/truncou `SHA256SUMS` antes de iniciar `find`; por isso o inventário capturou os dez documentos corretos e o próprio manifesto. A entrada autorreferente registrou o hash do arquivo vazio/inicial, que deixou de corresponder após a gravação do manifesto.
+- A evidência `amri-stage5b3r-backup-failure-evidence-20261121T143116Z.tar.gz` confirmou 11 entradas, uma única divergência (`./SHA256SUMS`) e os dez documentos iguais aos blobs de baseline. Nenhum documento de origem estava ausente ou corrompido; o Apply não ocorreu.
+- Manifestos de backup devem ser construídos somente a partir da allowlist explícita, em arquivo temporário fora do diretório inventariado; validar exatamente dez entradas, instalar por rename atômico e manter o checksum do manifesto em sidecar externo. Nunca descobrir arquivos de backup por `find` para montar o manifesto que reside no próprio diretório.
+- O gate de backup deve comparar cada cópia ao blob Git de baseline, verificar a lista integral do tar e repetir a validação antes do commit, push e rollback. Fixtures devem rejeitar autorreferência, arquivo extra, ausente, alterado e arquivo compactado adulterado.
+- A tentativa anterior também classificou incorretamente a ausência de `--confirm-apply` como `build-and-validate-patch`; cada confirmação explícita deve ter seu próprio `CURRENT_STEP` antes da validação da flag.
+
+<!-- AMRI-PUBLISHER-LEARNINGS-20261121:END -->

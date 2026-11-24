@@ -193,3 +193,29 @@ A entrega só pode ser descrita como completa quando o runner e seu launcher,
 quando necessário, existirem e tiverem sido verificados. Se não for possível
 produzi-los, declarar explicitamente o bloqueio e não apresentar o pacote como
 pronto para execução.
+
+<!-- AMRI-PUBLISHER-GUARDRAILS-20261121:START -->
+
+## 12. Receipts, erros de subprocesso e recuperação de publicação
+
+1. Antes de `git commit` ou `git push`, persistir um estado estruturado com operação, baseline, branch, SHA remoto esperado, allowlist, run directory e logs.
+2. Registrar imediatamente após cada marco: commit SHA/parent/tree/files; ou push remote SHA. A ausência de receipt não prova que a operação Git falhou.
+3. Após qualquer erro de publisher, executar primeiro um diagnóstico read-only. Conferir HEAD local/remoto, parent, subject, tree, arquivos do commit, blob hashes, índice e working tree antes de repetir operações.
+4. O `ERR` trap deve registrar `FAILED_STEP`, `FAILED_LINE`, `FAILED_COMMAND`, `EXIT_CODE`, log e run directory. Um erro deve permanecer FAIL mesmo se uma rotina posterior conseguir coletar evidência.
+5. Para subprocessos Python/Node/etc., toda variável lida do ambiente deve ser explicitamente `export`ada; preferir argumentos/JSON de entrada tipados. Preflight deve validar cada variável requerida. Nunca deixar `KeyError`/`undefined` sem contexto como única explicação de falha.
+6. Testar fixtures com variável ausente/vazia, receipt faltante, commit já criado, push já publicado, remote divergente e interrupção entre operação Git e receipt.
+7. Recuperação idempotente pode reconstruir recibo somente após revalidar a operação Git real. Identificar o receipt como `recovered`; nunca simular uma execução original que não aconteceu.
+8. Scripts de diagnóstico são somente leitura e devem gerar um relatório válido mesmo diante de estado incompleto; falha interna do diagnóstico é `DIAGNOSTIC_INTERNAL_ERROR`, nunca PASS.
+
+## 13. Backups, manifests e classificação de falhas
+
+1. Manifestos de backup cobrem exclusivamente os arquivos da allowlist explícita. Não usar `find` para descobrir arquivos e gravar o manifesto dentro da mesma árvore inventariada.
+2. Nunca incluir `SHA256SUMS` no próprio `SHA256SUMS`. Redirecionamentos (`> arquivo`) criam/truncam o destino antes de iniciar o comando; portanto `find` pode encontrar o manifesto vazio e registrar uma entrada autorreferente inválida.
+3. Construir o manifesto em arquivo temporário fora do diretório de backup, validar exatamente a quantidade e os caminhos esperados, verificar os hashes e só então instalá-lo com rename atômico. Guardar o SHA-256 do manifesto em sidecar fora do diretório inventariado.
+4. O diretório de backup deve ter inventário exato: os dez documentos baseline, `baseline-docs.tar.gz`, seu sidecar e `SHA256SUMS`; logs, temporários e sidecars do manifesto ficam fora dele.
+5. Antes de Apply, Commit, Push e Rollback, verificar sidecar do manifesto, os dez hashes individuais, o SHA-256 do arquivo compactado, a lista integral de membros do tar e o Git blob SHA-1 de cada cópia contra o `base_sha1` do target manifest.
+6. Fixtures obrigatórias devem cobrir manifesto correto, autorreferência, entrada ausente, entrada extra, arquivo extra no backup, arquivo ausente, conteúdo alterado, tar alterado e restauração após cada falha. Um caso esperado de rejeição só conta como PASS quando o runner confirma que a falha foi detectada e o fixture é restaurado.
+7. Cada confirmação (`--confirm-apply`, `--confirm-commit`, `--confirm-push`, `--confirm-rollback`) deve definir o `CURRENT_STEP` específico antes de validar a flag, evitando classificar uma recusa de confirmação como falha da etapa anterior.
+8. A saída do gate de backup precisa preservar stdout e stderr no log principal e identificar a subetapa concreta (manifest sidecar, archive sidecar, arquivo individual ou estrutura/blob), sem reduzir tudo a um checksum genérico.
+
+<!-- AMRI-PUBLISHER-GUARDRAILS-20261121:END -->

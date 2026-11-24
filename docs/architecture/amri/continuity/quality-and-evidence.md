@@ -208,3 +208,47 @@ A evidência permite revisão humana de encerramento da 5B.2; não promove
 automaticamente a fase nem aceita ADR-0034.
 
 <!-- AMRI-STAGE5B3R-FINAL-EVIDENCE:END -->
+
+<!-- AMRI-STAGE5B3R-QUALITY-20261121:START -->
+
+## Stage 5B.2 — revisão da evidência final (2026-11-21)
+
+Fonte: branch `evidence/stage5b2-final-reverify-20261120T211047693659491Z`, commit `511fa159ecdcdb4f7c81eddda7c47be5d1474f9f`, arquivo `reverification-receipt.json`.
+
+| Item | Resultado revisado |
+|---|---|
+| Gates | 17/17 PASS; 0 FAIL |
+| Execução fresca | 11 gates reexecutados no source HEAD `5fc082aee7e869908444b1bd6ac40d0df5c1721d` |
+| Reuso histórico | 6 gates reutilizados depois da validação de 12 registros de log por tamanho/SHA-256 |
+| Pós-Apply drift | 5 paths revisados e vinculados ao commit `72d44d8433b23841a9dfb0e875dcfac4accb0fcd` |
+| Mutation | `SKIPPED_BY_STAGE5B2_POLICY` — não é PASS e não é falha do gate da subetapa |
+| Promoção automática | `NOT_PERFORMED` no recibo original |
+| Fechamento no recibo | `ELIGIBLE_FOR_MANUAL_REVIEW` |
+| CI remoto | Não confirmado; não declarar aprovado ou falho |
+
+### Stage 5B.3A — source audit evidence-only
+
+- Auditoria v1.1.2 publicada em `docs/architecture/amri/evidence/stage-5b3/source-audit-v1.1.2-20261120T191650Z/`.
+- Source HEAD da coleta: `3324f28fbcdc928475ce2d01690af86d80798918`; 92 arquivos Rust coletados; `AUDIT_RESULT=PASS` e `CHECKOUT_MUTATION=NONE`.
+- Bundle SHA-256: `8c1e7293d3132dc91628889b1984a6e4534444719e41cee122de47b2daccac70`.
+- A publicação é evidence-only; não representa patch, aprovação de implementação ou conclusão da Stage 5C.
+
+**Revisão:** conteúdo do recibo, README, publication manifest, sanitization manifest e resultados frescos foi inspecionado. Não foi identificada falha nos 17 gates registrados. A evidência sustenta conclusão de verificação local da 5B.2 com as limitações acima; não prova CI remoto nem execução de mutation.
+
+### Stage 5B.3-R — registro da publicação de guardrails (2026-11-21)
+
+- Commit: `dc2bf33fbd6e95f0fdbaad77b3f8c644af794f93`.
+- Escopo: somente `engineering-learnings.md` e `engineering-guardrails.md`; nenhum Rust/Cargo/workflow/ADR foi alterado.
+- Resultado informado pelo mantenedor no terminal: `PUSH_PUBLISHED_AND_VERIFIED`, 11/11 recovered commit gates PASS; remote HEAD igual ao commit; `FORCE_PUSH=false`.
+- Auditoria pós-Apply: `POSTAPPLY_AUDIT_PASS`, `ALL_GATES_PASS=true`, working tree exata de dois arquivos, backups e hashes aprovados.
+- Consulta ao GitHub para status combinado e workflow runs associadas a PR: listas vazias. O wrapper de workflow runs cobre PR-triggered runs; portanto, CI remoto permanece `NOT_CONFIRMED`.
+
+### Próximo change set — gates documentais
+
+- `git diff --check`;
+- `bash scripts/verify-documentation-current-state.sh`;
+- `bash scripts/verify-mermaid-diagrams.sh`.
+
+Não executar Cargo, Testcontainers ou mutation testing para esta atualização docs-only. Registrar exit code e log real do runner. A Stage 5C ainda não tem gates de implementação até a discovery gate confirmar um consumidor real.
+
+<!-- AMRI-STAGE5B3R-QUALITY-20261121:END -->

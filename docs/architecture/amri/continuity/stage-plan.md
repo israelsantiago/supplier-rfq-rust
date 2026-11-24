@@ -1,5 +1,30 @@
 # Plano completo de implementação AMRI — roadmap e gates
 
+<!-- AMRI-STAGE5B3R-PLAN-CHECKPOINT-20261121:START -->
+
+## Estado vigente do plano — 2026-11-21
+
+As seções e checklists mais antigos deste arquivo são histórico dos change sets já executados; a matriz e os gates deste checkpoint prevalecem como plano corrente.
+
+| Subetapa | Estado | Critério/limite |
+|---|---|---|
+| 5B.2 — External Read-only Providers | Evidência de implementação revisada; encerramento recomendado com limitações | 17/17 PASS; 11 gates frescos, 6 históricos reutilizados com 12 logs validados. Mutation SKIPPED por política. CI remoto sem confirmação. Não repetir os 17 gates sem mudança material. |
+| 5B.3-R — Reconciliação documental | Em execução neste change set | Sincronizar current-state, plano, decisão, evidências, histórico, README e chat-handoff; registrar incidentes dos publishers; criar handoff de 5C. Encerramento após push confirmado. |
+| 5C — Reactor | Discovery gate; sem implementação de produção autorizada | Primeiro identificar interação/call-site real na Application/Delivery. Se nenhum consumidor justificar atomicidade entre capabilities distintas, produzir blocker report e parar. |
+| 6 — Composition Policies + Commit Plan | Pendente | Não antecipar na 5C. |
+| 7 — Commit atômico, marker e recovery | Pendente | Primeiro estágio com escrita AMRI; não antecipar na 5C. |
+
+### Gates de saída desta reconciliação 5B.3-R
+
+- `git apply --stat` e `git apply --check` no HEAD base exato; parser de arquivos/hunks e EOF; backup verificável.
+- Allowlist documental fechada; nenhum arquivo Rust, Cargo, workflow, ADR ou código de produção alterado.
+- `git diff --check`, `bash scripts/verify-documentation-current-state.sh` e `bash scripts/verify-mermaid-diagrams.sh`.
+- Receipt `all_gates_pass=true`, `progress=COMPLETED`, hashes finais e backup; commit/push em comandos separados, fast-forward somente.
+- Após publicação, atualizar handoff e tratar Stage 5B.3-R como encerrada. ADR-0034 permanece Proposed.
+
+<!-- AMRI-STAGE5B3R-PLAN-CHECKPOINT-20261121:END -->
+
+
 O plano detalhado original permanece em [`../implementation-plan.md`](../implementation-plan.md). Este arquivo expande o plano em tarefas executáveis, subetapas e regras de entrada/saída. Cada fase deve gerar um commit/push verificável na mesma branch, após revisão.
 
 ## Visão geral

@@ -123,3 +123,34 @@ ADR-0034 permanece `Proposed`. 5B.2 não autoriza Reactor 5C, composition polici
   renovam snapshot/token e descartam resultados preparados obsoletos.
 
 <!-- AMRI-STAGE5B3R-DECISIONS:END -->
+
+<!-- AMRI-STAGE5B3R-DECISIONS-20261121:START -->
+
+## 5. Decisões operacionais e gates — 2026-11-21
+
+### D-5B3R-01 — Falha de publisher não invalida automaticamente commit já criado
+
+**Estado:** Accepted como regra operacional de recuperação.
+Um publisher deve persistir estado antes da primeira operação Git mutável e produzir recibos imediatamente após cada marco. Se o processo falhar após `git commit`, o próximo passo é reconciliar commit, parent, tree, allowlist, blobs e remoto; nunca repetir o commit cegamente. A reconstrução do recibo precisa declarar que foi recuperado e manter a proveniência do erro original.
+
+### D-5B3R-02 — Diagnósticos devem validar o contrato de ambiente do subprocesso
+
+**Estado:** Accepted como regra operacional.
+Scripts Python que leem `os.environ[...]` devem receber variáveis explicitamente exportadas ou argumentos explícitos. Preflight deve verificar variáveis obrigatórias e falhar com mensagem de contrato ausente, não lançar `KeyError` sem contexto. Fixtures devem testar variável ausente e presente.
+
+### D-5C-01 — Não implementar Reactor sem consumidor real
+
+**Estado:** Gate arquitetural obrigatório; consistente com ADR-0034 Proposed.
+A branch `dc2bf33` contém projeção de contexto, ExecutionContext e Providers read-only, mas não contém um `RfqSourcingReactor` nem um call-site AMRI de Application/Delivery. `AtomicSourcingFlow` e o handler `finalize_rfq_sourcing` operam `FinalizeRfqSourcing` do ADR-0031; esse fluxo é uma capability composta existente, não o consumidor Reactor AMRI. O fluxo `docs/flows/atomic-rfq-sourcing-amri.md` declara o cenário-alvo como Proposed, not implemented. Não o tratar como requisito de produção já confirmado.
+
+**Saída:** antes de código, demonstrar uma interação real que exija fatos de três capabilities independentes no mesmo commit atômico, identificar owners e call-site de Delivery/Application. Se não houver consumidor, publicar blocker report e não criar endpoint/facade/scaffolding.
+
+### D-5C-02 — Resolver discrepância do DAG antes de integrar
+
+A `interaction_definition()` em `src/amri_participants/rfq_sourcing.rs` declara Close e Award sem dependência entre si; Create PO depende de Award. O diagrama em `docs/flows/atomic-rfq-sourcing-amri.md` mostra uma aresta Close → Award, enquanto o texto do próprio documento pede validação pelo domain owner. O comportamento implementado/documentado na Stage 4B prevalece: Close e Award partem independentes e observam o mesmo snapshot até uma decisão explícita, baseada em regra de domínio, alterar esse DAG. Não inserir a aresta apenas para reproduzir o desenho.
+
+### Estado global
+
+ADR-0034 continua `Proposed`. Nenhum dos eventos de publicação documental aceita automaticamente as propostas AMRI-D01…D16.
+
+<!-- AMRI-STAGE5B3R-DECISIONS-20261121:END -->

@@ -1,5 +1,12 @@
 # Stage 5 — Reactor e Providers externos
 
+<!-- AMRI-STAGE5-STATUS-20261121:START -->
+
+> **Checkpoint 2026-11-21:** Stage 5B.2 possui evidência final revisada (17/17 PASS, com seis gates históricos reutilizados e mutation SKIPPED por política; CI remoto não confirmado). Stage 5B.3-R está em reconciliação documental final. Stage 5C entra primeiro em discovery gate: a branch `dc2bf33` ainda não demonstra consumidor real do Reactor. Consultar [handoff dedicado da Stage 5C](./stage-05c-handoff.md). Não antecipar código sem esse consumidor.
+
+<!-- AMRI-STAGE5-STATUS-20261121:END -->
+
+
 **Estado:** Stage 5B.2 re-verificada com 17/17 gates PASS; evidência-only publicada. Encerramento sujeito a revisão humana. Stage 5B.3-R documental; Stage 5C é a próxima implementação funcional.
 
 ## Subetapas executáveis da Stage 5

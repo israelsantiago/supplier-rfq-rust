@@ -1,5 +1,20 @@
 # AMRI — pacote de continuidade do projeto
 
+<!-- AMRI-CONTINUITY-CHECKPOINT-20261121:START -->
+
+## Checkpoint vigente — 2026-11-21
+
+- HEAD publicado de referência: `dc2bf33fbd6e95f0fdbaad77b3f8c644af794f93`.
+- Guardrails zsh/Bash e runner obrigatório publicados em `engineering-learnings.md` e `engineering-guardrails.md`.
+- Stage 5B.2: evidência final revisada — 17/17 gates PASS; 11 frescos, 6 históricos reutilizados após validação de 12 logs; mutation SKIPPED por política; CI remoto não confirmado.
+- Stage 5B.3-R: este change set finaliza sincronização documental e handoff; a conclusão depende de publicação confirmada.
+- Stage 5C: discovery gate; não implementar Reactor sem consumidor real na Application/Delivery.
+
+Novo documento de entrada: [Handoff da Stage 5C](./stages/stage-05c-handoff.md).
+
+<!-- AMRI-CONTINUITY-CHECKPOINT-20261121:END -->
+
+
 **Versão documental:** 1.0\
 **Data do checkpoint:** 2026-11-03\
 **Branch de referência:** `feat/amri-stage4-three-prepared-participants`\

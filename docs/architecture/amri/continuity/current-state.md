@@ -1,5 +1,47 @@
 # Estado atual do AMRI
 
+<!-- AMRI-CHECKPOINT-20261121:START -->
+
+## Checkpoint vigente — 2026-11-21 (publicação dc2bf33)
+
+**HEAD da branch:** `dc2bf33fbd6e95f0fdbaad77b3f8c644af794f93`
+**Branch:** `feat/amri-stage4-three-prepared-participants`
+**Repositório:** `israelsantiago/supplier-rfq-rust`
+**Publicação:** fast-forward confirmado; HEAD remoto igual ao commit; sem force push.
+
+Este checkpoint prevalece sobre os estados históricos abaixo, que permanecem como registro de execução. As instruções antigas de próximo passo nas seções históricas não substituem a tabela vigente acima.
+
+| Item | Estado vigente | Evidência / limite |
+|---|---|---|
+| Stage 5B.2 | Evidência revisada; encerramento recomendado com limitações | 17/17 gates PASS; 11 executados novamente; 6 históricos reutilizados após validação de 12 logs por tamanho/SHA-256; mutation SKIPPED por política; CI remoto não confirmado. A promoção automática permaneceu NOT_PERFORMED no recibo. |
+| Stage 5B.3-R | Reconciliação documental final deste change set | A publicação `dc2bf33` registrou isolamento zsh/Bash e runner obrigatório. Este change set alinha estado/plano/evidências e acrescenta o handoff 5C. Só considerar 5B.3-R encerrada após Apply, gates documentais, commit e push desta reconciliação. |
+| Stage 5C | Discovery gate; implementação de produção ainda não autorizada | A leitura da branch `dc2bf33` não encontrou consumidor AMRI real na Application/Delivery. Não criar Reactor, endpoint, façade ou scaffolding sem caso de uso e call-site reais. |
+| Stage 6–9 | Pendentes | Não antecipar policies, commit plan, append, marker, recovery, hardening ou generalização. |
+
+### Evidência 5B.2 revisada
+
+- Branch de evidência: `evidence/stage5b2-final-reverify-20261120T211047693659491Z`.
+- Commit de evidência: `511fa159ecdcdb4f7c81eddda7c47be5d1474f9f`.
+- Source HEAD validado pelo recibo: `5fc082aee7e869908444b1bd6ac40d0df5c1721d`.
+- Recibo: `17/17 PASS`, zero FAIL; `stage_closure=ELIGIBLE_FOR_MANUAL_REVIEW`.
+- Seis gates históricos foram reutilizados; 12 registros históricos de log tiveram tamanho e SHA-256 validados. Os cinco arquivos com pós-Apply drift foram vinculados ao commit `72d44d8433b23841a9dfb0e875dcfac4accb0fcd`.
+- Mutation consta como `SKIPPED_BY_STAGE5B2_POLICY`, não PASS. CI remoto não foi confirmado.
+
+### Última publicação da continuidade
+
+O commit `dc2bf33fbd6e95f0fdbaad77b3f8c644af794f93` alterou somente:
+- `engineering-learnings.md`;
+- `engineering-guardrails.md`.
+
+O runner de recuperação reportou `RECOVERED_COMMIT_GATES=11/11_PASS`, `PUSH_PUBLISHED_AND_VERIFIED`, `ALL_GATES_PASS=true`, e verificou o HEAD remoto igual a `dc2bf33`. A consulta de status combinado e workflow runs associadas a PR não retornou registros; não inferir CI aprovado nem falho.
+
+### Primeiro próximo trabalho
+
+Concluir e publicar esta reconciliação documental. Depois, usar [handoff Stage 5C](./stages/stage-05c-handoff.md) para a descoberta de um consumidor real. A ausência de consumidor é um bloqueio deliberado à implementação, não uma justificativa para inventar uma façade.
+
+<!-- AMRI-CHECKPOINT-20261121:END -->
+
+
 **Atualizado em:** 2026-11-20
 **Branch:** `feat/amri-stage4-three-prepared-participants`\
 **Repositório:** `israelsantiago/supplier-rfq-rust`\
