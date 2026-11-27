@@ -1,6 +1,15 @@
 # Atomic Multi-RPU Interaction (AMRI)
 
-**Status:** Proposed architecture. The pure AMRI Core (Stage 2), composite-context/atomic-state boundary (Stage 3), Shared Functional Core (Stage 4A) and three prepared RFQ participants (Stage 4B) have implementation code published. Stage 5 Reactor/Providers and later composition/commit/recovery stages remain future work. ADR-0034 remains Proposed; publication of Stage 4B code does not accept the complete AMRI protocol.
+<!-- AMRI-README-PROCUREMENT-COMMIT-20261125:START -->
+
+> **Stage 5C Procurement Commit — checkpoint 2026-11-25:** a implementação de referência v1.0.3 foi aplicada localmente (18 arquivos); os recibos informados pelo mantenedor registram `APPLY=PASS`, `POST_APPLY_TEST=PASS`, `ALL_GATES_PASS=true` e `PRECHECK=PASS`. A revisão manual identificou correções R1–R3 e testes adicionais, reunidos neste change set v1.0.4. A implementação continua local e não publicada. ADR-0034 permanece `Proposed`.
+
+> **Limites:** Reactor read-only, uma leitura composta e três outcomes preparados; nenhum `append_if`, endpoint, call-site de produção ou integração ERP. `FinalizeRfqSourcing`/ADR-0031 e `purchase_order_created.v1` permanecem preservados.
+
+<!-- AMRI-README-PROCUREMENT-COMMIT-20261125:END -->
+
+
+**Status:** Proposed architecture. Stage 5C Procurement Commit v1 is implemented locally and its v1.0.3 Apply/Test/Precheck receipts report PASS; review corrections v1.0.4 are a separate, controlled local change set. Nothing here is published. Stage 6 is the next read-only composition/commit-plan phase; Stage 7 writes remain blocked by budget-contract governance. ADR-0034 remains Proposed.
 
 **Decision record:** [ADR-0034](../adr/0034-atomic-multi-rpu-interaction.md)
 

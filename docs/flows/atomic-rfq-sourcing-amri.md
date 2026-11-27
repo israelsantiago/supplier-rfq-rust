@@ -1,5 +1,38 @@
 # AMRI reference interaction — atomic RFQ sourcing finalization
 
+<!-- AMRI-PROCUREMENT-COMMIT-FLOW-20261125:START -->
+
+## Piloto Procurement Commit — estado e limites (2026-11-25)
+
+A interaction `supply-chain.procurement-commit` v1 prepara:
+
+| Participante | Responsabilidade | Consequência proposta |
+|---|---|---|
+| `ReserveProcurementBudget` | Verifica alocação única e imutável, moeda, saldo e reserva histórica | `procurement_budget_reserved.v1` |
+| `AwardSupplierQuote` | Reutiliza a decisão existente de award | `rfq_awarded.v1` |
+| `IssuePurchaseOrder` | Exige award e reserva compatíveis; reconcilia linhas/total | `purchase_order_created.v2` |
+
+```mermaid
+flowchart TD
+  Input[Seleção revisada + budget + valor/moeda esperados]
+  Input --> Budget[Reserve Procurement Budget]
+  Input --> Award[Award Supplier Quote]
+  Budget --> PO[Issue Purchase Order]
+  Award --> PO
+  PO --> Prepared[Três outcomes preparados]
+  Prepared --> Stage6[Stage 6: validar composição/plano imutável]
+  Stage6 --> Stage7[Stage 7: um append_if + marker/recovery]
+```
+
+Budget e Award são independentes no DAG e observam o mesmo snapshot; execução v1 é sequencial e determinística. PO depende de ambos. O Reactor não escreve e não chama ERP. A fingerprint retornada identifica a especificação de leitura; o token opaco permanece o token de consistência do adapter.
+
+O contrato `procurement_budget_allocated.v1` continua proposto. V1 define uma alocação imutável por `budget_id` e uma reserva histórica por `(budget_id, rfq_id)`, sem ajuste, release, restituição ou re-reserva. O owner/produtor não está identificado no baseline. Stage 6 pode validar a composição; Stage 7/produção aguardam aprovação do owner e desenho formal do ciclo de vida. Consulte `../architecture/amri/continuity/procurement-budget-contract.md`.
+
+`FinalizeRfqSourcing`/ADR-0031 e `purchase_order_created.v1` permanecem inalterados. ADR-0034 continua `Proposed`.
+
+<!-- AMRI-PROCUREMENT-COMMIT-FLOW-20261125:END -->
+
+
 **Status:** Proposed target scenario; not implemented.
 
 **Baseline:** `FinalizeRfqSourcing` in ADR-0031 remains the implemented single-capability solution.

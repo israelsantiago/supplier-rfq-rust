@@ -124,3 +124,48 @@ pub struct PurchaseOrderDispatchRequestedFact {
     pub rfq_id: Uuid,
     pub requested_at: DateTime<Utc>,
 }
+
+pub const PROCUREMENT_BUDGET_ALLOCATED_V1: &str = "procurement_budget_allocated.v1";
+pub const PROCUREMENT_BUDGET_RESERVED_V1: &str = "procurement_budget_reserved.v1";
+pub const PURCHASE_ORDER_CREATED_V2: &str = "purchase_order_created.v2";
+
+/// Proposed input contract for the new budget-reservation capability.
+/// Ownership/source of this fact must be approved by the Financial/Procurement domain owner.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProcurementBudgetAllocatedFact {
+    pub budget_id: Uuid,
+    pub currency: String,
+    pub allocated_amount_cents: i64,
+    pub allocated_at: DateTime<Utc>,
+}
+
+/// Durable reservation fact proposed by the Reserve Procurement Budget capability.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProcurementBudgetReservedFact {
+    pub reservation_id: Uuid,
+    pub budget_id: Uuid,
+    pub rfq_id: Uuid,
+    pub supplier_id: Uuid,
+    pub currency: String,
+    pub reserved_amount_cents: i64,
+    pub reserved_at: DateTime<Utc>,
+}
+
+/// New PO schema. The legacy purchase_order_created.v1 contract is not modified.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PurchaseOrderCreatedV2Fact {
+    pub purchase_order_id: Uuid,
+    pub rfq_id: Uuid,
+    pub supplier_id: Uuid,
+    pub source_quote_id: Uuid,
+    pub budget_id: Uuid,
+    pub budget_reservation_id: Uuid,
+    pub currency: String,
+    pub total_amount_cents: i64,
+    pub delivery_days: i32,
+    pub created_at: DateTime<Utc>,
+    pub items: Vec<QuotedItemFact>,
+}

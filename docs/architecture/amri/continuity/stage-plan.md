@@ -1,5 +1,33 @@
 # Plano completo de implementação AMRI — roadmap e gates
 
+<!-- AMRI-STAGE-PLAN-PROCUREMENT-COMMIT-20261125:START -->
+
+## Plano vigente — Stage 5C / entrada Stage 6 (2026-11-25)
+
+| Change set | Estado | Limite/gate |
+|---|---|---|
+| Stage 5C — Procurement Commit v1 | Implementado localmente; Apply/Test/Precheck v1.0.3 reportados PASS | Uma leitura; três participantes; PO v2; sem writes. Não publicado. |
+| Stage 5C-R — revisão corretiva v1.0.4 | Em execução controlada | Corrige checkpoints R1, nome semântico R2, formaliza R3, adiciona testes PO v2 e política de orçamento; executar dry-run, Apply, post-Apply Test e Precheck próprios. |
+| Stage 6 — Composition + Commit Plan | Próxima etapa, após 5C-R gates PASS | Structural validator, políticas cross-capability e commit plan imutável. Sem `append_if`, armazenamento ou marker. |
+| Stage 7 — Atomic commit + marker/recovery | Bloqueado até Stage 6 e aceite do contrato de orçamento | Um único `append_if`; marker na mesma batch; concorrência e ambiguous-response recovery. |
+| Stage 8 — Delivery/autonomous shells | Pendente | Call-site real, shells independentes, outbox e observabilidade; ERP somente pós-commit. |
+| Stage 9 — Portability proof | Pendente | Segundo domínio antes da extração de crate reutilizável. |
+
+### Critérios de saída da revisão 5C-R
+
+- Documentação sincronizada com os recibos v1.0.3 e com os limites ainda pendentes.
+- Campo `context_specification_fingerprint` nomeia a fingerprint da especificação, sem alegar digest de snapshot.
+- Testes cobrem PO v2 já existente, payload v2 inválido e PO v2 fora do RFQ solicitado.
+- Política financeira v1 documentada: immutable allocation, uma reserva histórica por par, sem adjustment/release; owner/producer approval continua explicitamente pendente para escrita/produção.
+- `cargo fmt`, `cargo check`, `cargo test --lib`, `cargo clippy`, boundary guard, patch check e recibos corretivos aprovados.
+
+### Entrada Stage 6
+
+Stage 6 pode iniciar como validação de estrutura, ordenação, composição e plano imutável das três consequências preparadas. Não pode persistir. A política de orçamento permanece proposta; Stage 7 não pode ser ativada antes da aprovação formal do owner Financeiro/Procurement e desenho do ciclo de vida/release.
+
+<!-- AMRI-STAGE-PLAN-PROCUREMENT-COMMIT-20261125:END -->
+
+
 <!-- AMRI-STAGE5B3R-PLAN-CHECKPOINT-20261121:START -->
 
 ## Estado vigente do plano — 2026-11-21
@@ -10,7 +38,7 @@ As seções e checklists mais antigos deste arquivo são histórico dos change s
 |---|---|---|
 | 5B.2 — External Read-only Providers | Evidência de implementação revisada; encerramento recomendado com limitações | 17/17 PASS; 11 gates frescos, 6 históricos reutilizados com 12 logs validados. Mutation SKIPPED por política. CI remoto sem confirmação. Não repetir os 17 gates sem mudança material. |
 | 5B.3-R — Reconciliação documental | Em execução neste change set | Sincronizar current-state, plano, decisão, evidências, histórico, README e chat-handoff; registrar incidentes dos publishers; criar handoff de 5C. Encerramento após push confirmado. |
-| 5C — Reactor | Discovery gate; sem implementação de produção autorizada | Primeiro identificar interação/call-site real na Application/Delivery. Se nenhum consumidor justificar atomicidade entre capabilities distintas, produzir blocker report e parar. |
+| 5C — Reactor | Implementada localmente; gates v1.0.3 reportados PASS; revisão corretiva v1.0.4 | Procurement Commit read-only; 18 caminhos v1.0.3 aplicados; sem endpoint, commit ou promoção a produção. |
 | 6 — Composition Policies + Commit Plan | Pendente | Não antecipar na 5C. |
 | 7 — Commit atômico, marker e recovery | Pendente | Primeiro estágio com escrita AMRI; não antecipar na 5C. |
 
@@ -37,7 +65,7 @@ O plano detalhado original permanece em [`../implementation-plan.md`](../impleme
 | 3 | Context planner + atomic state port | Implementada/verificada anteriormente |
 | 4A | Shared Functional Core | Implementada, verificada pelo mantenedor, publicada |
 | 4B | Prepared participants RFQ | Implementada, publicada e verificada localmente; Audit V3: 10 gates PASS em 2026-11-04 |
-| 5 | Reactor + Providers | 5B.2 re-verificada; 5B.3-R documental em andamento; Stage 5C seguinte |
+| 5 | Reactor + Providers | 5B.2 com evidência revisada; Stage 5C Procurement Commit empacotada, Apply e gates Rust pendentes |
 | 6 | Composition policies + commit plan | Pendente |
 | 7 | Atomic FACTSTR commit, marker e recovery | Pendente |
 | 8 | Hardening/performance/observabilidade | Pendente |

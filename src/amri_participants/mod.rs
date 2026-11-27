@@ -3,4 +3,5 @@
 //! This module is deliberately separate from `crate::amri`: the AMRI Core remains
 //! domain- and store-independent, while these adapters reuse Supply Chain decisions.
 
+pub mod procurement_commit;
 pub mod rfq_sourcing;

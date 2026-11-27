@@ -1,13 +1,48 @@
 # Stage 5 — Reactor e Providers externos
 
+<!-- AMRI-STAGE5-PROCUREMENT-COMMIT-CHECKPOINT-20261125:START -->
+
+## Checkpoint consolidado da Stage 5 — 2026-11-25
+
+**Baseline:** `d720183fbe31ded306d4eb2b5ca8f948670e6f2b`; branch `feat/amri-stage4-three-prepared-participants`.
+
+### Implementação e evidência
+
+O piloto `supply-chain.procurement-commit` v1 combina:
+
+1. `ReserveProcurementBudget`: verifica alocação única, moeda, saldo cumulativo e identidade da reserva; propõe `procurement_budget_reserved.v1`.
+2. `AwardSupplierQuote`: reutiliza `decide_award_supplier_quote`; propõe `rfq_awarded.v1`.
+3. `IssuePurchaseOrder`: reconcilia award e reserva, linhas, totais e moeda; propõe `purchase_order_created.v2`.
+
+O Apply v1.0.3 foi executado em 18 caminhos. Os recibos informados registram `POST_APPLY_TEST=PASS`, `ALL_GATES_PASS=true` e `PRECHECK=PASS`. A revisão identificou correções R1–R3 e cenários adicionais; v1.0.4 é o change set corretivo e possui gates próprios.
+
+### Fronteiras preservadas
+
+- Uma leitura `CompositeContextReader`, um snapshot e token opaco; o campo `context_specification_fingerprint` representa a fingerprint da especificação de leitura.
+- Reactor read-only; outcomes apenas preparados em memória. Stage 6 compõe/valida e sela plano; Stage 7 escreve uma única batch, marker e recovery.
+- `FinalizeRfqSourcing`/ADR-0031 e `purchase_order_created.v1` permanecem intactos.
+- Sem endpoint, call-site de produção, shell Delivery, ERP ou outbox nesta entrega.
+- Sem alegação de tags DCB nativas; adapter atual usa event type + payload predicates.
+
+### Procurement Budget v1 — contrato proposto e restrito
+
+O baseline não tem evento/capability de alocação nem owner explícito. O contrato de entrada proposto é `procurement_budget_allocated.v1`; o owner/produtor não está identificado no baseline e não será inferido pelo código. A proposta define uma alocação imutável por `budget_id`, valores positivos em minor units, moeda de três letras maiúsculas e uma reserva histórica por `(budget_id, rfq_id)`. Ajuste, release, restituição, partial release e re-reserva não existem em v1. Essa restrição evita inferir saldo liberado, mas não é uma política de negócio aprovada. Nome do owner/produtor e ciclo de vida devem ser aprovados antes do Stage 7/produção. Consultar `../procurement-budget-contract.md`.
+
+### Próxima etapa
+
+Stage 6 pode iniciar somente com structural validation, composição e plano imutável em memória. Não implementar append, marker ou recovery. ADR-0034 continua `Proposed`.
+
+<!-- AMRI-STAGE5-PROCUREMENT-COMMIT-CHECKPOINT-20261125:END -->
+
+
 <!-- AMRI-STAGE5-STATUS-20261121:START -->
 
-> **Checkpoint 2026-11-21:** Stage 5B.2 possui evidência final revisada (17/17 PASS, com seis gates históricos reutilizados e mutation SKIPPED por política; CI remoto não confirmado). Stage 5B.3-R está em reconciliação documental final. Stage 5C entra primeiro em discovery gate: a branch `dc2bf33` ainda não demonstra consumidor real do Reactor. Consultar [handoff dedicado da Stage 5C](./stage-05c-handoff.md). Não antecipar código sem esse consumidor.
+> **Checkpoint histórico 2026-11-21:** Stage 5B.2 possui evidência final revisada (17/17 PASS, com seis gates históricos reutilizados e mutation SKIPPED por política; CI remoto não confirmado). O checkpoint mais recente acima substitui a discovery gate: o piloto Procurement Commit está implementado no pacote, mas ainda depende dos gates Rust locais e do Apply pelo mantenedor.
 
 <!-- AMRI-STAGE5-STATUS-20261121:END -->
 
 
-**Estado:** Stage 5B.2 re-verificada com 17/17 gates PASS; evidência-only publicada. Encerramento sujeito a revisão humana. Stage 5B.3-R documental; Stage 5C é a próxima implementação funcional.
+**Estado:** Stage 5B.2 possui recibo de evidência 17/17 PASS (mutation SKIPPED por política; CI remoto não confirmado). A Stage 5C possui implementação de referência empacotada; Apply e gates Rust no checkout do mantenedor ainda pendentes.
 
 ## Subetapas executáveis da Stage 5
 

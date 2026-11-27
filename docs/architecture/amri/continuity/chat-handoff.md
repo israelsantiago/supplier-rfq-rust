@@ -1,5 +1,45 @@
 # Handoff para iniciar um novo chat AMRI
 
+<!-- AMRI-HANDOFF-PROCUREMENT-COMMIT-20261125:START -->
+
+## Checkpoint vigente — 2026-11-25
+
+**Repositório:** `israelsantiago/supplier-rfq-rust`
+**Branch:** `feat/amri-stage4-three-prepared-participants`
+**HEAD baseline local/remoto:** `d720183fbe31ded306d4eb2b5ca8f948670e6f2b`
+**Diretório local:** `/mnt/Dados/MeusDados/Downloads/supplier-rfq-rpu-rust`
+
+### Estado de execução confirmado
+
+- Stage 5C v1.0.3: Apply aprovado em 18 caminhos; `POST_APPLY_TEST=PASS`; `ALL_GATES_PASS=true`; `PRECHECK=PASS`; commit e push não executados.
+- Recibos originais: `~/.../amri-stage5c-implementation-v1.0.3-runs/20261124T202417Z/{apply-receipt.json,precheck-receipt.json}`. O teste pós-Apply está referenciado em `LATEST_PASSING_TEST` no status do runner.
+- A revisão humana do diff identificou R1 (checkpoints documentais desatualizados), R2 (nome semântico incorreto para fingerprint da especificação) e R3 (governança/política do contrato de orçamento ainda proposta), além de três cenários de projeção PO v2 sem teste específico.
+- O change set corretivo v1.0.4 atualiza a documentação, renomeia o fingerprint, acrescenta os testes e formaliza o limite de orçamento v1. O seu Apply/Test/Precheck possui recibos próprios e não substitui os recibos v1.0.3.
+
+### Próxima ação técnica
+
+1. Executar o bootstrap v1.0.4 diretamente de `~/Downloads`; ele instala o pacote no diretório de dados, confere branch/HEAD/remoto/18 hashes do recibo original e executa `package-check`, `fixture-test` e `dry-run`.
+2. Após `DRY_RUN=PASS`, revisar o patch corretivo e os logs.
+3. Executar `apply --confirm-apply`, `test` e `precheck` do runner v1.0.4. Não repetir Apply v1.0.3.
+4. Com os gates corretivos aprovados, Stage 6 pode iniciar como trabalho de validação estrutural/políticas/plano imutável, ainda sem storage write.
+
+### Contrato Procurement Budget v1 — limite explícito
+
+`procurement_budget_allocated.v1` e `procurement_budget_reserved.v1` são contratos propostos, não existentes no baseline d720. A alocação v1 é única e imutável por `budget_id`; reserva é positiva, na mesma moeda e limitada ao saldo; uma única reserva histórica por `(budget_id, rfq_id)`; não há evento de release, cancelamento com restituição ou ajuste em v1. Isso evita liberar saldo por suposição, mas torna a política imprópria para produção até o owner de negócio nomeado aprovar produtor, granularidade e ciclo de vida/release.
+
+**Não inferir nem inventar o nome do owner:** o repositório não identifica uma pessoa/equipe responsável pelo domínio Financeiro/Procurement. A pendência está formalizada em `procurement-budget-contract.md`. Stage 6 pode trabalhar apenas sobre a proposta; Stage 7/produção permanecem bloqueados até aprovação formal e desenho de release/cancelamento.
+
+### Limites preservados
+
+- ADR-0034 permanece `Proposed`.
+- Stage 5 não cria plano de commit nem escreve fatos.
+- Stage 6 não executa escrita; Stage 7 continua sendo o primeiro estágio com `append_if`, marker e recovery.
+- Não criar endpoint, shell Delivery, outbox ou integração ERP neste change set.
+- Commit e push não são realizados pelos scripts e exigem autorização explícita separada.
+
+<!-- AMRI-HANDOFF-PROCUREMENT-COMMIT-20261125:END -->
+
+
 <!-- AMRI-CURRENT-CHAT-HANDOFF-20261121:START -->
 
 ## Checkpoint vigente — 2026-11-21

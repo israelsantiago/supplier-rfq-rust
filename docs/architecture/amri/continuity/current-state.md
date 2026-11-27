@@ -1,5 +1,22 @@
 # Estado atual do AMRI
 
+<!-- AMRI-CURRENT-STATE-PROCUREMENT-COMMIT-20261125:START -->
+
+## Checkpoint vigente — Stage 5C Procurement Commit (2026-11-25)
+
+- **Baseline:** branch `feat/amri-stage4-three-prepared-participants`, HEAD local/remoto `d720183fbe31ded306d4eb2b5ca8f948670e6f2b`.
+- **Implementação base v1.0.3:** Apply PASS em 18 caminhos; post-apply test PASS; `ALL_GATES_PASS=true`; Precheck PASS. Commit/push `NOT_PERFORMED`.
+- **Revisão manual:** R1 documental, R2 nomenclatura de fingerprint e R3 governança do contrato de orçamento foram identificadas. O change set corretivo v1.0.4 implementa as correções técnicas e os testes adicionais, com validação própria obrigatória antes de publicação.
+- **Reactor:** uma leitura `CompositeContextReader`; três outcomes preparados; token de consistência opaco preservado. O fingerprint público é o da especificação de contexto, não digest dos fatos/snapshot.
+- **Stage 6:** próximo estágio permitido após os gates corretivos v1.0.4; escopo de validação estrutural, composição e plano imutável, sem escrita.
+- **Stage 7:** ainda não iniciar. `append_if`, marker e recovery dependem de Stage 6 e da aprovação formal do contrato de orçamento.
+- **Budget v1:** contrato proposto; uma alocação imutável por `budget_id`, reserva histórica única por `(budget_id, rfq_id)`, sem ajuste/release/cancelamento com restituição. Owner/produtor real não é identificável no baseline e deve ser nomeado/aprovado pelo domínio Financeiro/Procurement.
+- **Legacy:** `FinalizeRfqSourcing`/ADR-0031 e `purchase_order_created.v1` continuam inalterados. PO AMRI usa v2.
+- **ADR-0034:** permanece `Proposed`; nenhuma aceitação global é inferida.
+
+<!-- AMRI-CURRENT-STATE-PROCUREMENT-COMMIT-20261125:END -->
+
+
 <!-- AMRI-CHECKPOINT-20261121:START -->
 
 ## Checkpoint vigente — 2026-11-21 (publicação dc2bf33)
@@ -15,7 +32,7 @@ Este checkpoint prevalece sobre os estados históricos abaixo, que permanecem co
 |---|---|---|
 | Stage 5B.2 | Evidência revisada; encerramento recomendado com limitações | 17/17 gates PASS; 11 executados novamente; 6 históricos reutilizados após validação de 12 logs por tamanho/SHA-256; mutation SKIPPED por política; CI remoto não confirmado. A promoção automática permaneceu NOT_PERFORMED no recibo. |
 | Stage 5B.3-R | Reconciliação documental final deste change set | A publicação `dc2bf33` registrou isolamento zsh/Bash e runner obrigatório. Este change set alinha estado/plano/evidências e acrescenta o handoff 5C. Só considerar 5B.3-R encerrada após Apply, gates documentais, commit e push desta reconciliação. |
-| Stage 5C | Discovery gate; implementação de produção ainda não autorizada | A leitura da branch `dc2bf33` não encontrou consumidor AMRI real na Application/Delivery. Não criar Reactor, endpoint, façade ou scaffolding sem caso de uso e call-site reais. |
+| Stage 5C | Implementação local validada; revisão corretiva v1.0.4 em execução controlada | v1.0.3 Apply/Test/Precheck reportados PASS; R1–R3 e testes adicionais corrigidos em v1.0.4. Sem commit/push. |
 | Stage 6–9 | Pendentes | Não antecipar policies, commit plan, append, marker, recovery, hardening ou generalização. |
 
 ### Evidência 5B.2 revisada

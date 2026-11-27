@@ -3,6 +3,9 @@
 //! The generic AMRI Core remains independent of RFQ, FACTSTR and storage.
 
 pub mod execution_context;
+pub mod procurement_commit_context;
+pub mod procurement_commit_execution;
+pub mod procurement_commit_reactor;
 pub(crate) mod providers;
 pub mod rfq_sourcing_context;
 

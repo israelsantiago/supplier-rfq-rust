@@ -1,5 +1,33 @@
 # Registro de decisões, escolhas e invariantes AMRI
 
+<!-- AMRI-PROCUREMENT-COMMIT-DECISIONS-20261125:START -->
+
+## Checkpoint vigente — piloto Procurement Commit (2026-11-25)
+
+| ID | Decisão/candidato | Estado e limite |
+|---|---|---|
+| D-5C-03 | Interaction `supply-chain.procurement-commit` v1 | Protótipo Stage 5C implementado; Apply/Test/Precheck v1.0.3 reportados PASS. Change set corretivo v1.0.4 exige seus próprios gates. Não substitui ADR-0031. |
+| D-5C-04 | Grafo | Reserve Budget e Award independentes; Issue PO depende de ambos. Execução sequencial/topológica e determinística; não inserir CloseRfq. |
+| D-5C-05 | `procurement_budget_allocated.v1` | Contrato proposto, ausente do baseline. Owner/produtor nomeado ainda não identificado; não inventar ownership. Aprovação de Financeiro/Procurement é gate de produção. |
+| D-5C-06 | `purchase_order_created.v2` | Contrato novo com `budget_id` e `budget_reservation_id`; v1 permanece integralmente preservado. |
+| D-5C-07 | Consistência da preparação | Um `CompositeContextReader`, um snapshot, um token opaco; nenhuma porta de escrita no Reactor. |
+| D-5C-08 | Identidade e retry | Capturar identidade/relógio/IDs uma vez; retries reutilizam identidade/IDs e fazem nova leitura; outcomes anteriores são descartados. |
+| D-5C-09 | Fronteira de fases | Stage 5 prepara; Stage 6 valida estrutura/composição e sela plano imutável; Stage 7 executa o único `append_if`, marker e recovery. |
+| D-5C-10 | Delivery | Sem endpoint, shell autónoma, call-site produtivo ou ERP nesta entrega. |
+| D-5C-11 | CCC/DCB | O adapter usa event type + payload predicates; nenhuma compatibilidade nativa com tags DCB é reivindicada. |
+| D-5C-12 | Política Procurement Budget v1 | Uma alocação imutável por `budget_id`; reserva positiva, moeda idêntica e saldo nunca negativo; uma reserva histórica por `(budget_id, rfq_id)`. Sem ajuste, release, cancelamento com restituição ou reserva substituta em v1. Formalizada em `procurement-budget-contract.md`. |
+| D-5C-13 | Ownership do contrato de orçamento | Status `Proposed / owner approval required`. A fonte não identifica equipe/pessoa ou produtor da alocação; isso deve ser definido pelo owner de negócio antes do Stage 7/produção. Stage 6 pode avançar sem escrita, mantendo o bloqueio explícito. |
+| D-5C-14 | Fingerprint retornado | `context_specification_fingerprint` identifica a especificação da leitura. Não é hash do snapshot nem token de consistência; o token opaco do adapter é preservado separadamente. |
+
+### Gate de domínio do orçamento
+
+A regra v1 fail-closed foi escolhida para o protótipo: alocação única/imutável; uma reserva histórica por par `(budget_id, rfq_id)`; sem release ou ajuste. Isso não cria uma política de negócio aprovada. Antes de Stage 7/produção, o owner Financeiro/Procurement deverá aprovar o produtor, a granularidade, alterações de alocação, cancelamento, release total/parcial, re-reserva e ciclo de vida da reserva. Nenhum release parcial ou implícito será inferido.
+
+ADR-0034 permanece `Proposed`. Stage 6 está limitado à validação estrutural/políticas e commit plan imutável, sem persistência. Stage 7 e a ativação produtiva aguardam o gate do contrato de orçamento.
+
+<!-- AMRI-PROCUREMENT-COMMIT-DECISIONS-20261125:END -->
+
+
 **Legenda:** `Accepted` = decisão formal aceita em ADR; `Proposed` = decisão de ADR-0034 ainda em avaliação; `Implemented` = existe código; `Reported by maintainer` = execução confirmada pelo mantenedor, sem log completo arquivado aqui.
 
 ## 1. ADRs e decisões de base
